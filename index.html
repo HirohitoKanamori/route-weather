@@ -7,12 +7,30 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Route Weather JP">
 <meta name="description" content="ブルベ向け。コースと出走時刻から、通過時点の風・雨・気温を見る">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F6EEEC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1B1F23" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
 <title>Route Weather JP — ブルベ向けコース天候予報</title>
 <style>
   :root{
-    --paper:#F6EEEC; --paper-2:#EADEDA; --ink:#1E2A32; --ink-2:#4B5A63; --ink-3:#8A969C; --line:#C9CEC5;
+    --card:#fff; --paper:#F6EEEC; --paper-2:#EADEDA; --ink:#1E2A32; --ink-2:#4B5A63; --ink-3:#8A969C; --line:#C9CEC5;
     --head:#C8462B; --tail:#2E7D5B; --cross:#C79A2F; --rain:#3B6FB6; --night:#2A3448; --sleep:#6E5A8E; --na:#6F7A80;
     --info-bg:#E4ECF5; --info-ink:#25405E; --warn-bg:#FBF1DC; --warn-ink:#6B4E12; --err-bg:#F8E3DF; --err-ink:#7A2A1C;
+    --sleep-row:#F0ECF5; --best-row:#EAF3EE; --map-filter:grayscale(1) brightness(1.08) contrast(.85);
+    color-scheme:light;
+  }
+  /* ダークモード：OS 設定に従う（自動）か、ヘッダーの切り替えで固定 */
+  :root[data-theme="dark"]{ --paper:#1B1F23; --paper-2:#2B3237; --card:#23292E; --ink:#E9ECEB; --ink-2:#B9C1C5; --ink-3:#8A969C; --line:#3B444A;
+    --head:#E5694E; --tail:#4FB086; --cross:#DDB553; --rain:#6A9DE0; --night:#AEB9D6; --sleep:#B39FD9; --na:#9AA4A9;
+    --info-bg:#22344A; --info-ink:#C9DAF0; --warn-bg:#4A3A15; --warn-ink:#F1DDA8; --err-bg:#4A241C; --err-ink:#F3C4BA;
+    --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85); color-scheme:dark; }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --paper:#1B1F23; --paper-2:#2B3237; --card:#23292E; --ink:#E9ECEB; --ink-2:#B9C1C5; --ink-3:#8A969C; --line:#3B444A;
+    --head:#E5694E; --tail:#4FB086; --cross:#DDB553; --rain:#6A9DE0; --night:#AEB9D6; --sleep:#B39FD9; --na:#9AA4A9;
+    --info-bg:#22344A; --info-ink:#C9DAF0; --warn-bg:#4A3A15; --warn-ink:#F1DDA8; --err-bg:#4A241C; --err-ink:#F3C4BA;
+    --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85); color-scheme:dark; } 
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--paper);color:var(--ink);
@@ -36,7 +54,7 @@
   .notice.err{background:var(--err-bg);color:var(--err-ink)}
 
   /* 設定欄（折りたたみ） */
-  details.settings{background:#fff;border:1px solid var(--line);border-radius:10px;margin-top:10px}
+  details.settings{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:10px}
   details.settings>summary{list-style:none;cursor:pointer;padding:0 14px;min-height:46px;display:flex;align-items:center;gap:8px;font-weight:600}
   details.settings>summary::-webkit-details-marker{display:none}
   details.settings>summary::before{content:"▸";color:var(--ink-3);flex:none}
@@ -44,36 +62,36 @@
   .sumLine{font-weight:400;color:var(--ink-2);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   .ctl{padding:0 14px 14px;display:flex;flex-direction:column;gap:12px}
   .loadBtn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;border:1.5px solid var(--ink);border-radius:8px;
-    background:#fff;font-weight:600;cursor:pointer;position:relative;overflow:hidden}
+    background:var(--card);font-weight:600;cursor:pointer;position:relative;overflow:hidden}
   .loadBtn input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;font-size:0}
-  .loadBtn.on{background:#faf3f1;border-style:dashed}
+  .loadBtn.on{background:var(--paper);border-style:dashed}
   .loadBtn:focus-within{outline:2px solid var(--ink);outline-offset:1px}
   .howto{font-size:12px;color:var(--ink-3);line-height:1.5}
   .course{background:var(--paper);border-radius:8px;padding:8px 10px;font-size:13px}
   .course .name{font-weight:600;word-break:break-all}
   .course .meta{color:var(--ink-2);font-size:12px}
   .courseBtns{display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:8px}
-  .courseBtns select{border:1px solid var(--line);background:#fff;border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px}
+  .courseBtns select{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px}
   .field{display:flex;flex-direction:column;gap:4px}
   .field label,.field .lbl{font-size:12px;color:var(--ink-2)}
-  .field input,.sleeps .sleep input{border:1px solid var(--line);background:#fff;border-radius:6px;padding:0 10px;min-height:44px;width:100%;font-size:16px}
+  .field input,.sleeps .sleep input{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:0 10px;min-height:44px;width:100%;font-size:16px}
   .field input:focus,.sleeps .sleep input:focus,button:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .sleeps{display:flex;flex-direction:column;gap:6px}
   .sleeps .sleep{display:grid;grid-template-columns:1fr 1fr 44px;gap:6px} /* 設定欄の仮眠行。区間表の tr.sleep とは別物 */
   .sleeps .seg{display:grid;grid-template-columns:1fr 1fr 1fr 44px;gap:6px}
   .anchor{display:grid;grid-template-columns:1fr 1.5fr 44px 44px;gap:6px}
-  .sleeps .seg input,.anchor input{border:1px solid var(--line);background:#fff;border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px}
+  .sleeps .seg input,.anchor input{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px}
   .sleeps .seg input:focus,.anchor input:focus{outline:2px solid var(--ink);outline-offset:1px}
-  .btn{border:1px solid var(--line);background:#fff;border-radius:6px;min-height:44px;min-width:44px;padding:0 12px;cursor:pointer}
-  .primary{border:0;background:var(--ink);color:#fff;border-radius:8px;min-height:48px;padding:0 14px;cursor:pointer;font-weight:600}
+  .btn{border:1px solid var(--line);background:var(--card);border-radius:6px;min-height:44px;min-width:44px;padding:0 12px;cursor:pointer}
+  .primary{border:0;background:var(--ink);color:var(--paper);border-radius:8px;min-height:48px;padding:0 14px;cursor:pointer;font-weight:600}
   .primary[disabled]{opacity:.5;cursor:default}
   .status{font-size:12px;color:var(--ink-2);min-height:1.2em}
   .status.err{color:var(--err-ink)}
 
   /* 要点 */
   .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px}
-  .card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:44px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:44px}
   .card .k{font-size:11px;color:var(--ink-2)}
   .card .v{font-size:16px;font-weight:600;line-height:1.3}
   .card .s{font-size:11px;color:var(--ink-3)}
@@ -81,13 +99,15 @@
   .card.rain .v{color:var(--rain)}
 
   /* パネル・リボン */
-  .panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 6px 4px;margin-top:12px;position:relative}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 6px 4px;margin-top:12px;position:relative}
   .panel h2{padding:0 6px}
   .ribbon svg{display:block;width:100%;height:auto;touch-action:pan-y}
+  .panelBar{display:flex;justify-content:flex-end;padding:0 2px 6px}
+  .btn.small{min-height:32px;font-size:12px;padding:0 10px}
   .lane-label{font-size:10px;fill:var(--ink-2)}
   .tick{font-size:10px;fill:var(--ink-2)}
   .tick.day{font-weight:700;fill:var(--ink)}
-  .tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;line-height:1.45;padding:8px 10px;border-radius:6px;
+  .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font-size:12px;line-height:1.45;padding:8px 10px;border-radius:6px;
     display:none;z-index:2;max-width:min(320px,calc(100% - 12px))}
   .tip b{font-weight:600}
   .tip.pinned{pointer-events:auto;box-shadow:0 2px 8px rgba(0,0,0,.25)}
@@ -99,20 +119,21 @@
   table{width:100%;border-collapse:collapse;font-size:13px}
   th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}
   th{font-weight:600;color:var(--ink-2);font-size:11px}
+  .bar .theme{margin-left:auto;font-size:12px;min-height:32px;padding:0 10px}
   td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
-  tr.night td{background:#F5F0EE}
+  tr.night td{background:var(--paper)}
   tr.na td{color:var(--ink-3)}
-  tr.sleep td{background:#F0ECF5;color:var(--sleep);font-weight:600}
-  tr.best td{background:#EAF3EE}
+  tr.sleep td{background:var(--sleep-row);color:var(--sleep);font-weight:600}
+  tr.best td{background:var(--best-row)}
   .rel{display:inline-block;padding:0 6px;border-radius:4px;color:#fff;font-size:11px;line-height:18px;vertical-align:1px}
   .rel.head{background:var(--head)} .rel.tail{background:var(--tail)} .rel.cross{background:var(--cross)}
   small.sub{font-size:11px;color:var(--ink-3);font-weight:400}
   .tag{display:inline-block;font-size:10px;border:1px solid var(--ink-3);color:var(--ink-2);border-radius:3px;padding:0 4px;margin-left:4px;line-height:15px;vertical-align:1px}
   .map .osm{position:relative;overflow:hidden;border-radius:6px;background:var(--paper-2);margin:0 auto}
   .map .osm img{position:absolute;display:block;width:256px;height:256px;pointer-events:none;user-select:none;
-    filter:grayscale(1) brightness(1.08) contrast(.85)} /* 地図はモノクロ・淡めにして風矢印の色を目立たせる */
+    filter:var(--map-filter)} /* 地図はモノクロ・淡めにして風矢印の色を目立たせる（ダークでは反転） */
   .map .osm svg{position:absolute;left:0;top:0;display:block}
-  .map .osm .attr{position:absolute;right:4px;bottom:2px;font-size:10px;line-height:1.4;color:var(--ink-2);background:rgba(255,255,255,.8);padding:0 4px;border-radius:3px}
+  .map .osm .attr{position:absolute;right:4px;bottom:2px;font-size:10px;line-height:1.4;color:var(--ink-2);background:var(--card);opacity:.9;padding:0 4px;border-radius:3px}
   .map .osm .attr a{color:inherit}
   .map .note{font-size:11px;color:var(--ink-2);margin:6px 4px 2px}
   .src{font-size:11px;color:var(--ink-3);line-height:1.6;margin-top:16px;padding:0 4px}
@@ -131,6 +152,7 @@
   <header class="bar">
     <h1>Route Weather JP</h1>
     <span class="sub">コースと出走時刻から、通過時点の風・雨・気温を見る</span>
+    <button type="button" class="btn theme" id="theme" title="表示モード（自動／ダーク／ライト）">表示：自動</button>
   </header>
 
   <div class="layout" id="layout">
@@ -190,6 +212,7 @@
         <section class="summary" id="summary" aria-label="要点"></section>
 
         <section class="panel ribbon" id="ribbonWrap">
+          <div class="panelBar"><button type="button" class="btn small" id="share" title="リボンと要点を画像にして共有・保存">画像で共有</button></div>
           <div id="ribbon"></div>
           <div class="tip" id="tip"></div>
           <div class="legend">
@@ -250,6 +273,10 @@
   </footer>
 </div>
 
+<script>
+// 表示モードを最初に適用（自動＝OS 設定に従う）
+try { const th = localStorage.getItem('rw:theme'); if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
+</script>
 <script>
 /*==CORE-BEGIN==*/
 // 純粋関数群（course / plan / wind / sun / forecast / fmt）。DOM・ネットワークに触れない。
@@ -1072,18 +1099,18 @@ const RW = (function () {
     // SVG 重ね描き：コース線（白縁取り）、風矢印（実方位・白縁取り）、スタート／ゴール
     let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="コース地図と風向">`;
     const pts = P.map(q => { const v = px(q.lat, q.lon); return v[0].toFixed(1) + ',' + v[1].toFixed(1); }).join(' ');
-    s += `<polyline fill="none" stroke="#fff" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" opacity=".9" points="${pts}"/>`;
+    s += `<polyline fill="none" stroke="var(--card)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" opacity=".9" points="${pts}"/>`;
     s += `<polyline fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/>`;
     const st = Math.max(1, Math.ceil(S.length / 28));
     S.forEach((pt, i) => {
       if (pt.na || i % st) return;
       const v = px(pt.lat, pt.lon); const ang = (pt.wd + 180) - 90; const len = 8 + pt.ws * 1.6; // 吹いていく向き
-      s += arrow(v[0], v[1], ang, len, '#fff', 4.5) + arrow(v[0], v[1], ang, len, COL[pt.cls], 2);
+      s += arrow(v[0], v[1], ang, len, 'var(--card)', 4.5) + arrow(v[0], v[1], ang, len, COL[pt.cls], 2);
     });
     const s0 = px(P[0].lat, P[0].lon), g = px(P[P.length - 1].lat, P[P.length - 1].lon);
-    s += `<circle cx="${s0[0].toFixed(1)}" cy="${s0[1].toFixed(1)}" r="5" fill="var(--ink)" stroke="#fff" stroke-width="2"/>`;
-    s += `<circle cx="${g[0].toFixed(1)}" cy="${g[1].toFixed(1)}" r="4" fill="#fff" stroke="var(--ink)" stroke-width="2"/>`;
-    s += `<text x="${(s0[0] + 8).toFixed(1)}" y="${(s0[1] + 4).toFixed(1)}" class="tick" fill="var(--ink)" stroke="#fff" stroke-width="3" paint-order="stroke">スタート</text></svg>`;
+    s += `<circle cx="${s0[0].toFixed(1)}" cy="${s0[1].toFixed(1)}" r="5" fill="var(--ink)" stroke="var(--card)" stroke-width="2"/>`;
+    s += `<circle cx="${g[0].toFixed(1)}" cy="${g[1].toFixed(1)}" r="4" fill="var(--card)" stroke="var(--ink)" stroke-width="2"/>`;
+    s += `<text x="${(s0[0] + 8).toFixed(1)}" y="${(s0[1] + 4).toFixed(1)}" class="tick" fill="var(--ink)" stroke="var(--card)" stroke-width="3" paint-order="stroke">スタート</text></svg>`;
     host.innerHTML = `<div class="osm" style="width:${W}px;height:${H}px">${tiles}${s}<div class="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div></div>` +
       '<div class="note">矢印＝風の吹いていく向き（実方位）。色は進行方向に対する相対風。●スタート ○ゴール</div>';
   }
@@ -1106,7 +1133,57 @@ const RW = (function () {
     $('modelInfo').textContent = '　' + parts.join(' ／ ') + '（JST）';
   }
 
+  // ===== 画像で共有（V-9）：リボン SVG を canvas に描き、共有シート（無ければ保存）へ =====
+  const FONT = '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif';
+  async function shareImage() {
+    if (!state.result) return;
+    const { p, sm } = state.result; const course = state.course;
+    const svgEl = document.querySelector('#ribbon svg'); if (!svgEl) return;
+    const cs = getComputedStyle(document.documentElement); const v = name => cs.getPropertyValue(name).trim();
+    const clone = svgEl.cloneNode(true);
+    ['#hit', '#cur'].forEach(sel => { const el = clone.querySelector(sel); if (el) el.remove(); });
+    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    style.textContent = `text{font-family:${FONT}}.tick{font-size:10px;fill:${v('--ink-2')}}.tick.day{font-weight:700;fill:${v('--ink')}}.lane-label{font-size:10px;fill:${v('--ink-2')}}`;
+    clone.insertBefore(style, clone.firstChild);
+    const xml = new XMLSerializer().serializeToString(clone).replace(/var\((--[a-z0-9-]+)\)/g, (m, n) => v(n) || '#000');
+    const W = +svgEl.getAttribute('width'), H = +svgEl.getAttribute('height');
+    const scale = 2, head = 66, foot = 22, pad = 10;
+    const canvas = document.createElement('canvas'); canvas.width = (W + pad * 2) * scale; canvas.height = (head + H + foot) * scale;
+    const ctx = canvas.getContext('2d'); ctx.scale(scale, scale);
+    ctx.fillStyle = v('--card'); ctx.fillRect(0, 0, W + pad * 2, head + H + foot);
+    ctx.fillStyle = v('--ink'); ctx.font = 'bold 14px ' + FONT; ctx.fillText(course.name, pad, 20);
+    ctx.fillStyle = v('--ink-2'); ctx.font = '12px ' + FONT;
+    ctx.fillText(`${F.fmtDT(p.start)} 出走 ・ ${p.spd} km/h${p.sleeps.length ? ' ・ 仮眠 ' + p.sleeps.map(x => Math.round(x.d) + 'km/' + x.m + '分').join(', ') : ''} ・ ゴール予定 ${F.fmtDT(sm.goal)}`, pad, 40);
+    ctx.fillText(`向かい風 ${sm.headKm} km ・ 雨中走行 ${sm.rainKm} km ・ 最低気温 ${sm.tmin ? n1(sm.tmin.temp) + '℃' : '—'} ・ 夜間 ${sm.nightKm} km`, pad, 57);
+    const url = URL.createObjectURL(new Blob([xml], { type: 'image/svg+xml;charset=utf-8' }));
+    try {
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('リボンの画像化に失敗しました')); img.src = url; });
+      ctx.drawImage(img, pad, head, W, H);
+    } finally { URL.revokeObjectURL(url); }
+    ctx.fillStyle = v('--ink-3'); ctx.font = '10px ' + FONT;
+    ctx.fillText('Route Weather JP ／ 出典：気象庁 数値予報（MSM/GSM）— Open-Meteo 経由 ／ 予報取得 ' + F.fmtDT(state.series.fetchedAt), pad, head + H + 14);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    if (!blob) throw new Error('PNG を作れませんでした');
+    const file = new File([blob], `route-weather-${F.ymd(p.start)}.png`, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'Route Weather JP' }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  }
+
   // ===== 配線 =====
+  $('share').addEventListener('click', async () => { try { await shareImage(); } catch (e) { setStatus('画像の共有に失敗しました：' + e.message, 'err'); } });
+  $('theme').addEventListener('click', () => {
+    const cur = document.documentElement.dataset.theme || 'auto';
+    const next = cur === 'auto' ? 'dark' : cur === 'dark' ? 'light' : 'auto';
+    if (next === 'auto') { delete document.documentElement.dataset.theme; store.del('rw:theme'); } else { document.documentElement.dataset.theme = next; store.set('rw:theme', next); }
+    renderTheme(); if (state.result) { renderRibbon(); renderMap(); }
+  });
+  function renderTheme() { const cur = document.documentElement.dataset.theme || 'auto'; $('theme').textContent = '表示：' + ({ auto: '自動', dark: 'ダーク', light: 'ライト' })[cur]; }
+  renderTheme();
+  if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('./sw.js').catch(() => { /* 未対応・失敗時は通常動作 */ }); }
   $('file').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) loadFile(f); });
   const lb = $('loadBtn'); // PC 向けの補助：ドラッグ＆ドロップ
   ['dragenter', 'dragover'].forEach(ev => lb.addEventListener(ev, e => { e.preventDefault(); lb.classList.add('on'); }));
