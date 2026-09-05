@@ -383,7 +383,7 @@ import { RW } from './core.js';
     const sun = pt.sun != null ? `　日照 ${Math.round(pt.sun / 36)}%` : '';
     return head + `<br>${esc(RW.forecast.wmoText(pt.code))}　${n1(pt.temp)}℃${pt.feel != null ? '（体感 ' + n1(pt.feel) + '℃）' : ''}　湿度 ${Math.round(pt.rh)}%${sun}${ele}` +
       `<br>${RW.wind.dir16(pt.wd)}の風 ${n1(pt.ws)} m/s → <b>${REL[pt.cls]}風</b>（進行方向成分 ${pt.comp >= 0 ? '+' : ''}${n1(pt.comp)} m/s）` +
-      `<br>降水 ${n1(pt.mm)} mm/h${pt.model === 'gsm' ? '　<span class="tag" style="color:#fff;border-color:#fff">GSM</span>' : ''}`;
+      `<br>降水 ${n1(pt.mm)} mm/h${pt.model === 'gsm' ? '　<span class="tag" style="color:inherit;border-color:currentColor">GSM</span>' : ''}`;
   }
   function bindRibbon(host, S, xOf, L, innerW, W) {
     const svg = host.querySelector('svg'), hit = svg.querySelector('#hit'), cur = svg.querySelector('#cur'), tip = $('tip'), wrap = $('ribbonWrap');
@@ -438,8 +438,57 @@ import { RW } from './core.js';
     // 通過列の幅を広げないよう到着・出発は 2 行に分け、他の列は空セルで揃える
     return `<tr class="sleep"><td class="n">${Math.round(sl.d)} km</td><td>着 ${F.fmtDT(RW.plan.timeAt(sl.d, p, true))}<br>発 ${F.fmtDT(RW.plan.timeAt(sl.d, p))}</td><td>仮眠 ${sl.m} 分</td><td></td><td class="n"></td><td class="n"></td></tr>`;
   }
-  // 略地図：OpenStreetMap の標準タイルを静的に敷き、その上に SVG でコース線と風矢印を重ねる（ライブラリ不使用）
+  // ===== 本地図（V-6）：Leaflet + OSM タイル。Leaflet が読めない場合は静的な略地図にフォールバック =====
+  const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  let lmap = null, lmapHash = null, lmapLayers = null, lmapTheme = null;
+  const MAP_NOTE = '<div class="note">矢印＝風の吹いていく向き（実方位）。色は進行方向に対する相対風。矢印をタップすると詳細。●スタート ○ゴール</div>';
   function renderMap() {
+    const host = $('map');
+    if (typeof L === 'undefined') { renderMapStatic(); return; }
+    if (!host.clientWidth) { requestAnimationFrame(() => { if (state.result) renderMap(); }); return; } // レイアウト前なら次のフレームで
+    const P = state.course.pts; const hash = RW.course.hashCourse(state.course);
+    const theme = document.documentElement.dataset.theme || 'auto';
+    const W = Math.max(260, Math.floor(host.clientWidth || 300)); const H = Math.round(Math.min(W * 0.85, 420));
+    if (!lmap || lmapHash !== hash || lmapTheme !== theme) {
+      if (lmap) { lmap.remove(); lmap = null; }
+      host.innerHTML = '<div class="leaflet" id="leaflet"></div>' + MAP_NOTE;
+      const el = $('leaflet'); el.style.height = H + 'px';
+      lmap = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true });
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' }).addTo(lmap);
+      const latlngs = P.map(q => [q.lat, q.lon]);
+      L.polyline(latlngs, { color: cssVar('--card'), weight: 6, opacity: .9, interactive: false }).addTo(lmap);
+      L.polyline(latlngs, { color: cssVar('--ink'), weight: 2.5, interactive: false }).addTo(lmap);
+      lmapLayers = { arrows: L.layerGroup().addTo(lmap), marks: L.layerGroup().addTo(lmap) };
+      lmap.fitBounds(L.latLngBounds(latlngs), { padding: [16, 16] });
+      lmap.on('zoomend moveend', updateMapArrows);
+      lmapHash = hash; lmapTheme = theme;
+    } else { $('leaflet').style.height = H + 'px'; lmap.invalidateSize(); }
+    updateMapArrows();
+  }
+  // 風矢印：ズームに応じて 30px 以上離れた地点だけを描く（重なり防止）。タップで詳細
+  function updateMapArrows() {
+    if (!lmap || !state.result || !lmapLayers) return;
+    const { S, p } = state.result; const P = state.course.pts;
+    lmapLayers.arrows.clearLayers(); lmapLayers.marks.clearLayers();
+    const halo = cssVar('--card'); const cols = { head: cssVar('--head'), tail: cssVar('--tail'), cross: cssVar('--cross') };
+    let last = null;
+    for (const pt of S) {
+      if (pt.na) continue;
+      const pos = lmap.latLngToLayerPoint([pt.lat, pt.lon]);
+      if (last && pos.distanceTo(last) < 30) continue;
+      last = pos;
+      const ang = (pt.wd + 180) - 90; const len = 8 + pt.ws * 1.6; const box = len + 12;
+      const html = `<svg width="${box}" height="${box}" viewBox="${-box / 2} ${-box / 2} ${box} ${box}" xmlns="http://www.w3.org/2000/svg">${arrow(0, 0, ang, len, halo, 4.5)}${arrow(0, 0, ang, len, cols[pt.cls], 2)}</svg>`;
+      const icon = L.divIcon({ html, className: 'windIcon', iconSize: [box, box], iconAnchor: [box / 2, box / 2] });
+      L.marker([pt.lat, pt.lon], { icon, keyboard: false }).bindPopup(tipHtml(pt), { maxWidth: 320, closeButton: true }).addTo(lmapLayers.arrows);
+    }
+    const s0 = P[0], g = P[P.length - 1];
+    L.circleMarker([s0.lat, s0.lon], { radius: 6, color: halo, weight: 2, fillColor: cssVar('--ink'), fillOpacity: 1 }).bindTooltip('スタート').addTo(lmapLayers.marks);
+    L.circleMarker([g.lat, g.lon], { radius: 5, color: cssVar('--ink'), weight: 2, fillColor: halo, fillOpacity: 1 }).bindTooltip('ゴール').addTo(lmapLayers.marks);
+    if (p.anchor) { const q = RW.course.interp(state.course, p.anchor.d); L.circleMarker([q.lat, q.lon], { radius: 7, color: cssVar('--ink'), weight: 2, dashArray: '3 3', fillColor: cssVar('--sleep'), fillOpacity: .8 }).bindTooltip('現在地 ' + Math.round(p.anchor.d) + ' km').addTo(lmapLayers.marks); }
+  }
+  // 略地図（静的）：OpenStreetMap の標準タイルを並べ、その上に SVG でコース線と風矢印を重ねる。Leaflet 非読込時のフォールバック
+  function renderMapStatic() {
     const host = $('map'); const { S } = state.result; const P = state.course.pts;
     const W = Math.max(260, Math.floor(host.clientWidth || 300)); const H = Math.round(Math.min(W * 0.85, 400)); const pad = 26;
     const lats = P.map(q => q.lat), lons = P.map(q => q.lon);
@@ -475,8 +524,7 @@ import { RW } from './core.js';
     s += `<circle cx="${s0[0].toFixed(1)}" cy="${s0[1].toFixed(1)}" r="5" fill="var(--ink)" stroke="var(--card)" stroke-width="2"/>`;
     s += `<circle cx="${g[0].toFixed(1)}" cy="${g[1].toFixed(1)}" r="4" fill="var(--card)" stroke="var(--ink)" stroke-width="2"/>`;
     s += `<text x="${(s0[0] + 8).toFixed(1)}" y="${(s0[1] + 4).toFixed(1)}" class="tick" fill="var(--ink)" stroke="var(--card)" stroke-width="3" paint-order="stroke">スタート</text></svg>`;
-    host.innerHTML = `<div class="osm" style="width:${W}px;height:${H}px">${tiles}${s}<div class="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div></div>` +
-      '<div class="note">矢印＝風の吹いていく向き（実方位）。色は進行方向に対する相対風。●スタート ○ゴール</div>';
+    host.innerHTML = `<div class="osm" style="width:${W}px;height:${H}px">${tiles}${s}<div class="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div></div>` + MAP_NOTE;
   }
   function renderStarts() {
     const { p } = state.result; const tb = $('starts').querySelector('tbody');

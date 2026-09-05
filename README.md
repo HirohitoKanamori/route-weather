@@ -25,7 +25,7 @@
 - 区間別速度（山岳区間だけ遅くする等）、走行中の再計算（現在地点 km と現在時刻を入れると以降を計算し直す）
 - コース反転、最近のコース（端末内に 5 件）
 - 通過区域の注意報・警報（気象庁）、アメダス実況（現在地から 50 km ごとの最寄り観測所）
-- 体感温度・湿度・日照、画像で共有（共有シート／保存）、ダークモード、OpenStreetMap の静的地図（モノクロ）
+- 体感温度・湿度・日照、画像で共有（共有シート／保存）、ダークモード、OpenStreetMap の本地図（Leaflet、モノクロ表示。矢印タップで詳細）
 - PWA（ホーム画面に追加すると全画面。一度開いた本体・FIT SDK・地図タイルは圏外でも表示）
 
 ## 開発
@@ -42,6 +42,7 @@ index.html                  本体（HTML / CSS）
 js/core.js, js/app.js       純粋関数（ES Module）と画面・取得層
 sw.js, manifest.webmanifest, icons/  PWA 用（sw.js は vendor 更新時に VERSION を上げる）
 vendor/fitsdk/              Garmin FIT SDK（@garmin/fitsdk の src をそのまま同梱、遅延 import）
+vendor/leaflet/             Leaflet 1.9.4（本地図）
 samples/*.gpx               動作確認用コース
 mock/                       表示イメージのモック
 docs/RDD_06.md              要件定義書

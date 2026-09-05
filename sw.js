@@ -3,9 +3,9 @@
 // - 予報 API（Open-Meteo・気象庁）はキャッシュしない（アプリ側が localStorage で保持する）
 // - 地図タイルはキャッシュ優先（OSM の利用ポリシーに沿った端末内キャッシュ）。上限を超えたら古いものから消す
 // vendor/ を更新したら VERSION を上げること
-const VERSION = 'rw-v1';
+const VERSION = 'rw-v2';
 const SHELL = 'shell-' + VERSION, TILES = 'tiles-' + VERSION;
-const SHELL_FILES = ['./', './index.html', './js/core.js', './js/app.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
+const SHELL_FILES = ['./', './index.html', './js/core.js', './js/app.js', './vendor/leaflet/leaflet.js', './vendor/leaflet/leaflet.css', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 const TILE_MAX = 300;
 
 self.addEventListener('install', e => {
