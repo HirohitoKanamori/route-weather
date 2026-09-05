@@ -20,6 +20,14 @@
 
 出走が 4 日より先の場合は「傾向モード」（GSM、50 km 区間 × 通過日で集約）、11 日より先は予報範囲外。
 
+### フェーズ2 で追加した機能
+
+- 区間別速度（山岳区間だけ遅くする等）、走行中の再計算（現在地点 km と現在時刻を入れると以降を計算し直す）
+- コース反転、最近のコース（端末内に 5 件）
+- 通過区域の注意報・警報（気象庁）、アメダス実況（現在地から 50 km ごとの最寄り観測所）
+- 体感温度・湿度・日照、画像で共有（共有シート／保存）、ダークモード、OpenStreetMap の静的地図（モノクロ）
+- PWA（ホーム画面に追加すると全画面。一度開いた本体・FIT SDK・地図タイルは圏外でも表示）
+
 ## 開発
 
 - 純粋関数（course / plan / wind / sun / forecast）は `index.html` 内の `/*==CORE-BEGIN==*/` 〜 `/*==CORE-END==*/` にまとめ、`test/_load.mjs` が切り出して Node で評価する
@@ -31,6 +39,7 @@
 
 ```
 index.html                  本体（HTML / CSS / JS）
+sw.js, manifest.webmanifest, icons/  PWA 用（sw.js は vendor 更新時に VERSION を上げる）
 vendor/fitsdk/              Garmin FIT SDK（@garmin/fitsdk の src をそのまま同梱、遅延 import）
 samples/*.gpx               動作確認用コース
 mock/                       表示イメージのモック
@@ -41,4 +50,4 @@ test/                       Node テスト
 
 ## 出典
 
-気象庁 数値予報（MSM／GSM）— [Open-Meteo](https://open-meteo.com/)（CC BY 4.0）経由。予報は参考情報です。
+気象庁 数値予報（MSM／GSM）— [Open-Meteo](https://open-meteo.com/)（CC BY 4.0）経由。注意報・警報とアメダスは気象庁ホームページ、市区町村判定は国土地理院 逆ジオコーダ、地図は © OpenStreetMap contributors（ODbL）。予報は参考情報です。

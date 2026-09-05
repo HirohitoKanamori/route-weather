@@ -126,6 +126,9 @@
   tr.sleep td{background:var(--sleep-row);color:var(--sleep);font-weight:600}
   tr.best td{background:var(--best-row)}
   .rel{display:inline-block;padding:0 6px;border-radius:4px;color:#fff;font-size:11px;line-height:18px;vertical-align:1px}
+  .wtag{display:inline-block;padding:0 6px;border-radius:4px;font-size:11px;line-height:18px;margin:1px 2px 1px 0;border:1px solid transparent}
+  .wtag.adv{background:var(--warn-bg);color:var(--warn-ink)} .wtag.warn{background:var(--err-bg);color:var(--err-ink);font-weight:600} .wtag.emg{background:var(--head);color:#fff;font-weight:700}
+  td.wrap{white-space:normal;min-width:180px}
   .rel.head{background:var(--head)} .rel.tail{background:var(--tail)} .rel.cross{background:var(--cross)}
   small.sub{font-size:11px;color:var(--ink-3);font-weight:400}
   .tag{display:inline-block;font-size:10px;border:1px solid var(--ink-3);color:var(--ink-2);border-radius:3px;padding:0 4px;margin-left:4px;line-height:15px;vertical-align:1px}
@@ -238,6 +241,20 @@
           <div class="howto" id="trendNote"></div>
         </section>
 
+        <section class="panel hidden" id="warnWrap">
+          <h2>通過区域の注意報・警報（気象庁 発表中）</h2>
+          <div class="tableWrap">
+            <table id="warnTable"><thead><tr><th>区間</th><th>市区町村</th><th>注意報・警報</th></tr></thead><tbody></tbody></table>
+          </div>
+          <div class="howto" id="warnNote"></div>
+        </section>
+        <section class="panel hidden" id="amedasWrap">
+          <h2>アメダス実況（気象庁の観測値）</h2>
+          <div class="tableWrap">
+            <table id="amedasTable"><thead><tr><th>付近</th><th>観測所</th><th>時刻</th><th class="n">気温</th><th>風</th><th class="n">1h 降水</th><th class="n">湿度</th></tr></thead><tbody></tbody></table>
+          </div>
+          <div class="howto" id="amedasNote"></div>
+        </section>
         <div class="lower">
           <section class="panel">
             <h2>区間表</h2>
@@ -269,7 +286,7 @@
 
   <footer class="src">
     出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。予報は参考情報であり、実際の天候は変わり得ます。<span id="modelInfo"></span><br>
-    地図：© OpenStreetMap contributors（ODbL）。コースファイルは端末内で処理し、外部に送信しません。FIT の読み込みには Garmin FIT SDK を使用しています。
+    注意報・警報、アメダス実況：気象庁ホームページ。市区町村の判定：国土地理院 逆ジオコーダ。地図：© OpenStreetMap contributors（ODbL）。コースファイルは端末内で処理し、外部に送信しません。FIT の読み込みには Garmin FIT SDK を使用しています。
   </footer>
 </div>
 
@@ -884,6 +901,7 @@ const RW = (function () {
     $('results').classList.remove('hidden'); $('layout').classList.add('has-results');
     renderNotice(); renderSummary(); renderRibbon(); renderTrend(); renderTable(); renderMap(); renderStarts(); renderModelInfo();
     if (window.innerWidth < 900 && !state.collapsed) { $('settings').open = false; state.collapsed = true; }
+    if (navigator.onLine !== false) { loadWarnings(); loadAmedas(); } else { renderWarnings(); renderAmedas(); }
   }
   function staleNote() {
     const ser = state.series; if (!ser) return '';
@@ -902,6 +920,10 @@ const RW = (function () {
     else if (sm.gsmFrom != null) msgs.push(['info', `${Math.round(sm.gsmFrom)} km 以降は MSM の予報期間を超えるため ${M.gsm.label}（${M.gsm.grid}）の値です。`]);
     if (sm.nOk > 0 && sm.naFrom != null) msgs.push(['warn', `${Math.round(sm.naFrom)} km 以降（${F.fmtDT(S.find(s => s.na).t)}〜）は予報範囲外です。`]);
     const st = staleNote(); if (st) msgs.push(['warn', st]);
+    if (state.warnings && state.warnings.segs) {
+      const hot = state.warnings.segs.filter(x => x.warnings.some(y => wLevel(y.code) !== 'adv'));
+      if (hot.length) msgs.push(['warn', '通過区域に警報：' + hot.map(x => `${esc(x.name)}（${Math.round(x.from)}–${Math.round(x.to)} km）${x.warnings.filter(y => wLevel(y.code) !== 'adv').map(y => wName(y.code)).join('・')}`).join('、')]);
+    }
     const el = $('notice');
     if (!msgs.length) { el.className = 'notice hidden'; el.innerHTML = ''; return; }
     el.className = 'notice ' + (msgs.some(m => m[0] === 'warn') ? 'warn' : 'info');
@@ -1133,6 +1155,138 @@ const RW = (function () {
     $('modelInfo').textContent = '　' + parts.join(' ／ ') + '（JST）';
   }
 
+  // ===== 注意報・警報（V-7）とアメダス実況：気象庁ホームページの JSON を直接取得 =====
+  const JMA = 'https://www.jma.go.jp/bosai/';
+  const WCODE = { '02': '大雨警報', '03': '洪水警報', '04': '暴風警報', '05': '暴風雪警報', '06': '大雪警報', '07': '波浪警報', '08': '高潮警報',
+    '10': '大雨注意報', '12': '大雪注意報', '13': '風雪注意報', '14': '雷注意報', '15': '強風注意報', '16': '波浪注意報', '17': '融雪注意報', '18': '洪水注意報', '19': '高潮注意報',
+    '20': '濃霧注意報', '21': '乾燥注意報', '22': 'なだれ注意報', '23': '低温注意報', '24': '霜注意報', '25': '着氷注意報', '26': '着雪注意報',
+    '32': '暴風特別警報', '33': '大雨特別警報', '35': '暴風特別警報', '36': '暴風雪特別警報', '37': '大雪特別警報', '38': '波浪特別警報', '39': '高潮特別警報' };
+  const wLevel = code => (+code >= 32 ? 'emg' : +code < 10 ? 'warn' : 'adv');
+  const wName = code => WCODE[code] || ('警報・注意報 ' + code);
+  const AMEDAS_DIR = ['静穏', '北北東', '北東', '東北東', '東', '東南東', '南東', '南南東', '南', '南南西', '南西', '西南西', '西', '西北西', '北西', '北北西', '北'];
+  const p2 = n => String(n).padStart(2, '0');
+  async function mapLimit(items, n, fn) { const out = new Array(items.length); let i = 0; await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k], k); } })); return out; }
+  // 気象庁の区域表（class20 → 名前と府県予報区）。初回だけ取得して端末内に保持
+  let areaIdx = null;
+  async function getAreaIndex() {
+    if (areaIdx) return areaIdx;
+    const cached = store.get('rw:areaIdx'); if (cached && cached.v === 1) return (areaIdx = cached);
+    const a = await (await fetch(JMA + 'common/const/area.json')).json();
+    const idx = { v: 1, c20: {}, offices: {} };
+    for (const [code, o] of Object.entries(a.offices)) idx.offices[code] = o.name;
+    for (const [code, c] of Object.entries(a.class20s)) {
+      let cur = c.parent; const c15 = a.class15s[cur]; cur = c15 ? c15.parent : cur; const c10 = a.class10s[cur]; cur = c10 ? c10.parent : cur;
+      idx.c20[code] = [c.name, cur];
+    }
+    store.set('rw:areaIdx', idx); return (areaIdx = idx);
+  }
+  // 市区町村コード（国土地理院 逆ジオコーダ）。0.01 度単位で端末内に保持
+  let muniCache = null; // 並列取得で上書きし合わないよう、メモリ上の 1 つのオブジェクトを保存する
+  async function muniOf(lat, lon) {
+    if (!muniCache) muniCache = store.get('rw:muni') || {};
+    const key = lat.toFixed(2) + ',' + lon.toFixed(2);
+    if (key in muniCache) return muniCache[key];
+    const r = await fetch('https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=' + lat.toFixed(5) + '&lon=' + lon.toFixed(5));
+    const j = await r.json(); const m = (j.results && j.results.muniCd) || null;
+    const keys = Object.keys(muniCache); if (keys.length > 600) keys.slice(0, 200).forEach(k => delete muniCache[k]);
+    muniCache[key] = m; store.set('rw:muni', muniCache); return m;
+  }
+  // 市区町村コード → 気象庁 class20 コード（政令市の区は市に、細分された市は複数に）
+  function c20For(idx, muni) {
+    if (!muni) return [];
+    if (idx.c20[muni + '00']) return [muni + '00'];
+    const city = muni.slice(0, 3) + '0000'; if (idx.c20[city]) return [city];
+    return Object.keys(idx.c20).filter(k => k.startsWith(muni));
+  }
+  async function loadWarnings() {
+    if (!state.result || !state.course) return;
+    const { S, step } = state.result; const hash = RW.course.hashCourse(state.course);
+    if (state.warnings && state.warnings.hash === hash && Date.now() - state.warnings.at < 10 * 60e3) { renderWarnings(); return; }
+    const stride = Math.max(1, Math.ceil(15 / step));
+    const pts = S.filter((x, i) => i % stride === 0 || i === S.length - 1);
+    try {
+      const idx = await getAreaIndex();
+      const munis = await mapLimit(pts, 4, pt => muniOf(pt.lat, pt.lon).catch(() => null));
+      const segs = [];
+      pts.forEach((pt, i) => {
+        const codes = c20For(idx, munis[i]); const key = codes.join('|'); const last = segs[segs.length - 1];
+        if (last && last.key === key) { last.to = pt.d; return; }
+        segs.push({ key, codes, from: pt.d, to: pt.d, name: codes.length ? idx.c20[codes[0]][0] : '海上・判定不能', office: codes.length ? idx.c20[codes[0]][1] : null, warnings: [], reported: null });
+      });
+      for (let i = 0; i < segs.length - 1; i++) segs[i].to = segs[i + 1].from;
+      if (segs.length > 1 && segs[segs.length - 1].from >= state.course.total - 1e-6) segs.pop(); // ゴール地点だけの空区間は前の区間に含める
+      segs[segs.length - 1].to = state.course.total;
+      const offices = [...new Set(segs.map(x => x.office).filter(Boolean))];
+      const reports = {};
+      await Promise.all(offices.map(async o => { try { reports[o] = await (await fetch(JMA + 'warning/data/warning/' + o + '.json')).json(); } catch (e) { reports[o] = null; } }));
+      for (const sg of segs) {
+        const rep = reports[sg.office]; if (!rep) continue;
+        sg.reported = rep.reportDatetime; const areas = (rep.areaTypes || []).flatMap(t => t.areas || []);
+        for (const code of sg.codes) { const a = areas.find(x => x.code === code); if (!a) continue; for (const w of (a.warnings || [])) { if (w.code && w.status !== '解除' && !sg.warnings.some(x => x.code === w.code)) sg.warnings.push({ code: w.code, status: w.status }); } }
+      }
+      state.warnings = { hash, at: Date.now(), segs, offices: offices.map(o => idx.offices[o] || o), failed: offices.filter(o => !reports[o]).length };
+    } catch (e) { state.warnings = { hash, at: Date.now(), segs: [], error: e.message }; }
+    renderWarnings();
+  }
+  function renderWarnings() {
+    const w = state.warnings; const wrap = $('warnWrap');
+    if (!w || !state.result) { wrap.classList.add('hidden'); return; }
+    wrap.classList.remove('hidden');
+    const tb = $('warnTable').querySelector('tbody');
+    if (w.error || !w.segs.length) { tb.innerHTML = `<tr><td colspan="3">取得できませんでした${w.error ? '（' + esc(w.error) + '）' : ''}</td></tr>`; $('warnNote').textContent = ''; return; }
+    tb.innerHTML = w.segs.map(sg => `<tr><td class="n">${Math.round(sg.from)}–${Math.round(sg.to)} km</td><td>${esc(sg.name)}</td><td class="wrap">${sg.warnings.length ? sg.warnings.map(x => `<span class="wtag ${wLevel(x.code)}">${esc(wName(x.code))}</span>`).join('') : '<span class="sub">なし</span>'}</td></tr>`).join('');
+    const rep = w.segs.map(x => x.reported).filter(Boolean).sort().pop();
+    $('warnNote').textContent = `対象：${w.offices.join('・')}${rep ? '　発表 ' + F.fmtDT(Date.parse(rep)) : ''}　確認 ${F.fmtH(w.at)}。約 15 km ごとの地点で市区町村を判定しています（海上・河川上は判定できないことがあります）。${w.failed ? ' 一部の府県で取得に失敗しました。' : ''}`;
+    renderNotice();
+  }
+  // アメダス：現在地（無ければスタート）から 50 km ごとに最寄りの観測所の最新値
+  let amedasTbl = null;
+  async function getAmedasTable() {
+    if (amedasTbl) return amedasTbl;
+    const cached = store.get('rw:amedas'); if (cached && cached.v === 1 && Date.now() - cached.at < 30 * 86400e3) return (amedasTbl = cached.list);
+    const t = await (await fetch(JMA + 'amedas/const/amedastable.json')).json();
+    const list = Object.entries(t).filter(([id, v]) => v.type !== 'E' && v.lat && v.lon).map(([id, v]) => ({ id, name: v.kjName, lat: v.lat[0] + v.lat[1] / 60, lon: v.lon[0] + v.lon[1] / 60, alt: v.alt, elems: v.elems }));
+    store.set('rw:amedas', { v: 1, at: Date.now(), list }); return (amedasTbl = list);
+  }
+  async function loadAmedas() {
+    if (!state.result || !state.course) return;
+    const { p } = state.result; const hash = RW.course.hashCourse(state.course) + ':' + (p.anchor ? Math.round(p.anchor.d) : 0);
+    if (state.amedas && state.amedas.hash === hash && Date.now() - state.amedas.at < 10 * 60e3) { renderAmedas(); return; }
+    try {
+      const latest = (await (await fetch(JMA + 'amedas/data/latest_time.txt')).text()).trim();
+      const x = F.jstParts(Date.parse(latest)); const bucket = `${x.y}${p2(x.mo)}${p2(x.d)}_${p2(Math.floor(x.h / 3) * 3)}`;
+      const tbl = await getAmedasTable();
+      const d0 = p.anchor ? p.anchor.d : 0; const targets = [];
+      for (let d = d0; d <= state.course.total && targets.length < 4; d += 50) targets.push({ d, pt: RW.course.interp(state.course, d) });
+      const seen = new Set(); const picks = [];
+      for (const tg of targets) {
+        let best = null, bd = Infinity;
+        for (const st of tbl) { if (st.elems[1] !== '1' && st.elems[2] !== '1') continue; const dd = RW.course.hav(tg.pt, st); if (dd < bd) { bd = dd; best = st; } }
+        if (best && !seen.has(best.id)) { seen.add(best.id); picks.push({ d: tg.d, st: best, dist: bd }); }
+      }
+      const rows = await Promise.all(picks.map(async pk => {
+        try { const j = await (await fetch(JMA + `amedas/data/point/${pk.st.id}/${bucket}.json`)).json(); const ks = Object.keys(j).sort(); const k = ks[ks.length - 1]; return Object.assign({ time: k, obs: j[k] }, pk); }
+        catch (e) { return Object.assign({ err: true }, pk); }
+      }));
+      state.amedas = { hash, at: Date.now(), latest, rows };
+    } catch (e) { state.amedas = { hash, at: Date.now(), rows: [], error: e.message }; }
+    renderAmedas();
+  }
+  function renderAmedas() {
+    const a = state.amedas; const wrap = $('amedasWrap');
+    if (!a || !state.result) { wrap.classList.add('hidden'); return; }
+    wrap.classList.remove('hidden');
+    const tb = $('amedasTable').querySelector('tbody');
+    if (a.error || !a.rows.length) { tb.innerHTML = `<tr><td colspan="7">取得できませんでした${a.error ? '（' + esc(a.error) + '）' : ''}</td></tr>`; $('amedasNote').textContent = ''; return; }
+    const val = (o, k) => (o && o[k] && o[k][1] === 0 && o[k][0] != null) ? o[k][0] : null;
+    tb.innerHTML = a.rows.map(r => {
+      if (r.err) return `<tr><td class="n">${Math.round(r.d)} km</td><td>${esc(r.st.name)}</td><td colspan="5">取得できませんでした</td></tr>`;
+      const o = r.obs; const t = r.time; const temp = val(o, 'temp'), ws = val(o, 'wind'), wd = val(o, 'windDirection'), pr = val(o, 'precipitation1h'), rh = val(o, 'humidity');
+      return `<tr><td class="n">${Math.round(r.d)} km</td><td>${esc(r.st.name)}<br><small class="sub">コースから約 ${r.dist.toFixed(0)} km・標高 ${r.st.alt} m</small></td><td>${t.slice(8, 10)}:${t.slice(10, 12)}</td><td class="n">${temp != null ? n1(temp) + '℃' : '—'}</td><td>${ws != null ? (wd != null ? AMEDAS_DIR[wd] + ' ' : '') + n1(ws) + ' m/s' : '—'}</td><td class="n">${pr != null ? n1(pr) + ' mm' : '—'}</td><td class="n">${rh != null ? Math.round(rh) + '%' : '—'}</td></tr>`;
+    }).join('');
+    $('amedasNote').textContent = `${state.result.p.anchor ? '現在地' : 'スタート'}から 50 km ごとに最寄りの観測所。観測 ${F.fmtDT(Date.parse(a.latest))}、確認 ${F.fmtH(a.at)}。`;
+  }
+
   // ===== 画像で共有（V-9）：リボン SVG を canvas に描き、共有シート（無ければ保存）へ =====
   const FONT = '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif';
   async function shareImage() {
@@ -1202,7 +1356,7 @@ const RW = (function () {
   $('ancNow').addEventListener('click', () => { $('ancT').value = localDT(Date.now()); if (!$('ancD').value) { $('ancD').focus(); return; } onParamChange(); });
   $('ancClear').addEventListener('click', () => { $('ancD').value = ''; $('ancT').value = ''; onParamChange(); });
   ['date', 'time', 'spd'].forEach(id => $(id).addEventListener('change', onParamChange));
-  $('run').addEventListener('click', () => run({ force: true }));
+  $('run').addEventListener('click', () => { state.warnings = null; state.amedas = null; run({ force: true }); });
   let rt = null;
   window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.result) { renderRibbon(); renderMap(); } }, 150); });
   window.addEventListener('online', () => { if (state.course && state.offlineNote) run(); });
