@@ -11,7 +11,7 @@
 <style>
   :root{
     --paper:#F6EEEC; --paper-2:#EADEDA; --ink:#1E2A32; --ink-2:#4B5A63; --ink-3:#8A969C; --line:#C9CEC5;
-    --head:#C8462B; --tail:#2E7D5B; --cross:#C79A2F; --rain:#3B6FB6; --night:#2A3448; --sleep:#6E5A8E; --na:#B8BEB9;
+    --head:#C8462B; --tail:#2E7D5B; --cross:#C79A2F; --rain:#3B6FB6; --night:#2A3448; --sleep:#6E5A8E; --na:#6F7A80;
     --info-bg:#E4ECF5; --info-ink:#25405E; --warn-bg:#FBF1DC; --warn-ink:#6B4E12; --err-bg:#F8E3DF; --err-ink:#7A2A1C;
   }
   *{box-sizing:border-box}
@@ -168,7 +168,7 @@
             <span><i class="swatch" style="background:var(--rain)"></i>降水量 mm/h</span>
             <span><i class="swatch" style="background:var(--night);opacity:.25"></i>夜間</span>
             <span><i class="swatch" style="background:var(--sleep);opacity:.45"></i>仮眠</span>
-            <span><i class="swatch" style="background:var(--na);opacity:.6"></i>予報範囲外</span>
+            <span><i class="swatch" style="background:var(--na);opacity:.5"></i>予報範囲外</span>
             <span>矢印は進行方向基準（右＝追い風）。タップで固定表示</span>
           </div>
         </section>
@@ -791,7 +791,7 @@ const RW = (function () {
     if (ns !== null) band(ns, course.total, 'var(--night)', .10);
     // 予報範囲外（後半にまとまる）
     const naFirst = S.find(pt => pt.na);
-    if (naFirst) { const a = Math.max(0, naFirst.d - step / 2); band(a, course.total, 'var(--na)', .35); s += text(xOf(a) + 4, top + 22, '予報範囲外', 'lane-label'); }
+    if (naFirst) { const a = Math.max(0, naFirst.d - step / 2); band(a, course.total, 'var(--na)', .5); s += text(xOf(a) + 4, top + 22, '予報範囲外', 'lane-label'); }
     // 仮眠帯
     for (const sl of p.sleeps) { const x = xOf(sl.d); s += rect(x - 3, top, 6, bottom - top, 'var(--sleep)', .45); s += text(x + 5, top + 10, `仮眠 ${sl.m}分`, 'lane-label', 'start', 'var(--sleep)'); }
     // 時刻目盛（日付境界を強調）
