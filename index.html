@@ -101,7 +101,12 @@
   .rel{display:inline-block;padding:0 6px;border-radius:4px;color:#fff;font-size:11px;line-height:18px;vertical-align:1px}
   .rel.head{background:var(--head)} .rel.tail{background:var(--tail)} .rel.cross{background:var(--cross)}
   .tag{display:inline-block;font-size:10px;border:1px solid var(--ink-3);color:var(--ink-2);border-radius:3px;padding:0 4px;margin-left:4px;line-height:15px;vertical-align:1px}
-  .map svg{display:block;width:100%;height:auto}
+  .map .osm{position:relative;overflow:hidden;border-radius:6px;background:var(--paper-2);margin:0 auto}
+  .map .osm img{position:absolute;display:block;width:256px;height:256px;pointer-events:none;user-select:none}
+  .map .osm svg{position:absolute;left:0;top:0;display:block}
+  .map .osm .attr{position:absolute;right:4px;bottom:2px;font-size:10px;line-height:1.4;color:var(--ink-2);background:rgba(255,255,255,.8);padding:0 4px;border-radius:3px}
+  .map .osm .attr a{color:inherit}
+  .map .note{font-size:11px;color:var(--ink-2);margin:6px 4px 2px}
   .src{font-size:11px;color:var(--ink-3);line-height:1.6;margin-top:16px;padding:0 4px}
 
   @media (min-width:900px){
@@ -215,7 +220,7 @@
 
   <footer class="src">
     出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。予報は参考情報であり、実際の天候は変わり得ます。<span id="modelInfo"></span><br>
-    コースファイルは端末内で処理し、外部に送信しません。FIT の読み込みには Garmin FIT SDK を使用しています。
+    地図：© OpenStreetMap contributors（ODbL）。コースファイルは端末内で処理し、外部に送信しません。FIT の読み込みには Garmin FIT SDK を使用しています。
   </footer>
 </div>
 
@@ -913,27 +918,45 @@ const RW = (function () {
     // 通過列の幅を広げないよう到着・出発は 2 行に分け、他の列は空セルで揃える
     return `<tr class="sleep"><td class="n">${Math.round(sl.d)} km</td><td>着 ${F.fmtDT(RW.plan.timeAt(sl.d, p, true))}<br>発 ${F.fmtDT(RW.plan.timeAt(sl.d, p))}</td><td>仮眠 ${sl.m} 分</td><td></td><td class="n"></td><td class="n"></td></tr>`;
   }
+  // 略地図：OpenStreetMap の標準タイルを静的に敷き、その上に SVG でコース線と風矢印を重ねる（ライブラリ不使用）
   function renderMap() {
     const host = $('map'); const { S } = state.result; const P = state.course.pts;
-    const W = Math.max(260, Math.floor(host.clientWidth || 300)); const H = Math.round(Math.min(W * 0.8, 360)); const pad = 22;
+    const W = Math.max(260, Math.floor(host.clientWidth || 300)); const H = Math.round(Math.min(W * 0.85, 400)); const pad = 26;
     const lats = P.map(q => q.lat), lons = P.map(q => q.lon);
     const minLa = Math.min(...lats), maxLa = Math.max(...lats), minLo = Math.min(...lons), maxLo = Math.max(...lons);
-    const cosLat = Math.cos((minLa + maxLa) / 2 * Math.PI / 180);
-    const k = Math.min((W - 2 * pad) / (((maxLo - minLo) * cosLat) || 1e-6), (H - 2 * pad - 14) / ((maxLa - minLa) || 1e-6));
-    const ox = (W - (maxLo - minLo) * cosLat * k) / 2, oy = ((H - 14) - (maxLa - minLa) * k) / 2;
-    const cx = lo => ox + (lo - minLo) * cosLat * k, cy = la => (H - 14) - oy - (la - minLa) * k;
-    let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="コース略図と風向">`;
-    s += `<polyline fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round" points="${P.map(q => cx(q.lon).toFixed(1) + ',' + cy(q.lat).toFixed(1)).join(' ')}"/>`;
+    // Web メルカトルの世界ピクセル座標（ズーム z）
+    const proj = (lat, lon, z) => { const n = 256 * 2 ** z; const sn = Math.sin(lat * Math.PI / 180); return [(lon + 180) / 360 * n, (0.5 - Math.log((1 + sn) / (1 - sn)) / (4 * Math.PI)) * n]; };
+    let z = 15;
+    for (; z > 3; z--) { const a = proj(maxLa, minLo, z), b = proj(minLa, maxLo, z); if (b[0] - a[0] <= W - 2 * pad && b[1] - a[1] <= H - 2 * pad) break; }
+    const c = proj((minLa + maxLa) / 2, (minLo + maxLo) / 2, z);
+    const ox = Math.round(c[0] - W / 2), oy = Math.round(c[1] - H / 2);
+    const px = (lat, lon) => { const q = proj(lat, lon, z); return [q[0] - ox, q[1] - oy]; };
+    // タイル（表示範囲に必要な分だけ。読めなければ外して背景色のままにする）
+    const n = 2 ** z; let tiles = '';
+    for (let tx = Math.floor(ox / 256); tx <= Math.floor((ox + W - 1) / 256); tx++) {
+      for (let ty = Math.floor(oy / 256); ty <= Math.floor((oy + H - 1) / 256); ty++) {
+        if (ty < 0 || ty >= n) continue;
+        const wx = ((tx % n) + n) % n;
+        tiles += `<img src="https://tile.openstreetmap.org/${z}/${wx}/${ty}.png" alt="" style="left:${tx * 256 - ox}px;top:${ty * 256 - oy}px" onerror="this.remove()">`;
+      }
+    }
+    // SVG 重ね描き：コース線（白縁取り）、風矢印（実方位・白縁取り）、スタート／ゴール
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="コース地図と風向">`;
+    const pts = P.map(q => { const v = px(q.lat, q.lon); return v[0].toFixed(1) + ',' + v[1].toFixed(1); }).join(' ');
+    s += `<polyline fill="none" stroke="#fff" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" opacity=".9" points="${pts}"/>`;
+    s += `<polyline fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/>`;
     const st = Math.max(1, Math.ceil(S.length / 28));
     S.forEach((pt, i) => {
       if (pt.na || i % st) return;
-      s += arrow(cx(pt.lon), cy(pt.lat), (pt.wd + 180) - 90, 6 + pt.ws * 1.6, COL[pt.cls], 1.8); // 実方位で「吹いていく向き」
+      const v = px(pt.lat, pt.lon); const ang = (pt.wd + 180) - 90; const len = 8 + pt.ws * 1.6; // 吹いていく向き
+      s += arrow(v[0], v[1], ang, len, '#fff', 4.5) + arrow(v[0], v[1], ang, len, COL[pt.cls], 2);
     });
-    s += `<circle cx="${cx(P[0].lon).toFixed(1)}" cy="${cy(P[0].lat).toFixed(1)}" r="4" fill="var(--ink)"/>` + text(cx(P[0].lon) + 7, cy(P[0].lat) + 4, 'スタート', 'tick');
-    const g = P[P.length - 1];
-    s += `<circle cx="${cx(g.lon).toFixed(1)}" cy="${cy(g.lat).toFixed(1)}" r="3.5" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
-    s += text(6, H - 3, '矢印＝風の吹いていく向き（実方位）。色は進行方向に対する相対風', 'tick') + '</svg>';
-    host.innerHTML = s;
+    const s0 = px(P[0].lat, P[0].lon), g = px(P[P.length - 1].lat, P[P.length - 1].lon);
+    s += `<circle cx="${s0[0].toFixed(1)}" cy="${s0[1].toFixed(1)}" r="5" fill="var(--ink)" stroke="#fff" stroke-width="2"/>`;
+    s += `<circle cx="${g[0].toFixed(1)}" cy="${g[1].toFixed(1)}" r="4" fill="#fff" stroke="var(--ink)" stroke-width="2"/>`;
+    s += `<text x="${(s0[0] + 8).toFixed(1)}" y="${(s0[1] + 4).toFixed(1)}" class="tick" fill="var(--ink)" stroke="#fff" stroke-width="3" paint-order="stroke">スタート</text></svg>`;
+    host.innerHTML = `<div class="osm" style="width:${W}px;height:${H}px">${tiles}${s}<div class="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div></div>` +
+      '<div class="note">矢印＝風の吹いていく向き（実方位）。色は進行方向に対する相対風。●スタート ○ゴール</div>';
   }
   function renderStarts() {
     const { p } = state.result; const tb = $('starts').querySelector('tbody');
