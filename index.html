@@ -59,6 +59,10 @@
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .sleeps{display:flex;flex-direction:column;gap:6px}
   .sleeps .sleep{display:grid;grid-template-columns:1fr 1fr 44px;gap:6px} /* 設定欄の仮眠行。区間表の tr.sleep とは別物 */
+  .sleeps .seg{display:grid;grid-template-columns:1fr 1fr 1fr 44px;gap:6px}
+  .anchor{display:grid;grid-template-columns:1fr 1.5fr 44px 44px;gap:6px}
+  .sleeps .seg input,.anchor input{border:1px solid var(--line);background:#fff;border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px}
+  .sleeps .seg input:focus,.anchor input:focus{outline:2px solid var(--ink);outline-offset:1px}
   .btn{border:1px solid var(--line);background:#fff;border-radius:6px;min-height:44px;min-width:44px;padding:0 12px;cursor:pointer}
   .primary{border:0;background:var(--ink);color:#fff;border-radius:8px;min-height:48px;padding:0 14px;cursor:pointer;font-weight:600}
   .primary[disabled]{opacity:.5;cursor:default}
@@ -152,6 +156,20 @@
             <span class="lbl">仮眠ポイント（スタートからの距離 km ／ 仮眠時間 分）</span>
             <div class="sleeps" id="sleeps"></div>
             <button type="button" class="btn" id="addSleep">＋ 仮眠を追加</button>
+          </div>
+          <div class="field">
+            <span class="lbl">区間別速度（任意：開始 km ／ 終了 km ／ km/h。指定のない区間はグロス速度）</span>
+            <div class="sleeps" id="segRows"></div>
+            <button type="button" class="btn" id="addSeg">＋ 区間を追加</button>
+          </div>
+          <div class="field">
+            <span class="lbl">走行中の再計算（現在地点と現在時刻を入れると、以降の通過時刻を計算し直します）</span>
+            <div class="anchor">
+              <input type="number" id="ancD" inputmode="decimal" min="0" step="1" placeholder="現在 km" aria-label="現在地点 km">
+              <input type="datetime-local" id="ancT" aria-label="現在時刻">
+              <button type="button" class="btn" id="ancNow" title="現在時刻を入れる" aria-label="現在時刻を入れる">今</button>
+              <button type="button" class="btn" id="ancClear" title="解除" aria-label="再計算を解除">×</button>
+            </div>
           </div>
           <button type="button" class="primary" id="run">予報を取得する</button>
           <div class="status" id="status" aria-live="polite"></div>
@@ -333,39 +351,75 @@ const RW = (function () {
     return h.toString(36);
   }
 
-  // ---------- plan：距離 ⇄ 経過時間 ----------
-  // p = { start: Date, spd: km/h, sleeps: [{d, m}] }（sleeps は normSleeps 済み）
+  // ---------- plan：距離 ⇄ 時刻 ----------
+  // p = { start: Date, spd: km/h, sleeps: [{d, m}], segments: [{from, to, spd}], anchor: {d, t}|null }
+  // sleeps / segments は norm* 済み。anchor は走行中の再計算用（現在 d km に時刻 t でいる）
   function normSleeps(sleeps, total) {
     return (sleeps || []).map(s => ({ d: +s.d, m: +s.m })).filter(s => s.d > 0 && s.d < total && s.m > 0).sort((a, b) => a.d - b.d);
   }
-  // arrive=true なら d ちょうどの仮眠は含めない（到着時刻）。既定は出発時刻。
-  function elapsedH(d, p, arrive = false) {
-    let h = d / p.spd;
-    for (const s of p.sleeps) if (arrive ? s.d < d : s.d <= d) h += s.m / 60;
+  // 区間別速度：不正・重なりを除き、距離順に並べる（重なった区間は先に始まる方を優先）
+  function normSegments(segs, total) {
+    return (segs || []).map(x => ({ from: +x.from, to: +x.to, spd: +x.spd }))
+      .filter(x => x.spd > 0 && x.from >= 0 && x.from < total && x.to > x.from)
+      .map(x => ({ from: x.from, to: Math.min(x.to, total), spd: x.spd }))
+      .sort((a, b) => a.from - b.from)
+      .filter((x, i, arr) => i === 0 || x.from >= arr[i - 1].to);
+  }
+  // 0 → d km の走行時間（停止を除く）。区間別速度がある区間はその速度、無い区間はグロス速度
+  function rideHours(d, p) {
+    let h = 0, pos = 0;
+    for (const x of (p.segments || [])) {
+      if (pos >= d) break;
+      const a = Math.min(Math.max(x.from, pos), d), b = Math.min(x.to, d);
+      if (a > pos) { h += (a - pos) / p.spd; pos = a; }
+      if (b > a) { h += (b - a) / x.spd; pos = b; }
+    }
+    if (d > pos) h += (d - pos) / p.spd;
     return h;
   }
-  function timeAt(d, p, arrive = false) { return new Date(+p.start + elapsedH(d, p, arrive) * 3600e3); }
-  // 経過時間 → 距離。仮眠中・ゴール後は null
-  function distAtElapsed(h, p, total) {
-    let acc = 0, prev = 0;
-    for (const s of [...p.sleeps, { d: total, m: 0 }]) {
-      const rideH = (s.d - prev) / p.spd;
-      if (h <= acc + rideH + 1e-9) return prev + (h - acc) * p.spd;
-      acc += rideH; prev = s.d;
-      if (h < acc + s.m / 60) return null;
-      acc += s.m / 60;
-    }
-    return null;
+  // d km までに挟む仮眠時間。arrive=true なら d ちょうどの仮眠は含めない。fromD 以降の仮眠だけを数えることもできる
+  function sleepHours(p, d, arrive = false, fromD = null) {
+    let h = 0;
+    for (const x of p.sleeps) { if (fromD != null && x.d < fromD) continue; if (arrive ? x.d < d : x.d <= d) h += x.m / 60; }
+    return h;
+  }
+  // 出走からの経過時間（仮眠を含む）
+  function elapsedH(d, p, arrive = false) { return rideHours(d, p) + sleepHours(p, d, arrive); }
+  // d km の通過時刻。anchor があり d がその先なら、anchor の時刻を起点に計算し直す（P-5）
+  function timeAt(d, p, arrive = false) {
+    const a = p.anchor;
+    if (a && d >= a.d) return new Date(+a.t + (rideHours(d, p) - rideHours(a.d, p) + sleepHours(p, d, arrive, a.d)) * 3600e3);
+    return new Date(+p.start + elapsedH(d, p, arrive) * 3600e3);
   }
   function sampleStep(total) { return total > 300 ? 10 : total > 120 ? 5 : 2.5; }
   function samplePoints(course, p, step) {
     const out = [];
     const push = d => {
-      const pt = interp(course, d); const eh = elapsedH(d, p);
-      out.push({ d, lat: pt.lat, lon: pt.lon, ele: pt.ele, hb: headingAt(course, d), eh, t: new Date(+p.start + eh * 3600e3) });
+      const pt = interp(course, d); const t = timeAt(d, p);
+      out.push({ d, lat: pt.lat, lon: pt.lon, ele: pt.ele, hb: headingAt(course, d), eh: (+t - +p.start) / 3600e3, t });
     };
     for (let d = 0; d < course.total - 1e-6; d += step) push(d);
     push(course.total);
+    return out;
+  }
+  // リボンの時刻目盛用：サンプル列に仮眠の到着・出発を挟んだ (d, t) の節点列
+  function timeNodes(S, p) {
+    const nodes = S.map(x => ({ d: x.d, t: +x.t }));
+    for (const sl of p.sleeps) nodes.push({ d: sl.d, t: +timeAt(sl.d, p, true) }, { d: sl.d, t: +timeAt(sl.d, p) });
+    return nodes.sort((a, b) => a.d - b.d || a.t - b.t);
+  }
+  // 節点列から正時の目盛 [{t, d, sleep}] を作る。仮眠中（距離が進まない区間）の正時は sleep=true
+  function hourTicks(nodes) {
+    const out = [], H = 3600e3;
+    for (let i = 1; i < nodes.length; i++) {
+      const a = nodes[i - 1], b = nodes[i];
+      if (b.t <= a.t) continue;
+      const inSleep = b.d === a.d;
+      for (let h = Math.ceil(a.t / H) * H; h <= b.t; h += H) {
+        if (h === a.t && i > 1) continue;
+        out.push({ t: h, d: a.d + (b.d - a.d) * ((h - a.t) / (b.t - a.t)), sleep: inSleep });
+      }
+    }
     return out;
   }
 
@@ -527,7 +581,7 @@ const RW = (function () {
     const: { RAIN_MM, TAIL_DEG, HEAD_DEG, MAX_PTS, HOURLY, MODELS },
     fmt: { jstParts, fmtH, fmtT, fmtDT, dateKey, ymd },
     course: { hav, bearing, fromPoints, elevationGain, interp, headingAt, hashCourse },
-    plan: { normSleeps, elapsedH, timeAt, distAtElapsed, sampleStep, samplePoints },
+    plan: { normSleeps, normSegments, rideHours, sleepHours, elapsedH, timeAt, sampleStep, samplePoints, timeNodes, hourTicks },
     wind: { relative, dir16 },
     sun: { sunTimes, isNight },
     forecast: { buildUrl, parseSeries, horizon, at, pick, computeRide, summarize, trendAggregate, startComparison, wmoText }
@@ -571,14 +625,39 @@ const RW = (function () {
   function readSleeps() {
     return [...document.querySelectorAll('#sleeps .sleep')].map(r => ({ d: +r.querySelector('.sd').value, m: +r.querySelector('.sm').value }));
   }
+  function addSegRow(from = '', to = '', spd = '') {
+    const row = document.createElement('div'); row.className = 'seg';
+    row.innerHTML = '<input type="number" class="sf" inputmode="decimal" min="0" step="1" placeholder="開始 km" aria-label="区間の開始 km">' +
+      '<input type="number" class="st" inputmode="decimal" min="0" step="1" placeholder="終了 km" aria-label="区間の終了 km">' +
+      '<input type="number" class="ss" inputmode="decimal" min="1" step="0.5" placeholder="km/h" aria-label="区間の速度 km/h">' +
+      '<button type="button" class="btn rm" aria-label="この区間を削除">−</button>';
+    row.querySelector('.sf').value = from; row.querySelector('.st').value = to; row.querySelector('.ss').value = spd;
+    row.querySelector('.rm').addEventListener('click', () => { row.remove(); onParamChange(); });
+    row.querySelectorAll('input').forEach(i => i.addEventListener('change', onParamChange));
+    $('segRows').appendChild(row);
+    return row;
+  }
+  function readSegs() {
+    return [...document.querySelectorAll('#segRows .seg')].map(r => ({ from: +r.querySelector('.sf').value, to: +r.querySelector('.st').value, spd: +r.querySelector('.ss').value }));
+  }
+  function readAnchor() {
+    const d = +$('ancD').value, t = $('ancT').value;
+    if (!(d >= 0) || !$('ancD').value || !t) return null;
+    const tt = new Date(t + ':00+09:00'); if (isNaN(+tt)) return null;
+    return { d, t: tt };
+  }
   function params() {
     const date = $('date').value, time = $('time').value || '06:00';
     const start = new Date(date + 'T' + time + ':00+09:00');
     const spd = Math.min(60, Math.max(5, +$('spd').value || 18));
     const total = state.course ? state.course.total : Infinity;
-    return { start, spd, sleeps: RW.plan.normSleeps(readSleeps(), total) };
+    const anchor = readAnchor();
+    return { start, spd, sleeps: RW.plan.normSleeps(readSleeps(), total), segments: RW.plan.normSegments(readSegs(), total),
+      anchor: anchor && anchor.d < total ? anchor : null };
   }
-  function saveParams() { store.set('rw:params', { date: $('date').value, time: $('time').value, spd: $('spd').value, sleeps: readSleeps() }); }
+  function saveParams() {
+    store.set('rw:params', { date: $('date').value, time: $('time').value, spd: $('spd').value, sleeps: readSleeps(), segs: readSegs(), ancD: $('ancD').value, ancT: $('ancT').value });
+  }
   function loadParams() {
     const s = store.get('rw:params') || {};
     // 初期値は「現在時刻の翌日 06:00」。保存値があっても、前々日より前の日付なら初期値に戻す
@@ -589,10 +668,17 @@ const RW = (function () {
     $('spd').value = s.spd || 18;
     $('sleeps').innerHTML = '';
     (s.sleeps || []).forEach(x => addSleepRow(x.d, x.m));
+    $('segRows').innerHTML = '';
+    (s.segs || []).forEach(x => addSegRow(x.from, x.to, x.spd));
+    // 現在地点の再計算は 1 日以上前のものなら捨てる
+    const ancOld = s.ancT && (Date.parse(s.ancT + ':00+09:00') < Date.now() - 86400e3);
+    $('ancD').value = (s.ancD && !ancOld) ? s.ancD : '';
+    $('ancT').value = (s.ancT && !ancOld) ? s.ancT : '';
   }
+  function localDT(t) { const x = F.jstParts(t); const p2 = n => String(n).padStart(2, '0'); return x.y + '-' + p2(x.mo) + '-' + p2(x.d) + 'T' + p2(x.h) + ':' + p2(x.mi); }
   function updateSumLine(p) {
     const c = state.course;
-    $('sumLine').textContent = c ? `${c.name} ・ ${F.fmtDT(p.start)} 出走 ・ ${p.spd} km/h${p.sleeps.length ? ' ・ 仮眠 ' + p.sleeps.length : ''}` : '';
+    $('sumLine').textContent = c ? `${c.name} ・ ${F.fmtDT(p.start)} 出走 ・ ${p.spd} km/h${p.sleeps.length ? ' ・ 仮眠 ' + p.sleeps.length : ''}${p.segments.length ? ' ・ 区間速度 ' + p.segments.length : ''}${p.anchor ? ' ・ 現在 ' + Math.round(p.anchor.d) + ' km' : ''}` : '';
   }
   function setStatus(msg, cls) { const el = $('status'); el.textContent = msg || ''; el.className = 'status' + (cls ? ' ' + cls : ''); }
   function renderCourse() {
@@ -800,17 +886,21 @@ const RW = (function () {
     if (naFirst) { const a = Math.max(0, naFirst.d - step / 2); band(a, course.total, 'var(--na)', .5); s += text(xOf(a) + 4, top + 22, '予報範囲外', 'lane-label'); }
     // 仮眠帯
     for (const sl of p.sleeps) { const x = xOf(sl.d); s += rect(x - 3, top, 6, bottom - top, 'var(--sleep)', .45); s += text(x + 5, top + 10, `仮眠 ${sl.m}分`, 'lane-label', 'start', 'var(--sleep)'); }
-    // 時刻目盛（日付境界を強調）
-    const totalH = S[S.length - 1].eh; const pxPerH = innerW / Math.max(totalH, 1);
+    // 時刻目盛（正時。日付境界を強調。仮眠中の正時は距離が進まないので出さない）
+    const spanH = Math.max(1, (+S[S.length - 1].t - +S[0].t) / 3600e3); const pxPerH = innerW / spanH;
     const hStep = [1, 2, 3, 6, 12].find(n => n * pxPerH >= 34) || 24;
     const longLabel = hStep * pxPerH >= 52;
-    let lastDay = null;
-    for (let hh = 0; hh <= totalH + 1e-9; hh += 1) {
-      const d = RW.plan.distAtElapsed(hh, p, course.total); if (d === null) continue;
-      const x = xOf(d); const t = +p.start + hh * 3600e3; const dk = F.dateKey(t);
+    let lastDay = F.dateKey(S[0].t), lastX = -Infinity;
+    s += text(xOf(0) + 2, lanes.time.y + 9, lastDay, 'tick day');
+    for (const tk of RW.plan.hourTicks(RW.plan.timeNodes(S, p))) {
+      const x = xOf(tk.d); const dk = F.dateKey(tk.t); const hr = F.jstParts(tk.t).h;
       if (dk !== lastDay) { lastDay = dk; s += text(x + 2, lanes.time.y + 9, dk, 'tick day'); s += line(x, lanes.time.y, x, bottom, 'var(--ink-3)', 1); }
-      if (hh % hStep === 0) { s += line(x, lanes.time.y + 12, x, lanes.dist.y, 'var(--line)'); s += text(x, lanes.time.y + 22, longLabel ? F.fmtH(t) : F.fmtH(t).slice(0, 2), 'tick', 'middle'); }
+      if (tk.sleep || hr % hStep !== 0 || x - lastX < 38) continue;
+      lastX = x;
+      s += line(x, lanes.time.y + 12, x, lanes.dist.y, 'var(--line)'); s += text(x, lanes.time.y + 22, longLabel ? F.fmtH(tk.t) : F.fmtH(tk.t).slice(0, 2), 'tick', 'middle');
     }
+    // 現在地（走行中の再計算）
+    if (p.anchor) { const x = xOf(p.anchor.d); s += line(x, top, x, bottom, 'var(--ink)', 1.5, '4 3'); s += text(x + 4, bottom - 4, '現在地 ' + F.fmtH(p.anchor.t), 'lane-label'); }
     // 距離目盛
     const dStep = [5, 10, 20, 25, 50, 100, 200].find(n => n / course.total * innerW >= 34) || 500;
     for (let d = 0; d <= course.total + 1e-9; d += dStep) { const x = xOf(d); s += text(x, lanes.dist.y + 11, String(d), 'tick', 'middle'); s += line(x, lanes.dist.y + 13, x, bottom, 'var(--line)', 1, '2 4'); }
@@ -961,6 +1051,8 @@ const RW = (function () {
   }
   function renderStarts() {
     const { p } = state.result; const tb = $('starts').querySelector('tbody');
+    $('startsWrap').classList.toggle('hidden', !!p.anchor); // 走行中の再計算では出走時刻の比較は意味を持たない
+    if (p.anchor) return;
     const rows = RW.forecast.startComparison(state.course, p, state.series);
     const full = rows.filter(r => r.nOk === r.n);
     const best = (full.length ? full : rows).reduce((a, b) => b.score < a.score ? b : a);
@@ -988,6 +1080,10 @@ const RW = (function () {
     catch (err) { setStatus('サンプルを読み込めませんでした：' + err.message, 'err'); }
   });
   $('addSleep').addEventListener('click', () => { addSleepRow().querySelector('.sd').focus(); });
+  $('addSeg').addEventListener('click', () => { addSegRow().querySelector('.sf').focus(); });
+  ['ancD', 'ancT'].forEach(id => $(id).addEventListener('change', onParamChange));
+  $('ancNow').addEventListener('click', () => { $('ancT').value = localDT(Date.now()); if (!$('ancD').value) { $('ancD').focus(); return; } onParamChange(); });
+  $('ancClear').addEventListener('click', () => { $('ancD').value = ''; $('ancT').value = ''; onParamChange(); });
   ['date', 'time', 'spd'].forEach(id => $(id).addEventListener('change', onParamChange));
   $('run').addEventListener('click', () => run({ force: true }));
   let rt = null;
