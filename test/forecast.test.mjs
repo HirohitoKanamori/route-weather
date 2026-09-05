@@ -110,3 +110,19 @@ test('wmoText と fmt', () => {
   assert.equal(RW.fmt.dateKey(JST(2026, 9, 6, 0, 0)), '9/6');
   assert.equal(RW.fmt.fmtDT(JST(2026, 9, 5, 6, 0)), '9/5(土) 06:00');
 });
+
+test('wxClass：雨は降水 0.5 mm/h 以上または雨系コード、曇りは曇・霧、晴れは快晴・晴', () => {
+  const w = RW.forecast.wxClass;
+  assert.equal(w({ code: 0, mm: 0 }), 'sun');
+  assert.equal(w({ code: 1, mm: 0.4 }), 'sun');
+  assert.equal(w({ code: 1, mm: 0.5 }), 'rain', '晴れコードでも降水があれば雨');
+  assert.equal(w({ code: 2, mm: 0 }), 'cloud');
+  assert.equal(w({ code: 3, mm: 0 }), 'cloud');
+  assert.equal(w({ code: 45, mm: 0 }), 'cloud', '霧は曇り扱い');
+  assert.equal(w({ code: 51, mm: 0 }), 'rain', '霧雨');
+  assert.equal(w({ code: 61, mm: 0.1 }), 'rain');
+  assert.equal(w({ code: 71, mm: 0 }), 'rain', '雪も雨系');
+  assert.equal(w({ code: 95, mm: 0 }), 'rain', '雷雨');
+  assert.equal(w({ na: true }), null);
+  assert.equal(w(null), null);
+});

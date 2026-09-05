@@ -441,7 +441,18 @@ import { RW } from './core.js';
   // ===== 本地図（V-6）：Leaflet + OSM タイル。Leaflet が読めない場合は静的な略地図にフォールバック =====
   const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   let lmap = null, lmapHash = null, lmapLayers = null, lmapTheme = null;
-  const MAP_NOTE = '<div class="note">矢印＝風の吹いていく向き（実方位）。色は進行方向に対する相対風。矢印をタップすると詳細。●スタート ○ゴール</div>';
+  const MAP_NOTE = '<div class="note"><span class="lg" style="--c:var(--wx-rain)"></span>雨 <span class="lg" style="--c:var(--wx-cloud)"></span>曇り <span class="lg" style="--c:var(--wx-sun)"></span>晴れ <span class="lg dash"></span>予報範囲外（線の色＝通過時刻の予報）。矢印＝風の吹いていく向き（実方位）、色は相対風。矢印をタップすると詳細。●スタート ○ゴール</div>';
+  const WXVAR = { rain: '--wx-rain', cloud: '--wx-cloud', sun: '--wx-sun' };
+  // 経路をサンプル間で区切り、各区間に通過時刻の天気分類を付ける（線の色分け用）
+  function routeSegments(course, S) {
+    const segs = [];
+    for (let i = 1; i < S.length; i++) {
+      const a = S[i - 1], b = S[i];
+      const pts = [RW.course.interp(course, a.d), ...course.pts.filter(q => q.d > a.d && q.d < b.d), RW.course.interp(course, b.d)];
+      segs.push({ pts, cls: RW.forecast.wxClass(a) });
+    }
+    return segs;
+  }
   function renderMap() {
     const host = $('map');
     if (typeof L === 'undefined') { renderMapStatic(); return; }
@@ -456,14 +467,25 @@ import { RW } from './core.js';
       lmap = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true });
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' }).addTo(lmap);
       const latlngs = P.map(q => [q.lat, q.lon]);
-      L.polyline(latlngs, { color: cssVar('--card'), weight: 6, opacity: .9, interactive: false }).addTo(lmap);
-      L.polyline(latlngs, { color: cssVar('--ink'), weight: 2.5, interactive: false }).addTo(lmap);
-      lmapLayers = { arrows: L.layerGroup().addTo(lmap), marks: L.layerGroup().addTo(lmap) };
+      lmapLayers = { route: L.layerGroup().addTo(lmap), arrows: L.layerGroup().addTo(lmap), marks: L.layerGroup().addTo(lmap) };
       lmap.fitBounds(L.latLngBounds(latlngs), { padding: [16, 16] });
       lmap.on('zoomend moveend', updateMapArrows);
       lmapHash = hash; lmapTheme = theme;
     } else { $('leaflet').style.height = H + 'px'; lmap.invalidateSize(); }
+    drawMapRoute();
     updateMapArrows();
+  }
+  // 経路線：通過時刻の予報で色分け（雨＝青、曇り＝グレー、晴れ＝オレンジ、予報範囲外＝細い点線）
+  function drawMapRoute() {
+    if (!lmap || !state.result || !lmapLayers) return;
+    lmapLayers.route.clearLayers();
+    const halo = cssVar('--card');
+    L.polyline(state.course.pts.map(q => [q.lat, q.lon]), { color: halo, weight: 8, opacity: .9, interactive: false }).addTo(lmapLayers.route);
+    for (const sg of routeSegments(state.course, state.result.S)) {
+      const ll = sg.pts.map(q => [q.lat, q.lon]);
+      if (sg.cls) L.polyline(ll, { color: cssVar(WXVAR[sg.cls]), weight: 4, interactive: false }).addTo(lmapLayers.route);
+      else L.polyline(ll, { color: cssVar('--na'), weight: 2, dashArray: '4 6', interactive: false }).addTo(lmapLayers.route);
+    }
   }
   // 風矢印：ズームに応じて 30px 以上離れた地点だけを描く（重なり防止）。タップで詳細
   function updateMapArrows() {
@@ -511,9 +533,12 @@ import { RW } from './core.js';
     }
     // SVG 重ね描き：コース線（白縁取り）、風矢印（実方位・白縁取り）、スタート／ゴール
     let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="コース地図と風向">`;
-    const pts = P.map(q => { const v = px(q.lat, q.lon); return v[0].toFixed(1) + ',' + v[1].toFixed(1); }).join(' ');
-    s += `<polyline fill="none" stroke="var(--card)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round" opacity=".9" points="${pts}"/>`;
-    s += `<polyline fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/>`;
+    const toPts = arr => arr.map(q => { const v = px(q.lat, q.lon); return v[0].toFixed(1) + ',' + v[1].toFixed(1); }).join(' ');
+    s += `<polyline fill="none" stroke="var(--card)" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" opacity=".9" points="${toPts(P)}"/>`;
+    for (const sg of routeSegments(state.course, S)) {
+      if (sg.cls) s += `<polyline fill="none" stroke="var(${WXVAR[sg.cls]})" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" points="${toPts(sg.pts)}"/>`;
+      else s += `<polyline fill="none" stroke="var(--na)" stroke-width="1.5" stroke-dasharray="3 5" points="${toPts(sg.pts)}"/>`;
+    }
     const st = Math.max(1, Math.ceil(S.length / 28));
     S.forEach((pt, i) => {
       if (pt.na || i % st) return;
@@ -717,18 +742,79 @@ import { RW } from './core.js';
     } finally { URL.revokeObjectURL(url); }
     ctx.fillStyle = v('--ink-3'); ctx.font = '10px ' + FONT;
     ctx.fillText('Route Weather JP ／ 出典：気象庁 数値予報（MSM/GSM）— Open-Meteo 経由 ／ 予報取得 ' + F.fmtDT(state.series.fetchedAt), pad, head + H + 14);
+    await deliverPng(canvas, `route-weather-${F.ymd(p.start)}.png`);
+  }
+  // canvas → PNG → 共有シート（共有非対応なら保存）
+  async function deliverPng(canvas, name) {
     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
     if (!blob) throw new Error('PNG を作れませんでした');
-    const file = new File([blob], `route-weather-${F.ymd(p.start)}.png`, { type: 'image/png' });
+    const file = new File([blob], name, { type: 'image/png' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try { await navigator.share({ files: [file], title: 'Route Weather JP' }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
     }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  }
+  // ===== 地図を画像で共有：1080×1080、コース全体、モノクロ地図＋色分け経路＋風矢印 =====
+  const MAP_IMG = 1080;
+  async function shareMapImage() {
+    if (!state.result) return;
+    const { S, p } = state.result; const P = state.course.pts; const size = MAP_IMG, pad = 70;
+    const lats = P.map(q => q.lat), lons = P.map(q => q.lon);
+    const minLa = Math.min(...lats), maxLa = Math.max(...lats), minLo = Math.min(...lons), maxLo = Math.max(...lons);
+    const proj = (lat, lon, z) => { const n = 256 * 2 ** z; const sn = Math.sin(lat * Math.PI / 180); return [(lon + 180) / 360 * n, (0.5 - Math.log((1 + sn) / (1 - sn)) / (4 * Math.PI)) * n]; };
+    let z = 17;
+    for (; z > 3; z--) { const a = proj(maxLa, minLo, z), b = proj(minLa, maxLo, z); if (b[0] - a[0] <= size - 2 * pad && b[1] - a[1] <= size - 2 * pad) break; }
+    const c = proj((minLa + maxLa) / 2, (minLo + maxLo) / 2, z);
+    const ox = Math.round(c[0] - size / 2), oy = Math.round(c[1] - size / 2);
+    const px = (lat, lon) => { const q = proj(lat, lon, z); return [q[0] - ox, q[1] - oy]; };
+    const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#EDEDED'; ctx.fillRect(0, 0, size, size);
+    // タイル（表示範囲の分だけ。cross-origin で読み、読めないタイルは背景のまま）
+    const n = 2 ** z; const jobs = [];
+    for (let tx = Math.floor(ox / 256); tx <= Math.floor((ox + size - 1) / 256); tx++) {
+      for (let ty = Math.floor(oy / 256); ty <= Math.floor((oy + size - 1) / 256); ty++) {
+        if (ty < 0 || ty >= n) continue;
+        const wx = ((tx % n) + n) % n;
+        jobs.push(new Promise(res => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res({ im, x: tx * 256 - ox, y: ty * 256 - oy }); im.onerror = () => res(null); im.src = `https://tile.openstreetmap.org/${z}/${wx}/${ty}.png`; }));
+      }
+    }
+    for (const t of await Promise.all(jobs)) if (t) ctx.drawImage(t.im, t.x, t.y);
+    // モノクロ・淡めに（画面の地図と同じ見え方。Safari でも動くよう画素で処理）
+    const img = ctx.getImageData(0, 0, size, size); const d = img.data;
+    for (let i = 0; i < d.length; i += 4) { let l = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]); l = ((l - 128) * 0.85 + 128) * 1.08; l = l < 0 ? 0 : l > 255 ? 255 : l; d[i] = d[i + 1] = d[i + 2] = l; }
+    ctx.putImageData(img, 0, 0);
+    // 経路（白縁取り＋天気で色分け）
+    const cs = getComputedStyle(document.documentElement); const light = { '--wx-rain': '#6E9AD6', '--wx-cloud': '#A6AEB3', '--wx-sun': '#F0B36B', '--na': '#6F7A80', '--ink': '#1E2A32', '--head': '#C8462B', '--tail': '#2E7D5B', '--cross': '#C79A2F' };
+    const v = name => light[name] || cs.getPropertyValue(name).trim();
+    const line = (pts, color, w, dash) => { ctx.beginPath(); pts.forEach((q, i) => { const a = px(q.lat, q.lon); if (i) ctx.lineTo(a[0], a[1]); else ctx.moveTo(a[0], a[1]); }); ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]); };
+    line(P, '#FFFFFF', 14);
+    for (const sg of routeSegments(state.course, S)) { if (sg.cls) line(sg.pts, v(WXVAR[sg.cls]), 7); else line(sg.pts, v('--na'), 3, [8, 10]); }
+    // 風矢印（実方位。40px 以上離れた地点だけ）
+    const arrowC = (x, y, angDeg, len, color, w) => { ctx.save(); ctx.translate(x, y); ctx.rotate(angDeg * Math.PI / 180); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-len / 2, 0); ctx.lineTo(len / 2, 0); ctx.stroke(); ctx.beginPath(); ctx.moveTo(len / 2 + 2, 0); ctx.lineTo(len / 2 - 10, -7); ctx.lineTo(len / 2 - 10, 7); ctx.closePath(); ctx.fill(); ctx.restore(); };
+    let last = null;
+    for (const pt of S) {
+      if (pt.na) continue;
+      const a = px(pt.lat, pt.lon);
+      if (last && Math.hypot(a[0] - last[0], a[1] - last[1]) < 40) continue;
+      last = a; const ang = (pt.wd + 180) - 90; const len = 16 + pt.ws * 2.4;
+      arrowC(a[0], a[1], ang, len, '#FFFFFF', 9); arrowC(a[0], a[1], ang, len, v('--' + pt.cls), 4);
+    }
+    // スタート／ゴール／現在地
+    const dot = (q, r, fill, stroke) => { const a = px(q.lat, q.lon); ctx.beginPath(); ctx.arc(a[0], a[1], r, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = stroke; ctx.stroke(); };
+    dot(P[0], 11, v('--ink'), '#FFFFFF'); dot(P[P.length - 1], 9, '#FFFFFF', v('--ink'));
+    if (p.anchor) dot(RW.course.interp(state.course, p.anchor.d), 12, '#6E5A8E', '#FFFFFF');
+    // 出典（OSM の利用条件）
+    ctx.font = '22px ' + FONT; const attr = '© OpenStreetMap contributors'; const tw = ctx.measureText(attr).width;
+    ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(size - tw - 24, size - 40, tw + 24, 40);
+    ctx.fillStyle = '#4B5A63'; ctx.fillText(attr, size - tw - 12, size - 13);
+    await deliverPng(canvas, `route-weather-map-${F.ymd(p.start)}.png`);
   }
 
   // ===== 配線 =====
   $('share').addEventListener('click', async () => { try { await shareImage(); } catch (e) { setStatus('画像の共有に失敗しました：' + e.message, 'err'); } });
+  $('shareMap').addEventListener('click', async () => { const b = $('shareMap'); b.disabled = true; b.textContent = '作成中…'; try { await shareMapImage(); } catch (e) { setStatus('地図画像の共有に失敗しました：' + e.message, 'err'); } finally { b.disabled = false; b.textContent = '地図を画像で共有'; } });
   $('theme').addEventListener('click', () => {
     const cur = document.documentElement.dataset.theme || 'auto';
     const next = cur === 'auto' ? 'dark' : cur === 'dark' ? 'light' : 'auto';

@@ -22,17 +22,20 @@
     --head:#C8462B; --tail:#2E7D5B; --cross:#C79A2F; --rain:#3B6FB6; --night:#2A3448; --sleep:#6E5A8E; --na:#6F7A80;
     --info-bg:#E4ECF5; --info-ink:#25405E; --warn-bg:#FBF1DC; --warn-ink:#6B4E12; --err-bg:#F8E3DF; --err-ink:#7A2A1C;
     --sleep-row:#F0ECF5; --best-row:#EAF3EE; --map-filter:grayscale(1) brightness(1.08) contrast(.85);
+    --wx-rain:#6E9AD6; --wx-cloud:#A6AEB3; --wx-sun:#F0B36B; /* 地図の経路色：雨／曇り／晴れ（矢印より淡く） */
     color-scheme:light;
   }
   /* ダークモード：OS 設定に従う（自動）か、ヘッダーの切り替えで固定 */
   :root[data-theme="dark"]{ --paper:#1B1F23; --paper-2:#2B3237; --card:#23292E; --ink:#E9ECEB; --ink-2:#B9C1C5; --ink-3:#8A969C; --line:#3B444A;
     --head:#E5694E; --tail:#4FB086; --cross:#DDB553; --rain:#6A9DE0; --night:#AEB9D6; --sleep:#B39FD9; --na:#9AA4A9;
     --info-bg:#22344A; --info-ink:#C9DAF0; --warn-bg:#4A3A15; --warn-ink:#F1DDA8; --err-bg:#4A241C; --err-ink:#F3C4BA;
-    --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85); color-scheme:dark; }
+    --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85);
+    --wx-rain:#6F9FE0; --wx-cloud:#8E979C; --wx-sun:#E8A857; color-scheme:dark; }
   @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --paper:#1B1F23; --paper-2:#2B3237; --card:#23292E; --ink:#E9ECEB; --ink-2:#B9C1C5; --ink-3:#8A969C; --line:#3B444A;
     --head:#E5694E; --tail:#4FB086; --cross:#DDB553; --rain:#6A9DE0; --night:#AEB9D6; --sleep:#B39FD9; --na:#9AA4A9;
     --info-bg:#22344A; --info-ink:#C9DAF0; --warn-bg:#4A3A15; --warn-ink:#F1DDA8; --err-bg:#4A241C; --err-ink:#F3C4BA;
-    --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85); color-scheme:dark; } 
+    --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85);
+    --wx-rain:#6F9FE0; --wx-cloud:#8E979C; --wx-sun:#E8A857; color-scheme:dark; } 
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--paper);color:var(--ink);
@@ -112,6 +115,8 @@
   .ribbon svg{display:block;width:100%;height:auto;touch-action:pan-y}
   .panelBar{display:flex;justify-content:flex-end;padding:0 2px 6px}
   .btn.small{min-height:32px;font-size:12px;padding:0 10px}
+  .map .note .lg{display:inline-block;width:14px;height:4px;border-radius:2px;background:var(--c);vertical-align:middle;margin:0 2px 0 4px}
+  .map .note .lg.dash{background:none;border-top:2px dashed var(--na);height:0}
   .lane-label{font-size:10px;fill:var(--ink-2)}
   .tick{font-size:10px;fill:var(--ink-2)}
   .tick.day{font-weight:700;fill:var(--ink)}
@@ -288,6 +293,7 @@
           </section>
           <section class="panel map" id="mapWrap">
             <h2>地図と風向</h2>
+            <div class="panelBar"><button type="button" class="btn small" id="shareMap" title="コース全体の地図を正方形の画像にして共有・保存">地図を画像で共有</button></div>
             <div id="map"></div>
           </section>
         </div>

@@ -345,6 +345,15 @@ export const RW = (function () {
   }
   const WMO = { 0: '快晴', 1: '晴', 2: '晴時々曇', 3: '曇', 45: '霧', 48: '霧（着氷）', 51: '霧雨', 53: '霧雨', 55: '霧雨（強）', 56: '着氷性霧雨', 57: '着氷性霧雨', 61: '小雨', 63: '雨', 65: '大雨', 66: '着氷性の雨', 67: '着氷性の雨', 71: '小雪', 73: '雪', 75: '大雪', 77: '霧雪', 80: 'にわか雨', 81: 'にわか雨', 82: '激しいにわか雨', 85: 'にわか雪', 86: 'にわか雪', 95: '雷雨', 96: '雷雨（雹）', 99: '雷雨（雹）' };
   function wmoText(c) { return c == null ? '—' : (WMO[c] || ('天気コード ' + c)); }
+  // 地図の経路色分け用：雨（降水 RAIN_MM 以上、または霧雨・雨・雪・雷の天気コード）／曇り（曇・霧）／晴れ（快晴・晴）
+  function wxClass(s) {
+    if (!s || s.na || s.code == null && s.mm == null) return null;
+    const code = s.code == null ? -1 : +s.code;
+    if ((s.mm != null && s.mm >= RAIN_MM) || code >= 51) return 'rain';
+    if (code === 2 || code === 3 || code === 45 || code === 48) return 'cloud';
+    if (code === 0 || code === 1) return 'sun';
+    return 'cloud';
+  }
 
   return {
     const: { RAIN_MM, TAIL_DEG, HEAD_DEG, MAX_PTS, HOURLY, MODELS },
@@ -353,6 +362,6 @@ export const RW = (function () {
     plan: { normSleeps, normSegments, rideHours, sleepHours, elapsedH, timeAt, sampleStep, samplePoints, timeNodes, hourTicks },
     wind: { relative, dir16 },
     sun: { sunTimes, isNight },
-    forecast: { buildUrl, parseSeries, horizon, at, pick, computeRide, summarize, trendAggregate, startComparison, wmoText }
+    forecast: { buildUrl, parseSeries, horizon, at, pick, computeRide, summarize, trendAggregate, startComparison, wmoText, wxClass }
   };
 })();
