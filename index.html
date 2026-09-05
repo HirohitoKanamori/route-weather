@@ -175,7 +175,7 @@
             <span><i class="swatch" style="background:var(--night);opacity:.25"></i>夜間</span>
             <span><i class="swatch" style="background:var(--sleep);opacity:.45"></i>仮眠</span>
             <span><i class="swatch" style="background:var(--na);opacity:.5"></i>予報範囲外</span>
-            <span>矢印は進行方向基準（右＝追い風）。タップで固定表示</span>
+            <span>矢印は進行方向基準（上＝追い風、下＝向かい風）。タップで固定表示</span>
           </div>
         </section>
 
@@ -818,13 +818,13 @@ const RW = (function () {
     const lab = (k, t) => text(L - 4, lanes[k].y + lanes[k].h / 2 + 4, t, 'lane-label', 'end');
     if (!trend) s += lab('wind', '風');
     s += lab('rain', '雨') + lab('temp', '気温') + lab('ele', '標高');
-    // 風レーン：進行方向基準の矢印（右＝追い風）
+    // 風レーン：進行方向基準の矢印（上＝追い風）
     if (!trend) {
       const wy = lanes.wind.y + lanes.wind.h / 2 - 4; const st = stride(16);
       S.forEach((pt, i) => {
         if (pt.na || i % st) return;
         const x = xOf(pt.d); const len = Math.min(26, 7 + pt.ws * 2.2);
-        s += arrow(x, wy, -pt.rel, len, COL[pt.cls]);
+        s += arrow(x, wy, -pt.rel - 90, len, COL[pt.cls]); // 上＝追い風、下＝向かい風
         if (pt.ws >= 5) s += text(x, lanes.wind.y + lanes.wind.h - 2, pt.ws.toFixed(0) + 'm', 'tick', 'middle', COL[pt.cls]);
       });
     }
