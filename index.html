@@ -575,10 +575,11 @@ const RW = (function () {
   function saveParams() { store.set('rw:params', { date: $('date').value, time: $('time').value, spd: $('spd').value, sleeps: readSleeps() }); }
   function loadParams() {
     const s = store.get('rw:params') || {};
-    const today = F.ymd(Date.now());
-    const stale = s.date && (Date.parse(s.date + 'T00:00:00+09:00') < Date.now() - 2 * 86400e3);
-    $('date').value = (s.date && !stale) ? s.date : today;
-    $('time').value = s.time || '06:00';
+    // 初期値は「現在時刻の翌日 06:00」。保存値があっても、前々日より前の日付なら初期値に戻す
+    const tomorrow = F.ymd(Date.now() + 86400e3);
+    const stale = !s.date || s.date < F.ymd(Date.now() - 86400e3);
+    $('date').value = stale ? tomorrow : s.date;
+    $('time').value = stale ? '06:00' : (s.time || '06:00');
     $('spd').value = s.spd || 18;
     $('sleeps').innerHTML = '';
     (s.sleeps || []).forEach(x => addSleepRow(x.d, x.m));
