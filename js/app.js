@@ -575,7 +575,11 @@ import { RW } from './core.js';
     if (!w || !state.result) { wrap.classList.add('hidden'); return; }
     wrap.classList.remove('hidden');
     const tb = $('warnTable').querySelector('tbody');
-    if (w.error || !w.segs.length) { tb.innerHTML = `<tr><td colspan="3">取得できませんでした${w.error ? '（' + esc(w.error) + '）' : ''}</td></tr>`; $('warnNote').textContent = ''; return; }
+    if (w.error || !w.segs.length) { tb.innerHTML = `<tr><td colspan="3">取得できませんでした${w.error ? '（' + esc(w.error) + '）' : ''}</td></tr>`; $('warnNote').textContent = ''; $('warnSum').textContent = '取得できませんでした'; return; }
+    { // 折りたたみ時の要約：発表中の種類を列挙（警報以上を先に）
+      const names = [...new Set(w.segs.flatMap(x => x.warnings.map(y => y.code)))].sort((c1, c2) => (+c1) - (+c2)).map(wName);
+      $('warnSum').textContent = names.length ? '発表中：' + names.join('・') : '発表中の注意報・警報なし';
+    }
     tb.innerHTML = w.segs.map(sg => `<tr><td class="n">${Math.round(sg.from)}–${Math.round(sg.to)} km</td><td>${esc(sg.name)}</td><td class="wrap">${sg.warnings.length ? sg.warnings.map(x => `<span class="wtag ${wLevel(x.code)}">${esc(wName(x.code))}</span>`).join('') : '<span class="sub">なし</span>'}</td></tr>`).join('');
     const rep = w.segs.map(x => x.reported).filter(Boolean).sort().pop();
     $('warnNote').textContent = `対象：${w.offices.join('・')}${rep ? '　発表 ' + F.fmtDT(Date.parse(rep)) : ''}　確認 ${F.fmtH(w.at)}。約 15 km ごとの地点で市区町村を判定しています（海上・河川上は判定できないことがあります）。${w.failed ? ' 一部の府県で取得に失敗しました。' : ''}`;
@@ -619,8 +623,14 @@ import { RW } from './core.js';
     if (!a || !state.result) { wrap.classList.add('hidden'); return; }
     wrap.classList.remove('hidden');
     const tb = $('amedasTable').querySelector('tbody');
-    if (a.error || !a.rows.length) { tb.innerHTML = `<tr><td colspan="7">取得できませんでした${a.error ? '（' + esc(a.error) + '）' : ''}</td></tr>`; $('amedasNote').textContent = ''; return; }
+    if (a.error || !a.rows.length) { tb.innerHTML = `<tr><td colspan="7">取得できませんでした${a.error ? '（' + esc(a.error) + '）' : ''}</td></tr>`; $('amedasNote').textContent = ''; $('amedasSum').textContent = '取得できませんでした'; return; }
     const val = (o, k) => (o && o[k] && o[k][1] === 0 && o[k][0] != null) ? o[k][0] : null;
+    { // 折りたたみ時の要約：先頭（現在地に最も近い）観測所の値
+      const r0 = a.rows.find(r => !r.err);
+      if (r0) { const o = r0.obs; const temp = val(o, 'temp'), ws = val(o, 'wind'), wd = val(o, 'windDirection'), pr = val(o, 'precipitation1h');
+        $('amedasSum').textContent = `${r0.st.name} ${r0.time.slice(8, 10)}:${r0.time.slice(10, 12)}　${temp != null ? n1(temp) + '℃' : ''}　${ws != null ? (wd != null ? AMEDAS_DIR[wd] + ' ' : '') + n1(ws) + ' m/s' : ''}${pr ? '　' + n1(pr) + ' mm' : ''}`; }
+      else $('amedasSum').textContent = '';
+    }
     tb.innerHTML = a.rows.map(r => {
       if (r.err) return `<tr><td class="n">${Math.round(r.d)} km</td><td>${esc(r.st.name)}</td><td colspan="5">取得できませんでした</td></tr>`;
       const o = r.obs; const t = r.time; const temp = val(o, 'temp'), ws = val(o, 'wind'), wd = val(o, 'windDirection'), pr = val(o, 'precipitation1h'), rh = val(o, 'humidity');
