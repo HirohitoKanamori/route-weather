@@ -27,6 +27,7 @@
 
 ## 検証
 
-- `plan`／`wind`／`sun` は純粋関数にし、Node で動くテストを `test/` に置く
+- `plan`／`wind`／`sun`／`forecast`／`course` は純粋関数にし、`index.html` の `/*==CORE-BEGIN==*/`〜`/*==CORE-END==*/` にまとめる。`test/_load.mjs` がそこを切り出して Node で評価する
+- テストは `node --test "test/*.test.mjs"`（GitHub Actions でも公開前に実行される）
 - 描画は iPhone 実機（幅 375–430 px）で確認してから公開する
 - 公開は `main` への push → GitHub Pages
