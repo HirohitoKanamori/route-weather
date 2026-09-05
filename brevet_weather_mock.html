@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ルート天気 — ブルベ向けコース天候予報（モック）</title>
+<style>
+  :root{
+    --paper:#EEF0EA; --paper-2:#E3E6DE; --ink:#1E2A32; --ink-2:#4B5A63; --ink-3:#8A969C;
+    --line:#C9CEC5;
+    --head:#C8462B; --tail:#2E7D5B; --cross:#C79A2F; --rain:#3B6FB6; --night:#2A3448;
+    --sleep:#6E5A8E;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI",system-ui,sans-serif;
+    font-size:14px;line-height:1.55;font-feature-settings:"palt","tnum"}
+  a{color:inherit}
+  button,input,select{font:inherit;color:inherit}
+  h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.02em}
+  .app{max-width:1280px;margin:0 auto;padding:18px 20px 40px}
+
+  /* top bar */
+  .bar{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px}
+  .bar .note{color:var(--ink-3);font-size:12px;margin-left:auto}
+
+  /* layout */
+  .grid{display:grid;grid-template-columns:272px 1fr;gap:22px;margin-top:16px}
+  @media (max-width:860px){.grid{grid-template-columns:1fr}}
+
+  /* controls */
+  .ctl{display:flex;flex-direction:column;gap:14px}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:12px;color:var(--ink-2)}
+  .field input,.field select{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 9px;width:100%}
+  .field input:focus,.field select:focus,button:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+  .drop{border:1.5px dashed var(--ink-3);border-radius:8px;padding:14px 12px;text-align:center;background:#fff;cursor:pointer;color:var(--ink-2)}
+  .drop.on{border-color:var(--ink);background:#f7f8f4}
+  .drop strong{display:block;color:var(--ink);font-weight:600}
+  .drop small{display:block;font-size:11px;margin-top:4px;color:var(--ink-3)}
+  .course{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+  .course .name{font-weight:600}
+  .course .meta{color:var(--ink-2);font-size:12px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .sleep{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:end}
+  .sleep button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 9px;cursor:pointer}
+  .primary{border:0;background:var(--ink);color:#fff;border-radius:6px;padding:10px;cursor:pointer;font-weight:600}
+  .primary:hover{background:#0f171d}
+  .src{font-size:12px;color:var(--ink-3);line-height:1.5}
+
+  /* summary */
+  .summary{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;margin-bottom:10px}
+  .summary b{font-weight:600}
+  .summary .k{color:var(--ink-2)}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:4px}
+
+  /* ribbon */
+  .ribbon{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 6px 4px;position:relative}
+  .ribbon svg{width:100%;height:auto;display:block}
+  .lane-label{font-size:11px;fill:var(--ink-2)}
+  .tick{font-size:11px;fill:var(--ink-2)}
+  .tick.day{font-weight:600;fill:var(--ink)}
+  .tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;font-size:12px;line-height:1.45;padding:8px 10px;border-radius:6px;white-space:nowrap;display:none;z-index:2}
+  .tip b{font-weight:600}
+
+  /* lower */
+  .lower{display:grid;grid-template-columns:1fr 300px;gap:22px;margin-top:18px}
+  @media (max-width:980px){.lower{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-weight:600;color:var(--ink-2);font-size:12px}
+  td.n{text-align:right;font-variant-numeric:tabular-nums}
+  .rel{display:inline-block;padding:1px 6px;border-radius:4px;color:#fff;font-size:12px}
+  .rel.head{background:var(--head)} .rel.tail{background:var(--tail)} .rel.cross{background:var(--cross)}
+  .map{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px}
+  .map svg{width:100%;height:auto;display:block}
+  .starts{margin-top:18px}
+  .starts h2{font-size:13px;font-weight:600;margin:0 0 6px}
+  .starts table td,.starts table th{padding:5px 8px}
+  .best{background:#EAF3EE}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);margin:8px 6px 0}
+  @media (prefers-reduced-motion:no-preference){.ribbon svg .cursor{transition:opacity .12s}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar">
+    <h1>ルート天気</h1>
+    <span style="color:var(--ink-2)">コースと出走時刻から、通過時点の風・雨・気温を見る</span>
+    <span class="note">モック画面 — 予報値はダミー、GPXの読み込みは実動作</span>
+  </div>
+
+  <div class="grid">
+    <aside class="ctl">
+      <div class="drop" id="drop" tabindex="0">
+        <strong>GPX / FIT をここにドロップ</strong>
+        <span>またはクリックして選択</span>
+        <small>Ride with GPS 連携はフェーズ2（公開ルートURL貼り付け）</small>
+        <input type="file" id="file" accept=".gpx,.fit" hidden>
+      </div>
+      <div class="course">
+        <div class="name" id="cName">BRM東京600 安曇野（サンプル）</div>
+        <div class="meta" id="cMeta">600.4 km ・ 獲得標高 5,880 m ・ 地点数 41</div>
+      </div>
+      <div class="row2">
+        <div class="field"><label for="date">出走日</label><input type="date" id="date" value="2026-09-05"></div>
+        <div class="field"><label for="time">出走時刻</label><input type="time" id="time" value="06:00"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label for="spd">グロス速度 km/h</label><input type="number" id="spd" value="18.5" step="0.5" min="10" max="40"></div>
+        <div class="field"><label for="src">予報の元</label>
+          <select id="src"><option>気象庁 MSM（5km）</option><option>気象庁 GSM（20km）</option></select></div>
+      </div>
+      <div class="field"><label>仮眠ポイント（スタートからの距離・時間）</label>
+        <div class="sleep">
+          <input type="number" id="s1d" value="362" min="0" step="1" aria-label="仮眠1 距離km">
+          <input type="number" id="s1m" value="180" min="0" step="10" aria-label="仮眠1 分">
+          <button type="button" title="仮眠を追加" id="addSleep">＋</button>
+        </div>
+        <div class="sleep" id="s2" style="margin-top:6px;display:none">
+          <input type="number" id="s2d" value="480" min="0" step="1" aria-label="仮眠2 距離km">
+          <input type="number" id="s2m" value="60" min="0" step="10" aria-label="仮眠2 分">
+          <button type="button" id="rmSleep" title="削除">−</button>
+        </div>
+        <small style="color:var(--ink-3)">km ／ 分。PC・食事の停止時間はグロス速度に含めてください</small>
+      </div>
+      <button class="primary" id="run">予報を計算する</button>
+      <div class="src">出典：気象庁 数値予報（MSM）を Open-Meteo 経由で取得。注意報・警報と天気概況は気象庁ホームページから直接取得。</div>
+    </aside>
+
+    <main>
+      <div class="summary" id="summary"></div>
+      <div class="ribbon" id="ribbonWrap">
+        <div id="ribbon"></div>
+        <div class="tip" id="tip"></div>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--head)"></i>向かい風</span>
+          <span><i class="swatch" style="background:var(--cross)"></i>横風</span>
+          <span><i class="swatch" style="background:var(--tail)"></i>追い風</span>
+          <span><i class="swatch" style="background:var(--rain)"></i>降水量 mm/h（棒）と降水確率（帯）</span>
+          <span><i class="swatch" style="background:var(--night);opacity:.25"></i>夜間</span>
+          <span><i class="swatch" style="background:var(--sleep);opacity:.45"></i>仮眠</span>
+        </div>
+      </div>
+
+      <div class="lower">
+        <div>
+          <table id="segs"><thead><tr>
+            <th>距離</th><th>通過</th><th>天気</th><th>風</th><th class="n">降水</th><th class="n">気温</th>
+          </tr></thead><tbody></tbody></table>
+          <div class="starts">
+            <h2>出走時刻をずらした場合</h2>
+            <table id="starts"><thead><tr><th>出走</th><th class="n">向かい風 km</th><th class="n">雨中走行 km</th><th class="n">最低気温</th><th class="n">ゴール予定</th></tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+        <div class="map" id="map"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---------- sample course (schematic; replaced by dropped GPX) ----------
+  let course = makeSampleCourse();
+  function makeSampleCourse(){
+    // Out-and-back-ish loop, roughly west from Tokyo then north and back: schematic only.
+    const pts=[]; const n=41; const total=600.4;
+    for(let i=0;i<n;i++){
+      const t=i/(n-1);
+      // path: west (0-.35), north-west (.35-.55), east (.55-.75), south-east (.75-1)
+      let lon=139.75, lat=35.68;
+      if(t<.35){lon-=t/.35*1.35; lat+=Math.sin(t*9)*.05}
+      else if(t<.55){lon=138.40-(t-.35)/.2*.35; lat=35.68+(t-.35)/.2*.75}
+      else if(t<.75){lon=138.05+(t-.55)/.2*.55; lat=36.43-(t-.55)/.2*.55}
+      else{lon=138.60+(t-.75)/.25*1.15; lat=35.88-(t-.75)/.25*.20}
+      const ele = 20+900*Math.max(0,Math.sin(t*Math.PI*1.9))+500*Math.max(0,Math.sin((t-.55)*Math.PI*3.2))+150*Math.abs(Math.sin(t*17));
+      pts.push({lat,lon,ele,d:t*total});
+    }
+    return {name:'BRM東京600 安曇野（サンプル）',pts,total,gain:5880};
+  }
+
+  // ---------- GPX parsing (real) ----------
+  const drop=document.getElementById('drop'), fileIn=document.getElementById('file');
+  drop.addEventListener('click',()=>fileIn.click());
+  drop.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fileIn.click()}});
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('on')}));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('on')}));
+  drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0]; if(f) loadFile(f)});
+  fileIn.addEventListener('change',e=>{const f=e.target.files[0]; if(f) loadFile(f)});
+
+  async function loadFile(f){
+    if(/\.fit$/i.test(f.name)){
+      document.getElementById('cName').textContent=f.name;
+      document.getElementById('cMeta').textContent='FIT の読み込みは本実装で対応（Garmin FIT SDK）。モックでは GPX のみ。';
+      return;
+    }
+    const xml=new DOMParser().parseFromString(await f.text(),'application/xml');
+    let nodes=[...xml.getElementsByTagName('trkpt')]; if(!nodes.length) nodes=[...xml.getElementsByTagName('rtept')];
+    if(!nodes.length){document.getElementById('cMeta').textContent='トラックポイントが見つかりません（trkpt / rtept）';return}
+    const raw=nodes.map(n=>({lat:+n.getAttribute('lat'),lon:+n.getAttribute('lon'),ele:+(n.getElementsByTagName('ele')[0]?.textContent||0)}));
+    // thin to ~120 points and accumulate distance
+    const step=Math.max(1,Math.floor(raw.length/120)); const pts=[]; let d=0,gain=0;
+    for(let i=0;i<raw.length;i++){
+      if(i>0){d+=hav(raw[i-1],raw[i]); const de=raw[i].ele-raw[i-1].ele; if(de>0) gain+=de}
+      if(i%step===0||i===raw.length-1) pts.push({...raw[i],d});
+    }
+    const nm=xml.getElementsByTagName('name')[0]?.textContent||f.name;
+    course={name:nm,pts,total:d,gain:Math.round(gain)};
+    document.getElementById('cName').textContent=nm;
+    document.getElementById('cMeta').textContent=`${d.toFixed(1)} km ・ 獲得標高 ${gain.toLocaleString()} m ・ 地点数 ${raw.length.toLocaleString()}`;
+    run();
+  }
+  function hav(a,b){const R=6371,r=Math.PI/180,dl=(b.lat-a.lat)*r,dn=(b.lon-a.lon)*r;
+    const h=Math.sin(dl/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+  function bearing(a,b){const r=Math.PI/180,y=Math.sin((b.lon-a.lon)*r)*Math.cos(b.lat*r),
+    x=Math.cos(a.lat*r)*Math.sin(b.lat*r)-Math.sin(a.lat*r)*Math.cos(b.lat*r)*Math.cos((b.lon-a.lon)*r);
+    return (Math.atan2(y,x)*180/Math.PI+360)%360}
+
+  // ---------- mock forecast field (deterministic) ----------
+  // In production: one Open-Meteo request with all sample points (lat/lon lists), hourly wind_speed_10m,
+  // wind_direction_10m, precipitation, precipitation_probability, temperature_2m, weather_code, model=jma_msm.
+  function forecastAt(pt,hourOfRide){
+    const h=hourOfRide, x=pt.lon, y=pt.lat;
+    const wdir=(200+70*Math.sin(h/5)+40*Math.sin(x*6+y*4)+360)%360;           // from-direction, deg
+    const wspd=Math.max(0.5,4.5+3.2*Math.sin(h/4.3+x)+1.5*Math.sin(y*9)+(pt.ele>800?1.5:0)); // m/s
+    const rainBand=Math.exp(-((h-9)**2)/5)+.5*Math.exp(-((h-31)**2)/3);
+    const pop=Math.min(95,Math.round(10+85*rainBand));
+    const mm=+(Math.max(0,3.5*rainBand-0.4)).toFixed(1);
+    const clock=(6+h)%24;
+    const temp=+(22-6*Math.cos((clock-15)/24*2*Math.PI)-pt.ele*0.0065*1.6+2*Math.sin(x*3)).toFixed(1);
+    const code = mm>1?'雨':mm>0.2?'小雨':pop>50?'曇':clock>=6&&clock<18?'晴':'晴';
+    return {wdir,wspd,pop,mm,temp,code};
+  }
+
+  // ---------- time model ----------
+  function readParams(){
+    const spd=+document.getElementById('spd').value||18;
+    const start=new Date(document.getElementById('date').value+'T'+document.getElementById('time').value+':00+09:00');
+    const sleeps=[{d:+document.getElementById('s1d').value,m:+document.getElementById('s1m').value}];
+    if(document.getElementById('s2').style.display!=='none') sleeps.push({d:+document.getElementById('s2d').value,m:+document.getElementById('s2m').value});
+    return {spd,start,sleeps:sleeps.filter(s=>s.d>0&&s.m>0).sort((a,b)=>a.d-b.d)};
+  }
+  function elapsedH(d,p){let h=d/p.spd; for(const s of p.sleeps) if(d>=s.d) h+=s.m/60; return h}
+
+  // ---------- compute samples ----------
+  function compute(p){
+    const step=course.total>300?10:course.total>120?5:2.5;
+    const out=[];
+    for(let d=0; d<=course.total+1e-6; d+=step){
+      const dd=Math.min(d,course.total);
+      const pt=interp(dd); const hb=headingAt(dd);
+      const eh=elapsedH(dd,p); const t=new Date(p.start.getTime()+eh*3600e3);
+      const f=forecastAt(pt,eh);
+      // relative wind: angle between wind "to" direction and travel heading
+      const to=(f.wdir+180)%360; let rel=((to-hb)+540)%360-180; // 0 = pure tailwind, ±180 = headwind
+      const comp=Math.cos(rel*Math.PI/180)*f.wspd; // +tail / -head component
+      const cls=Math.abs(rel)<=45?'tail':Math.abs(rel)>=135?'head':'cross';
+      out.push({d:dd,pt,t,eh,...f,rel,comp,cls,hb});
+    }
+    return out;
+  }
+  function interp(d){const P=course.pts; if(d<=0)return P[0]; for(let i=1;i<P.length;i++){if(P[i].d>=d){const a=P[i-1],b=P[i],k=(d-a.d)/((b.d-a.d)||1);
+    return {lat:a.lat+(b.lat-a.lat)*k,lon:a.lon+(b.lon-a.lon)*k,ele:a.ele+(b.ele-a.ele)*k}}} return P[P.length-1]}
+  function headingAt(d){const P=course.pts; for(let i=1;i<P.length;i++){if(P[i].d>=d) return bearing(P[i-1],P[i])} return bearing(P[P.length-2],P[P.length-1])}
+
+  // ---------- render ----------
+  const fmtT=t=>`${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+  const fmtH=t=>`${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+  const dir16=['北','北北東','北東','東北東','東','東南東','南東','南南東','南','南南西','南西','西南西','西','西北西','北西','北北西'];
+  const relWord={head:'向かい',tail:'追い',cross:'横'};
+  const isNight=t=>{const h=t.getHours()+t.getMinutes()/60; return h<5.3||h>=18.1};
+
+  function run(){
+    const p=readParams(); const S=compute(p);
+    renderSummary(S,p); renderRibbon(S,p); renderTable(S); renderMap(S); renderStarts(p);
+  }
+
+  function renderSummary(S,p){
+    const step=S[1].d-S[0].d;
+    const headKm=S.filter(s=>s.cls==='head').length*step, rainKm=S.filter(s=>s.mm>=0.5).length*step;
+    const rainSeg=S.filter(s=>s.mm>=0.5); const tmin=S.reduce((a,b)=>b.temp<a.temp?b:a);
+    const goal=S[S.length-1].t;
+    document.getElementById('summary').innerHTML=`
+      <span><span class="k">ゴール予定</span> <b>${fmtT(goal)}</b>（${S[S.length-1].eh.toFixed(1)} h）</span>
+      <span><span class="k">向かい風区間</span> <b style="color:var(--head)">${headKm} km</b></span>
+      <span><span class="k">雨中走行</span> <b style="color:var(--rain)">${rainKm} km</b>${rainSeg.length?`（${Math.round(rainSeg[0].d)}–${Math.round(rainSeg[rainSeg.length-1].d)} km、${fmtT(rainSeg[0].t)} 頃から）`:''}</span>
+      <span><span class="k">最低気温</span> <b>${tmin.temp}℃</b>（${Math.round(tmin.d)} km、${fmtT(tmin.t)}）</span>`;
+  }
+
+  function renderRibbon(S,p){
+    const W=1180, L=58, R=14, innerW=W-L-R;
+    const lanes={time:{y:8,h:22},dist:{y:32,h:16},wind:{y:58,h:64},rain:{y:130,h:64},temp:{y:202,h:58},ele:{y:268,h:70}};
+    const H=350;
+    const xOf=d=>L+d/course.total*innerW;
+    let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="コース上の天候タイムライン">`;
+    // night bands
+    let nightStart=null;
+    S.forEach((pt,i)=>{const n=isNight(pt.t);
+      if(n&&nightStart===null) nightStart=pt.d;
+      if((!n||i===S.length-1)&&nightStart!==null){const x1=xOf(nightStart),x2=xOf(pt.d);
+        s+=`<rect x="${x1}" y="${lanes.wind.y}" width="${x2-x1}" height="${lanes.ele.y+lanes.ele.h-lanes.wind.y}" fill="var(--night)" opacity=".10"/>`; nightStart=null}});
+    // sleep bands
+    for(const sl of p.sleeps){ if(sl.d>course.total) continue; const x=xOf(sl.d);
+      s+=`<rect x="${x-3}" y="${lanes.wind.y}" width="6" height="${lanes.ele.y+lanes.ele.h-lanes.wind.y}" fill="var(--sleep)" opacity=".45"/>
+          <text x="${x+6}" y="${lanes.wind.y+11}" class="lane-label" fill="var(--sleep)">仮眠 ${sl.m}分</text>`}
+    // time ticks (every 3h ride time, date label at day change)
+    const totalH=S[S.length-1].eh; let lastDay=-1;
+    for(let hh=0;hh<=totalH;hh+=1){
+      // find distance where elapsed == hh (invert: solve by scanning)
+      const d=distAtElapsed(hh,p); if(d===null) continue; const x=xOf(d); const t=new Date(p.start.getTime()+hh*3600e3);
+      if(t.getDate()!==lastDay){lastDay=t.getDate(); s+=`<text x="${x}" y="${lanes.time.y+9}" class="tick day">${t.getMonth()+1}/${t.getDate()}</text>`}
+      if(hh%3===0){s+=`<line x1="${x}" y1="${lanes.time.y+12}" x2="${x}" y2="${lanes.dist.y}" stroke="var(--line)"/><text x="${x}" y="${lanes.time.y+21}" class="tick" text-anchor="middle">${fmtH(t)}</text>`}
+    }
+    // distance ticks
+    const dstep=course.total>300?50:course.total>120?20:10;
+    for(let d=0;d<=course.total;d+=dstep){const x=xOf(d);
+      s+=`<text x="${x}" y="${lanes.dist.y+12}" class="tick" text-anchor="middle">${d}</text><line x1="${x}" y1="${lanes.dist.y+14}" x2="${x}" y2="${H-4}" stroke="var(--line)" stroke-dasharray="2 4"/>`}
+    s+=`<text x="${L-6}" y="${lanes.dist.y+12}" class="tick" text-anchor="end">km</text>`;
+    // lane labels
+    const lab=(k,txt)=>`<text x="${L-6}" y="${lanes[k].y+lanes[k].h/2+4}" class="lane-label" text-anchor="end">${txt}</text>`;
+    s+=lab('wind','風')+lab('rain','雨')+lab('temp','気温')+lab('ele','標高');
+    // wind lane: relative arrows. Arrow points in direction wind pushes relative to travel (right = tailwind).
+    const wy=lanes.wind.y+lanes.wind.h/2; const col={head:'var(--head)',tail:'var(--tail)',cross:'var(--cross)'};
+    S.forEach(pt=>{const x=xOf(pt.d); const len=6+pt.wspd*2.2; const ang=-pt.rel; // svg y down: tail (rel 0) → right
+      s+=`<g transform="translate(${x} ${wy}) rotate(${ang})"><line x1="${-len/2}" y1="0" x2="${len/2}" y2="0" stroke="${col[pt.cls]}" stroke-width="2"/><path d="M${len/2} 0 l-5 -3.5 v7 z" fill="${col[pt.cls]}"/></g>`;
+      if(pt.wspd>=7) s+=`<text x="${x}" y="${lanes.wind.y+lanes.wind.h-2}" class="tick" text-anchor="middle" fill="${col[pt.cls]}">${pt.wspd.toFixed(0)}m</text>`});
+    // rain lane: pop band + mm bars
+    const ry=lanes.rain.y, rh=lanes.rain.h; const bw=innerW/(S.length-1);
+    S.forEach(pt=>{const x=xOf(pt.d);
+      s+=`<rect x="${x-bw/2}" y="${ry}" width="${bw}" height="${rh}" fill="var(--rain)" opacity="${(pt.pop/100)*.28}"/>`;
+      if(pt.mm>0){const h=Math.min(rh-8,pt.mm/5*(rh-8)); s+=`<rect x="${x-bw*.3}" y="${ry+rh-h}" width="${bw*.6}" height="${h}" fill="var(--rain)"/>`}
+      if(pt.pop>=60) s+=`<text x="${x}" y="${ry+11}" class="tick" text-anchor="middle" fill="var(--rain)">${pt.pop}%</text>`});
+    // temp lane: line
+    const tmin=Math.min(...S.map(p=>p.temp))-2, tmax=Math.max(...S.map(p=>p.temp))+2;
+    const ty=v=>lanes.temp.y+lanes.temp.h-(v-tmin)/(tmax-tmin)*lanes.temp.h;
+    s+=`<polyline fill="none" stroke="var(--ink)" stroke-width="1.6" points="${S.map(p=>`${xOf(p.d)},${ty(p.temp)}`).join(' ')}"/>`;
+    S.forEach((pt,i)=>{if(i%3===0) s+=`<text x="${xOf(pt.d)}" y="${ty(pt.temp)-5}" class="tick" text-anchor="middle">${pt.temp.toFixed(0)}°</text>`});
+    // elevation lane
+    const emax=Math.max(...course.pts.map(p=>p.ele))*1.05||1;
+    const ey=v=>lanes.ele.y+lanes.ele.h-v/emax*lanes.ele.h;
+    s+=`<path d="M${xOf(0)},${lanes.ele.y+lanes.ele.h} ${course.pts.map(p=>`L${xOf(p.d)},${ey(p.ele)}`).join(' ')} L${xOf(course.total)},${lanes.ele.y+lanes.ele.h} Z" fill="var(--paper-2)" stroke="var(--ink-3)" stroke-width="1"/>`;
+    // cursor + hit area
+    s+=`<line id="cur" class="cursor" x1="0" y1="${lanes.wind.y}" x2="0" y2="${lanes.ele.y+lanes.ele.h}" stroke="var(--ink)" stroke-width="1" opacity="0"/>`;
+    s+=`<rect id="hit" x="${L}" y="${lanes.time.y}" width="${innerW}" height="${H}" fill="transparent"/>`;
+    s+='</svg>';
+    const host=document.getElementById('ribbon'); host.innerHTML=s;
+    // hover
+    const svg=host.querySelector('svg'), hit=svg.querySelector('#hit'), cur=svg.querySelector('#cur'), tip=document.getElementById('tip'), wrap=document.getElementById('ribbonWrap');
+    hit.addEventListener('mousemove',e=>{
+      const r=svg.getBoundingClientRect(); const k=W/r.width; const x=(e.clientX-r.left)*k; const d=(x-L)/innerW*course.total;
+      const i=Math.round(d/(S[1].d-S[0].d)); const pt=S[Math.max(0,Math.min(S.length-1,i))]; if(!pt) return;
+      cur.setAttribute('x1',xOf(pt.d)); cur.setAttribute('x2',xOf(pt.d)); cur.setAttribute('opacity','1');
+      tip.style.display='block'; const wr=wrap.getBoundingClientRect();
+      tip.style.left=Math.min(wr.width-230,(e.clientX-wr.left)+14)+'px'; tip.style.top=(e.clientY-wr.top+12)+'px';
+      tip.innerHTML=`<b>${pt.d.toFixed(0)} km</b>　${fmtT(pt.t)}<br>${pt.code}　${pt.temp}℃　標高 ${pt.pt.ele.toFixed(0)} m<br>${dir16[Math.round(pt.wdir/22.5)%16]}の風 ${pt.wspd.toFixed(1)} m/s → <b>${relWord[pt.cls]}風</b>（進行方向成分 ${pt.comp>=0?'+':''}${pt.comp.toFixed(1)}）<br>降水確率 ${pt.pop}%　${pt.mm} mm/h`;
+    });
+    hit.addEventListener('mouseleave',()=>{cur.setAttribute('opacity','0'); tip.style.display='none'});
+  }
+  function distAtElapsed(h,p){ // invert elapsed(d) piecewise
+    let acc=0, d=0, prev=0;
+    for(const s of [...p.sleeps,{d:course.total+1,m:0}]){
+      const rideH=(Math.min(s.d,course.total)-prev)/p.spd;
+      if(h<=acc+rideH) return prev+(h-acc)*p.spd;
+      acc+=rideH; prev=Math.min(s.d,course.total);
+      if(h<=acc+s.m/60) return null; // during sleep
+      acc+=s.m/60;
+    }
+    return null;
+  }
+
+  function renderTable(S){
+    const tb=document.querySelector('#segs tbody'); const every=Math.max(1,Math.round(S.length/16));
+    tb.innerHTML=S.filter((_,i)=>i%every===0||i===S.length-1).map(pt=>`<tr>
+      <td class="n">${pt.d.toFixed(0)} km</td><td>${fmtT(pt.t)}</td><td>${pt.code}</td>
+      <td>${dir16[Math.round(pt.wdir/22.5)%16]} ${pt.wspd.toFixed(1)} m/s <span class="rel ${pt.cls}">${relWord[pt.cls]}</span></td>
+      <td class="n">${pt.pop}% ／ ${pt.mm} mm</td><td class="n">${pt.temp.toFixed(1)}℃</td></tr>`).join('');
+  }
+
+  function renderMap(S){
+    const P=course.pts; const lats=P.map(p=>p.lat), lons=P.map(p=>p.lon);
+    const minLa=Math.min(...lats),maxLa=Math.max(...lats),minLo=Math.min(...lons),maxLo=Math.max(...lons);
+    const W=280,H=250,pad=18; const kx=(W-2*pad)/((maxLo-minLo)||1), ky=(H-2*pad)/((maxLa-minLa)||1); const k=Math.min(kx,ky*1);
+    const cx=lo=>pad+(lo-minLo)*k, cy=la=>H-pad-(la-minLa)*k*1.2;
+    let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="コース略図と風向">`;
+    s+=`<polyline fill="none" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round" points="${P.map(p=>`${cx(p.lon)},${cy(p.lat)}`).join(' ')}"/>`;
+    const col={head:'var(--head)',tail:'var(--tail)',cross:'var(--cross)'};
+    S.filter((_,i)=>i%3===0).forEach(pt=>{const x=cx(pt.pt.lon),y=cy(pt.pt.lat); const to=(pt.wdir+180)%360; const len=5+pt.wspd*1.6;
+      s+=`<g transform="translate(${x} ${y}) rotate(${to-90})"><line x1="${-len/2}" y1="0" x2="${len/2}" y2="0" stroke="${col[pt.cls]}" stroke-width="1.8"/><path d="M${len/2} 0 l-4 -3 v6 z" fill="${col[pt.cls]}"/></g>`});
+    s+=`<circle cx="${cx(P[0].lon)}" cy="${cy(P[0].lat)}" r="4" fill="var(--ink)"/><text x="${cx(P[0].lon)+7}" y="${cy(P[0].lat)+4}" class="tick">スタート</text>`;
+    s+=`<text x="${pad}" y="${H-4}" class="tick">矢印＝風の吹く向き（実方位）。色は進行方向に対する相対風</text></svg>`;
+    document.getElementById('map').innerHTML=s;
+  }
+
+  function renderStarts(p){
+    const tb=document.querySelector('#starts tbody'); const rows=[];
+    for(const off of [-3,-2,-1,0,1,2,3]){
+      const q={...p,start:new Date(p.start.getTime()+off*3600e3)}; const S=compute(q); const step=S[1].d-S[0].d;
+      const head=S.filter(s=>s.cls==='head').length*step, rain=S.filter(s=>s.mm>=0.5).length*step, tmin=Math.min(...S.map(s=>s.temp));
+      rows.push({off,head,rain,tmin,goal:S[S.length-1].t,score:head+rain*1.5});
+    }
+    const best=rows.reduce((a,b)=>b.score<a.score?b:a);
+    tb.innerHTML=rows.map(r=>`<tr class="${r===best?'best':''}"><td>${fmtT(new Date(p.start.getTime()+r.off*3600e3))}${r.off===0?'（設定）':''}</td><td class="n">${r.head}</td><td class="n">${r.rain}</td><td class="n">${r.tmin.toFixed(1)}℃</td><td class="n">${fmtT(r.goal)}</td></tr>`).join('');
+  }
+
+  // ---------- wiring ----------
+  document.getElementById('run').addEventListener('click',run);
+  ['date','time','spd','s1d','s1m','s2d','s2m'].forEach(id=>document.getElementById(id).addEventListener('change',run));
+  document.getElementById('addSleep').addEventListener('click',()=>{document.getElementById('s2').style.display='grid';run()});
+  document.getElementById('rmSleep').addEventListener('click',()=>{document.getElementById('s2').style.display='none';run()});
+  run();
+})();
+</script>
+</body>
+</html>
