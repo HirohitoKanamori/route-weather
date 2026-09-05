@@ -1,11 +1,11 @@
 // Route Weather JP のサービスワーカー（PWA・オフライン用）
-// - アプリ本体（index.html、アイコン、FIT SDK）はキャッシュし、index.html はネットワーク優先で更新を取り込む
+// - アプリ本体（index.html、js/、アイコン、FIT SDK）はキャッシュし、index.html と js/ はネットワーク優先で更新を取り込む
 // - 予報 API（Open-Meteo・気象庁）はキャッシュしない（アプリ側が localStorage で保持する）
 // - 地図タイルはキャッシュ優先（OSM の利用ポリシーに沿った端末内キャッシュ）。上限を超えたら古いものから消す
 // vendor/ を更新したら VERSION を上げること
 const VERSION = 'rw-v1';
 const SHELL = 'shell-' + VERSION, TILES = 'tiles-' + VERSION;
-const SHELL_FILES = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
+const SHELL_FILES = ['./', './index.html', './js/core.js', './js/app.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 const TILE_MAX = 300;
 
 self.addEventListener('install', e => {
@@ -18,7 +18,7 @@ self.addEventListener('fetch', e => {
   const req = e.request; if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin === location.origin) {
-    if (req.mode === 'navigate' || url.pathname.endsWith('/index.html') || url.pathname.endsWith('/')) { e.respondWith(networkFirst(req, SHELL)); return; }
+    if (req.mode === 'navigate' || url.pathname.endsWith('/index.html') || url.pathname.endsWith('/') || url.pathname.includes('/js/')) { e.respondWith(networkFirst(req, SHELL)); return; }
     if (url.pathname.includes('/vendor/') || url.pathname.includes('/icons/') || url.pathname.endsWith('.webmanifest')) { e.respondWith(cacheFirst(req, SHELL)); return; }
     return; // samples 等はそのまま
   }

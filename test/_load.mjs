@@ -1,18 +1,6 @@
-// index.html 内の純粋関数ブロック（/*==CORE-BEGIN==*/ 〜 /*==CORE-END==*/）を
-// 切り出して Node で評価し、RW 名前空間を返す。ビルド無しで単一 HTML を保つための仕組み。
-import fs from 'node:fs';
-import vm from 'node:vm';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const html = fs.readFileSync(path.join(here, '..', 'index.html'), 'utf8');
-const m = html.match(/\/\*==CORE-BEGIN==\*\/([\s\S]*?)\/\*==CORE-END==\*\//);
-if (!m) throw new Error('index.html に CORE ブロックが見つかりません');
-const ctx = { console };
-vm.createContext(ctx);
-vm.runInContext(m[1] + '\nthis.RW = RW;', ctx, { filename: 'index.html#core' });
-export const RW = ctx.RW;
+// js/core.js（純粋関数群）を直接 import する。
+export { RW } from '../js/core.js';
+import { RW } from '../js/core.js';
 
 // 直線コース（南→北）を作る。step km ごとに n 点。
 export function straightCourse(n = 61, stepKm = 10, lat0 = 35.0, lon = 139.0) {

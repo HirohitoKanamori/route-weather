@@ -12,7 +12,7 @@
 
 ## 守ること
 
-- 静的サイト。アプリ本体は `index.html` 1 本（HTML/CSS/JS）に置き、サーバ側処理・ビルド手順を作らない。PWA 用の `sw.js`・`manifest.webmanifest`・`icons/` は別ファイルでよい。`vendor/` を更新したら `sw.js` の VERSION を上げる
+- 静的サイト。ビルド手順・サーバ側処理を作らない。構成は `index.html`（HTML/CSS）＋ `js/core.js`（純粋関数、ES Module）＋ `js/app.js`（画面・取得層）＋ PWA 用の `sw.js`・`manifest.webmanifest`・`icons/`。`vendor/` を更新したら `sw.js` の VERSION を上げる
 - コースファイルは端末内で処理する。外部に送らない
 - 予報は気象庁モデルのみ。Open-Meteo `/v1/jma` で、4 日先まで `jma_msm`、5〜11 日先は `jma_gsm`。気象庁以外のモデル（`/v1/forecast` 等）は使わない。11 日より先は「予報範囲外」。4 日より先は「傾向モード」として粒度を落として表示する（RDD_06 F-8／F-9／V-11）
 - 気象庁ホームページ（`www.jma.go.jp/bosai/`）への直接アクセスは注意報・警報・アメダス・区域表に限る。市区町村の判定は国土地理院の逆ジオコーダを使い、結果は端末内に保持して同じ地点を再送しない
@@ -31,7 +31,7 @@
 
 ## 検証
 
-- `plan`／`wind`／`sun`／`forecast`／`course` は純粋関数にし、`index.html` の `/*==CORE-BEGIN==*/`〜`/*==CORE-END==*/` にまとめる。`test/_load.mjs` がそこを切り出して Node で評価する
+- `plan`／`wind`／`sun`／`forecast`／`course` は純粋関数にし、`js/core.js` にまとめる（DOM・fetch を使わない）。`test/_load.mjs` が直接 import する
 - テストは `node --test "test/*.test.mjs"`（GitHub Actions でも公開前に実行される）
 - 描画は iPhone 実機（幅 375–430 px）で確認してから公開する
 - 公開は `main` への push → GitHub Pages

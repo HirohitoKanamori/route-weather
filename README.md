@@ -5,7 +5,7 @@
 ブルベ（長距離自転車）向け。コース（GPX / FIT）と出走時刻・グロス速度・仮眠から、コース上の通過時刻ごとの風（相対風）・降水・気温を表示するブラウザアプリ。
 
 - 予報は気象庁の数値予報（MSM：4 日先まで、GSM：11 日先まで）を Open-Meteo 経由で取得
-- ビルド不要の `index.html` 1 本。GitHub Pages で公開
+- ビルド不要の静的ファイル（HTML ＋ ES Modules）。GitHub Pages で公開
 - コースファイルは端末内で処理し、外部に送信しない
 - 第一対象は iPhone Safari（「ファイル」アプリ経由で GPX を読み込む）
 
@@ -30,7 +30,7 @@
 
 ## 開発
 
-- 純粋関数（course / plan / wind / sun / forecast）は `index.html` 内の `/*==CORE-BEGIN==*/` 〜 `/*==CORE-END==*/` にまとめ、`test/_load.mjs` が切り出して Node で評価する
+- 純粋関数（course / plan / wind / sun / forecast）は `js/core.js`（ES Module）にまとめ、`test/` が直接 import する。画面と取得層は `js/app.js`
 - テスト：`node --test "test/*.test.mjs"`
 - ローカル確認：リポジトリ直下で `python3 -m http.server 8000` → `http://localhost:8000/`（`file://` ではサンプル読み込みと FIT SDK の import が動かない）
 - 公開：`main` へ push すると `.github/workflows/pages.yml` がテストを実行してから GitHub Pages に配置する（リポジトリ設定の Pages → Source を「GitHub Actions」にしておく）
@@ -38,7 +38,8 @@
 ## 構成
 
 ```
-index.html                  本体（HTML / CSS / JS）
+index.html                  本体（HTML / CSS）
+js/core.js, js/app.js       純粋関数（ES Module）と画面・取得層
 sw.js, manifest.webmanifest, icons/  PWA 用（sw.js は vendor 更新時に VERSION を上げる）
 vendor/fitsdk/              Garmin FIT SDK（@garmin/fitsdk の src をそのまま同梱、遅延 import）
 samples/*.gpx               動作確認用コース
