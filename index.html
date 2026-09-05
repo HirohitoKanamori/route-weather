@@ -904,7 +904,7 @@ const RW = (function () {
       const cls = (pt.na ? 'na' : '') + (pt.night ? ' night' : '');
       if (pt.na) rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}</td><td colspan="4">予報範囲外</td></tr>`);
       else rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}${pt.night ? ' <span class="tag">夜</span>' : ''}</td><td>${esc(RW.forecast.wmoText(pt.code))}${pt.model === 'gsm' ? ' <span class="tag">GSM</span>' : ''}</td>
-        <td>${RW.wind.dir16(pt.wd)} ${n1(pt.ws)} m/s <span class="rel ${pt.cls}">${REL[pt.cls]}</span></td><td class="n">${n1(pt.mm)} mm/h</td><td class="n">${n1(pt.temp)}℃</td></tr>`);
+        <td>${RW.wind.dir16(pt.wd)} ${n1(pt.ws)} m/s <span class="rel ${pt.cls}">${REL[pt.cls]}風</span></td><td class="n">${n1(pt.mm)} mm/h</td><td class="n">${n1(pt.temp)}℃</td></tr>`);
       while (si < p.sleeps.length && p.sleeps[si].d === pt.d) { rows.push(sleepRow(p.sleeps[si], p)); si++; }
     }
     tb.innerHTML = rows.join('');
