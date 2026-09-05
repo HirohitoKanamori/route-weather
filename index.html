@@ -102,7 +102,8 @@
   .rel.head{background:var(--head)} .rel.tail{background:var(--tail)} .rel.cross{background:var(--cross)}
   .tag{display:inline-block;font-size:10px;border:1px solid var(--ink-3);color:var(--ink-2);border-radius:3px;padding:0 4px;margin-left:4px;line-height:15px;vertical-align:1px}
   .map .osm{position:relative;overflow:hidden;border-radius:6px;background:var(--paper-2);margin:0 auto}
-  .map .osm img{position:absolute;display:block;width:256px;height:256px;pointer-events:none;user-select:none}
+  .map .osm img{position:absolute;display:block;width:256px;height:256px;pointer-events:none;user-select:none;
+    filter:grayscale(1) brightness(1.08) contrast(.85)} /* 地図はモノクロ・淡めにして風矢印の色を目立たせる */
   .map .osm svg{position:absolute;left:0;top:0;display:block}
   .map .osm .attr{position:absolute;right:4px;bottom:2px;font-size:10px;line-height:1.4;color:var(--ink-2);background:rgba(255,255,255,.8);padding:0 4px;border-radius:3px}
   .map .osm .attr a{color:inherit}
