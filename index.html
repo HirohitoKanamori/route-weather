@@ -54,11 +54,11 @@
   .course .meta{color:var(--ink-2);font-size:12px}
   .field{display:flex;flex-direction:column;gap:4px}
   .field label,.field .lbl{font-size:12px;color:var(--ink-2)}
-  .field input,.sleep input{border:1px solid var(--line);background:#fff;border-radius:6px;padding:0 10px;min-height:44px;width:100%;font-size:16px}
-  .field input:focus,.sleep input:focus,button:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
+  .field input,.sleeps .sleep input{border:1px solid var(--line);background:#fff;border-radius:6px;padding:0 10px;min-height:44px;width:100%;font-size:16px}
+  .field input:focus,.sleeps .sleep input:focus,button:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .sleeps{display:flex;flex-direction:column;gap:6px}
-  .sleep{display:grid;grid-template-columns:1fr 1fr 44px;gap:6px}
+  .sleeps .sleep{display:grid;grid-template-columns:1fr 1fr 44px;gap:6px} /* 設定欄の仮眠行。区間表の tr.sleep とは別物 */
   .btn{border:1px solid var(--line);background:#fff;border-radius:6px;min-height:44px;min-width:44px;padding:0 12px;cursor:pointer}
   .primary{border:0;background:var(--ink);color:#fff;border-radius:8px;min-height:48px;padding:0 14px;cursor:pointer;font-weight:600}
   .primary[disabled]{opacity:.5;cursor:default}
@@ -910,7 +910,8 @@ const RW = (function () {
     tb.innerHTML = rows.join('');
   }
   function sleepRow(sl, p) {
-    return `<tr class="sleep"><td class="n">${Math.round(sl.d)} km</td><td>${F.fmtDT(RW.plan.timeAt(sl.d, p, true))} 着 → ${F.fmtDT(RW.plan.timeAt(sl.d, p))} 発</td><td colspan="4">仮眠 ${sl.m} 分</td></tr>`;
+    // 通過列の幅を広げないよう到着・出発は 2 行に分け、他の列は空セルで揃える
+    return `<tr class="sleep"><td class="n">${Math.round(sl.d)} km</td><td>着 ${F.fmtDT(RW.plan.timeAt(sl.d, p, true))}<br>発 ${F.fmtDT(RW.plan.timeAt(sl.d, p))}</td><td>仮眠 ${sl.m} 分</td><td></td><td class="n"></td><td class="n"></td></tr>`;
   }
   function renderMap() {
     const host = $('map'); const { S } = state.result; const P = state.course.pts;
