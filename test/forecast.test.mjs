@@ -16,6 +16,14 @@ test('buildUrl：/v1/jma、気象庁モデルのみ、地点はカンマ区切�
   assert.ok(g.includes('models=jma_gsm') && g.includes('forecast_days=11') && g.includes('past_days=1'));
 });
 
+test('parseSeries：体感温度・日照が無い旧データでも at は落ちない', () => {
+  const loc = { latitude: 35, longitude: 139, hourly: { time: ['2026-09-05T00:00', '2026-09-05T01:00'], temperature_2m: [20, 21], relative_humidity_2m: [50, 50], precipitation: [0, 0], weather_code: [1, 1], cloud_cover: [0, 0], wind_speed_10m: [1, 1], wind_direction_10m: [0, 0] } };
+  const s = RW.forecast.parseSeries(loc)[0];
+  const v = RW.forecast.at(s, T0 + 30 * 60e3);
+  assert.equal(v.feel, null); assert.equal(v.sun, null); assert.equal(v.temp, 20.5);
+  assert.ok(RW.forecast.buildUrl([{ lat: 35, lon: 139 }], 'msm').includes('apparent_temperature,'));
+});
+
 test('parseSeries：単一地点（オブジェクト）も複数地点（配列）も同じ形にする。null の末尾は validUntil で切る', () => {
   const loc = { latitude: 35, longitude: 139, hourly: { time: ['2026-09-05T00:00', '2026-09-05T01:00', '2026-09-05T02:00'], temperature_2m: [20, 21, null], relative_humidity_2m: [50, 50, null], precipitation: [0, 0.5, null], weather_code: [1, 61, null], cloud_cover: [10, 90, null], wind_speed_10m: [1, 2, null], wind_direction_10m: [350, 10, null] } };
   const one = RW.forecast.parseSeries(loc), two = RW.forecast.parseSeries([loc, loc]);
@@ -29,6 +37,8 @@ test('at：線形補間。風向は円周補間、降水はその時刻を含む
   const s = syntheticSeries(1, T0, 4, (p, h) => ({ temp: 20 + h, mm: h, ws: h, wd: h === 0 ? 350 : 10 }))[0];
   const v = RW.forecast.at(s, T0 + 30 * 60e3);
   assert.ok(Math.abs(v.temp - 20.5) < 1e-9);
+  assert.ok(Math.abs(v.feel - 19.5) < 1e-9, '体感温度も補間');
+  assert.equal(v.sun, 1800, '日照時間はその時刻を含む 1 時間の値');
   assert.ok(Math.abs(v.wd - 0) < 1e-9, `風向 ${v.wd}`);
   assert.equal(v.mm, 1, '00:30 は 00:00–01:00 の降水（01:00 の値）');
   assert.equal(RW.forecast.at(s, T0 + 3 * 3600e3).temp, 23, '末尾ちょうど');

@@ -52,6 +52,8 @@
   .course{background:var(--paper);border-radius:8px;padding:8px 10px;font-size:13px}
   .course .name{font-weight:600;word-break:break-all}
   .course .meta{color:var(--ink-2);font-size:12px}
+  .courseBtns{display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:8px}
+  .courseBtns select{border:1px solid var(--line);background:#fff;border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px}
   .field{display:flex;flex-direction:column;gap:4px}
   .field label,.field .lbl{font-size:12px;color:var(--ink-2)}
   .field input,.sleeps .sleep input{border:1px solid var(--line);background:#fff;border-radius:6px;padding:0 10px;min-height:44px;width:100%;font-size:16px}
@@ -104,6 +106,7 @@
   tr.best td{background:#EAF3EE}
   .rel{display:inline-block;padding:0 6px;border-radius:4px;color:#fff;font-size:11px;line-height:18px;vertical-align:1px}
   .rel.head{background:var(--head)} .rel.tail{background:var(--tail)} .rel.cross{background:var(--cross)}
+  small.sub{font-size:11px;color:var(--ink-3);font-weight:400}
   .tag{display:inline-block;font-size:10px;border:1px solid var(--ink-3);color:var(--ink-2);border-radius:3px;padding:0 4px;margin-left:4px;line-height:15px;vertical-align:1px}
   .map .osm{position:relative;overflow:hidden;border-radius:6px;background:var(--paper-2);margin:0 auto}
   .map .osm img{position:absolute;display:block;width:256px;height:256px;pointer-events:none;user-select:none;
@@ -143,6 +146,10 @@
           <div class="course" id="courseBox">
             <div class="name" id="cName">コース未読み込み</div>
             <div class="meta" id="cMeta">動作確認用：<a href="samples/WanIchi_Clockwise.gpx" id="sampleLink">サンプルコース（ワンイチ時計回り・東京湾一周）を読み込む</a></div>
+            <div class="courseBtns">
+              <select id="recent" aria-label="最近のコース"><option value="">最近のコース…</option></select>
+              <button type="button" class="btn" id="reverse" title="コースを反転（往復・復路の確認用）">反転</button>
+            </div>
           </div>
           <div class="row2">
             <div class="field"><label for="date">出走日</label><input type="date" id="date"></div>
@@ -254,7 +261,7 @@ const RW = (function () {
   const RAIN_MM = 0.5;                 // これ以上の降水（mm/h）を「雨中走行」とみなす
   const TAIL_DEG = 45, HEAD_DEG = 135; // 相対風の分類閾値（F-3）
   const MAX_PTS = 600;                 // コースの間引き上限
-  const HOURLY = ['temperature_2m', 'relative_humidity_2m', 'precipitation', 'weather_code', 'cloud_cover', 'wind_speed_10m', 'wind_direction_10m'];
+  const HOURLY = ['temperature_2m', 'apparent_temperature', 'relative_humidity_2m', 'precipitation', 'weather_code', 'cloud_cover', 'wind_speed_10m', 'wind_direction_10m', 'sunshine_duration'];
   const MODELS = {
     msm: { id: 'jma_msm', days: 4, label: '気象庁 MSM', grid: '約 5 km 格子・1 時間値' },
     gsm: { id: 'jma_gsm', days: 11, label: '気象庁 GSM', grid: '約 55 km 格子・6 時間値を 1 時間に補間' }
@@ -294,6 +301,8 @@ const RW = (function () {
     for (let i = 0; i < src.length; i++) { if (i > 0) d += hav(src[i - 1], src[i]); cum[i] = d; }
     const total = d;
     const gain = hasEle ? elevationGain(src, cum) : 0;
+    // 下り量（反転時の獲得標高に使う）：点列を逆順にして同じ方法で計算
+    const loss = hasEle ? elevationGain(src.slice().reverse(), cum.map(v => total - v).reverse()) : 0;
     const minGap = total / maxPts;
     const pts = []; let lastD = -Infinity;
     for (let i = 0; i < src.length; i++) {
@@ -306,7 +315,7 @@ const RW = (function () {
       let prev = null; for (const p of pts) { if (p.ele == null) p.ele = prev; else prev = p.ele; }
       let next = null; for (let i = pts.length - 1; i >= 0; i--) { if (pts[i].ele == null) pts[i].ele = next; else next = pts[i].ele; }
     }
-    return { name: name || 'コース', pts, total, gain: Math.round(gain), n: src.length, hasEle };
+    return { name: name || 'コース', pts, total, gain: Math.round(gain), loss: Math.round(loss), n: src.length, hasEle };
   }
   // 獲得標高：標高を前後 ±100 m の距離窓で平滑化してから、3 m のヒステリシスで登りだけを積算する
   // （RwGPS/Garmin の標高ノイズをそのまま足すと 1.5 倍前後に膨らむため）
@@ -344,6 +353,17 @@ const RW = (function () {
     let a = interp(course, Math.max(0, d - win)), b = interp(course, Math.min(t, d + win));
     if (hav(a, b) < 1e-4) { a = interp(course, Math.max(0, d - 5)); b = interp(course, Math.min(t, d + 5)); }
     return bearing(a, b);
+  }
+  // コース反転（往復・復路確認用、C-7）
+  function reverseCourse(course) {
+    const total = course.total;
+    const pts = course.pts.slice().reverse().map(q => ({ lat: q.lat, lon: q.lon, ele: q.ele, d: Math.max(0, total - q.d) }));
+    pts[0].d = 0; pts[pts.length - 1].d = total;
+    // 反転後の登りは元コースの下り。旧データで loss が無ければ間引き後の点列から概算する
+    let gain = course.loss;
+    if (gain == null) { gain = 0; if (course.hasEle) { let base = null; for (const q of pts) { if (q.ele == null) continue; if (base === null) base = q.ele; else if (q.ele - base >= 3) { gain += q.ele - base; base = q.ele; } else if (q.ele < base) base = q.ele; } } }
+    const name = /（反転）$/.test(course.name) ? course.name.replace(/（反転）$/, '') : course.name + '（反転）';
+    return { name, pts, total, gain: course.hasEle ? Math.round(gain) : 0, loss: course.gain, n: course.n, hasEle: course.hasEle };
   }
   function hashCourse(course) {
     const s = course.pts.map(p => p.lat.toFixed(4) + ',' + p.lon.toFixed(4)).join(';') + '|' + course.n;
@@ -485,8 +505,8 @@ const RW = (function () {
       let vf = -1, vu = -1;
       for (let i = 0; i < times.length; i++) if (temp[i] != null) { if (vf < 0) vf = i; vu = i; }
       return {
-        times, temp, rh: h.relative_humidity_2m || [], mm: h.precipitation || [], code: h.weather_code || [],
-        cloud: h.cloud_cover || [], ws: h.wind_speed_10m || [], wd: h.wind_direction_10m || [],
+        times, temp, feel: h.apparent_temperature || [], rh: h.relative_humidity_2m || [], mm: h.precipitation || [], code: h.weather_code || [],
+        cloud: h.cloud_cover || [], ws: h.wind_speed_10m || [], wd: h.wind_direction_10m || [], sun: h.sunshine_duration || [],
         validFrom: vf >= 0 ? times[vf] : null, validUntil: vu >= 0 ? times[vu] : null, lat: loc.latitude, lon: loc.longitude
       };
     });
@@ -507,7 +527,9 @@ const RW = (function () {
     const L = a => { const x = a[i], y = a[i + 1]; if (x == null && y == null) return null; if (x == null) return y; if (y == null) return x; return x + (y - x) * k; };
     let wd; { const x = s.wd[i], y = s.wd[i + 1]; if (x == null || y == null) wd = x ?? y ?? 0; else { const dd = ((y - x) + 540) % 360 - 180; wd = ((x + dd * k) % 360 + 360) % 360; } }
     const near = k < 0.5 ? i : i + 1;
-    return { temp: L(s.temp), rh: L(s.rh) ?? 0, mm: s.mm[i + 1] ?? s.mm[i] ?? 0, code: s.code[near] ?? s.code[i] ?? null, cloud: L(s.cloud) ?? 0, ws: L(s.ws) ?? 0, wd };
+    const sunArr = s.sun || [], feelArr = s.feel || [];
+    return { temp: L(s.temp), feel: feelArr.length ? L(feelArr) : null, rh: L(s.rh) ?? 0, mm: s.mm[i + 1] ?? s.mm[i] ?? 0, code: s.code[near] ?? s.code[i] ?? null,
+      cloud: L(s.cloud) ?? 0, ws: L(s.ws) ?? 0, wd, sun: sunArr.length ? (sunArr[i + 1] ?? sunArr[i] ?? null) : null };
   }
   // 地点 idx・時刻 t について MSM → GSM の順で採用（F-8）
   function pick(series, idx, t) {
@@ -580,7 +602,7 @@ const RW = (function () {
   return {
     const: { RAIN_MM, TAIL_DEG, HEAD_DEG, MAX_PTS, HOURLY, MODELS },
     fmt: { jstParts, fmtH, fmtT, fmtDT, dateKey, ymd },
-    course: { hav, bearing, fromPoints, elevationGain, interp, headingAt, hashCourse },
+    course: { hav, bearing, fromPoints, elevationGain, interp, headingAt, reverseCourse, hashCourse },
     plan: { normSleeps, normSegments, rideHours, sleepHours, elapsedH, timeAt, sampleStep, samplePoints, timeNodes, hourTicks },
     wind: { relative, dir16 },
     sun: { sunTimes, isNight },
@@ -734,13 +756,27 @@ const RW = (function () {
   }
   function setCourse(course) {
     state.course = course; state.series = null; state.result = null; state.offlineNote = '';
-    renderCourse(); store.set('rw:course', course); setStatus('');
+    renderCourse(); store.set('rw:course', course); rememberCourse(course); setStatus('');
     run();
+  }
+  // 最近のコース（C-8）：端末内に最大 5 件。同じコース（ハッシュ一致）は先頭に移す
+  function rememberCourse(course) {
+    const h = RW.course.hashCourse(course);
+    const list = (store.get('rw:courses') || []).filter(c => c.hash !== h);
+    list.unshift({ hash: h, savedAt: Date.now(), course });
+    while (list.length > 5) list.pop();
+    if (!store.set('rw:courses', list)) { list.length = Math.min(list.length, 2); store.set('rw:courses', list); }
+    renderRecent();
+  }
+  function renderRecent() {
+    const sel = $('recent'); const list = store.get('rw:courses') || [];
+    sel.innerHTML = '<option value="">最近のコース…</option>' + list.map((c, i) => `<option value="${i}">${esc(c.course.name)}（${n1(c.course.total)} km・${F.dateKey(c.savedAt)}）</option>`).join('');
+    sel.parentElement.classList.toggle('hidden', !list.length && !state.course);
   }
 
   // ===== 予報取得 =====
   async function getSeries(model, pts, hash, pastDays, force) {
-    const key = 'rw:fc:' + hash + ':' + model + ':' + pastDays;
+    const key = 'rw:fc2:' + hash + ':' + model + ':' + pastDays;
     if (!force) { const c = store.get(key); if (c && Date.now() - c.at < CACHE_MS) return c.series; }
     const res = await fetch(RW.forecast.buildUrl(pts, model, pastDays));
     if (!res.ok) { let msg = 'HTTP ' + res.status; try { const j = await res.json(); if (j.reason) msg += ' ' + j.reason; } catch (e) { /* noop */ } throw new Error(msg); }
@@ -783,6 +819,7 @@ const RW = (function () {
         ser = { msm, gsm, hash, pastDays, fetchedAt: Date.now(), runs: {} };
         state.series = ser; state.offlineNote = '';
         store.set('rw:last', { course: state.course, series: ser });
+        try { Object.keys(localStorage).filter(k => k.startsWith('rw:fc:')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* 旧キャッシュの掃除 */ }
         setStatus('');
         fetchRuns(ser);
       } catch (e) {
@@ -850,7 +887,7 @@ const RW = (function () {
     if (sm.nOk === 0) { $('summary').innerHTML = h; return; }
     h += card('head', '向かい風区間', `${sm.headKm} km`, `${state.course.total > 0 ? Math.round(sm.headKm / state.course.total * 100) : 0}% ／ 最大風速 ${sm.wsMax ? n1(sm.wsMax.ws) + ' m/s（' + Math.round(sm.wsMax.d) + ' km）' : '—'}`);
     h += card('rain', '雨中走行', `${sm.rainKm} km`, sm.rainFirst ? `最初 ${Math.round(sm.rainFirst.d)} km（${F.fmtDT(sm.rainFirst.t)}）〜 最後 ${Math.round(Math.min(sm.rainLast.d + step, state.course.total))} km` : `${RAIN_MM} mm/h 以上の降水なし`);
-    h += card('', '最低気温', `${n1(sm.tmin.temp)}℃`, `${Math.round(sm.tmin.d)} km、${F.fmtDT(sm.tmin.t)}${sm.tmax ? ' ／ 最高 ' + n1(sm.tmax.temp) + '℃' : ''}`);
+    h += card('', '最低気温', `${n1(sm.tmin.temp)}℃${sm.tmin.feel != null ? '<small class="sub">（体感 ' + n1(sm.tmin.feel) + '℃）</small>' : ''}`, `${Math.round(sm.tmin.d)} km、${F.fmtDT(sm.tmin.t)}${sm.tmax ? ' ／ 最高 ' + n1(sm.tmax.temp) + '℃' : ''}`);
     h += card('', '夜間走行', `${sm.nightKm} km`, '日没〜日の出の区間');
     $('summary').innerHTML = h;
   }
@@ -952,7 +989,8 @@ const RW = (function () {
     const head = `<b>${pt.d.toFixed(0)} km</b>　${F.fmtDT(pt.t)}${pt.night ? '　夜間' : ''}`;
     if (pt.na) return head + '<br>予報範囲外';
     const ele = pt.ele != null ? `　標高 ${Math.round(pt.ele)} m` : '';
-    return head + `<br>${esc(RW.forecast.wmoText(pt.code))}　${n1(pt.temp)}℃　湿度 ${Math.round(pt.rh)}%${ele}` +
+    const sun = pt.sun != null ? `　日照 ${Math.round(pt.sun / 36)}%` : '';
+    return head + `<br>${esc(RW.forecast.wmoText(pt.code))}　${n1(pt.temp)}℃${pt.feel != null ? '（体感 ' + n1(pt.feel) + '℃）' : ''}　湿度 ${Math.round(pt.rh)}%${sun}${ele}` +
       `<br>${RW.wind.dir16(pt.wd)}の風 ${n1(pt.ws)} m/s → <b>${REL[pt.cls]}風</b>（進行方向成分 ${pt.comp >= 0 ? '+' : ''}${n1(pt.comp)} m/s）` +
       `<br>降水 ${n1(pt.mm)} mm/h${pt.model === 'gsm' ? '　<span class="tag" style="color:#fff;border-color:#fff">GSM</span>' : ''}`;
   }
@@ -999,8 +1037,8 @@ const RW = (function () {
       while (si < p.sleeps.length && p.sleeps[si].d < pt.d) { rows.push(sleepRow(p.sleeps[si], p)); si++; }
       const cls = (pt.na ? 'na' : '') + (pt.night ? ' night' : '');
       if (pt.na) rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}</td><td colspan="4">予報範囲外</td></tr>`);
-      else rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}${pt.night ? ' <span class="tag">夜</span>' : ''}</td><td>${esc(RW.forecast.wmoText(pt.code))}${pt.model === 'gsm' ? ' <span class="tag">GSM</span>' : ''}</td>
-        <td>${RW.wind.dir16(pt.wd)} ${n1(pt.ws)} m/s <span class="rel ${pt.cls}">${REL[pt.cls]}風</span></td><td class="n">${n1(pt.mm)} mm/h</td><td class="n">${n1(pt.temp)}℃</td></tr>`);
+      else rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}${pt.night ? ' <span class="tag">夜</span>' : ''}</td><td>${esc(RW.forecast.wmoText(pt.code))}${pt.model === 'gsm' ? ' <span class="tag">GSM</span>' : ''}<br><small class="sub">湿度 ${Math.round(pt.rh)}%${pt.sun != null ? '・日照 ' + Math.round(pt.sun / 36) + '%' : ''}</small></td>
+        <td>${RW.wind.dir16(pt.wd)} ${n1(pt.ws)} m/s <span class="rel ${pt.cls}">${REL[pt.cls]}風</span></td><td class="n">${n1(pt.mm)} mm/h</td><td class="n">${n1(pt.temp)}℃${pt.feel != null ? '<br><small class="sub">体感 ' + n1(pt.feel) + '℃</small>' : ''}</td></tr>`);
       while (si < p.sleeps.length && p.sleeps[si].d === pt.d) { rows.push(sleepRow(p.sleeps[si], p)); si++; }
     }
     tb.innerHTML = rows.join('');
@@ -1079,6 +1117,8 @@ const RW = (function () {
     try { const r = await fetch(e.currentTarget.getAttribute('href')); if (!r.ok) throw new Error('HTTP ' + r.status); setCourse(parseGPX(await r.text(), 'サンプルコース')); }
     catch (err) { setStatus('サンプルを読み込めませんでした：' + err.message, 'err'); }
   });
+  $('recent').addEventListener('change', e => { const list = store.get('rw:courses') || []; const c = list[+e.target.value]; e.target.value = ''; if (c && c.course && c.course.pts) setCourse(c.course); });
+  $('reverse').addEventListener('click', () => { if (state.course) setCourse(RW.course.reverseCourse(state.course)); });
   $('addSleep').addEventListener('click', () => { addSleepRow().querySelector('.sd').focus(); });
   $('addSeg').addEventListener('click', () => { addSegRow().querySelector('.sf').focus(); });
   ['ancD', 'ancT'].forEach(id => $(id).addEventListener('change', onParamChange));
@@ -1091,7 +1131,7 @@ const RW = (function () {
   window.addEventListener('online', () => { if (state.course && state.offlineNote) run(); });
 
   // ===== 起動：前回のコース・予報を復元してから最新を取りに行く =====
-  loadParams();
+  loadParams(); renderRecent();
   const last = store.get('rw:last');
   const savedCourse = (last && last.course) || store.get('rw:course');
   if (savedCourse && savedCourse.pts && savedCourse.pts.length > 1) {

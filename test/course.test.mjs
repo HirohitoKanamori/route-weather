@@ -38,3 +38,20 @@ test('interp / headingAt', () => {
   assert.ok(RW.course.headingAt(c, c.total) < 1e-6);
   assert.equal(RW.course.hashCourse(c), RW.course.hashCourse(c));
 });
+
+test('reverseCourse：距離が反転し、名前に（反転）が付く。二度で元に戻る', () => {
+  const raw = []; for (let i = 0; i <= 100; i++) raw.push({ lat: 35 + i * 0.01, lon: 139, ele: i < 50 ? i * 10 : (100 - i) * 10 });
+  const c = RW.course.fromPoints(raw, 'テスト');
+  const r = RW.course.reverseCourse(c);
+  assert.equal(r.name, 'テスト（反転）');
+  assert.ok(Math.abs(r.total - c.total) < 1e-9);
+  assert.equal(r.pts[0].d, 0); assert.equal(r.pts[r.pts.length - 1].d, r.total);
+  assert.ok(Math.abs(r.pts[0].lat - raw[100].lat) < 1e-9, '始点が元の終点');
+  assert.ok(RW.course.headingAt(r, 10) > 179 && RW.course.headingAt(r, 10) < 181, '南向き');
+  assert.equal(r.gain, c.gain, '対称な山なので獲得標高は同じ');
+  assert.equal(r.loss, c.gain); assert.equal(c.loss, c.gain);
+  const asym = RW.course.fromPoints([{ lat: 35, lon: 139, ele: 0 }, { lat: 35.05, lon: 139, ele: 500 }, { lat: 35.1, lon: 139, ele: 500 }], '片登り');
+  assert.equal(asym.gain, 500); assert.equal(asym.loss, 0);
+  assert.equal(RW.course.reverseCourse(asym).gain, 0, '反転すると下りだけ');
+  assert.equal(RW.course.reverseCourse(r).name, 'テスト');
+});
