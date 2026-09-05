@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="ルート天気">
+<meta name="apple-mobile-web-app-title" content="Route Weather JP">
 <meta name="description" content="ブルベ向け。コースと出走時刻から、通過時点の風・雨・気温を見る">
-<title>ルート天気 — ブルベ向けコース天候予報</title>
+<title>Route Weather JP — ブルベ向けコース天候予報</title>
 <style>
   :root{
-    --paper:#EEF0EA; --paper-2:#E3E6DE; --ink:#1E2A32; --ink-2:#4B5A63; --ink-3:#8A969C; --line:#C9CEC5;
+    --paper:#F6EEEC; --paper-2:#EADEDA; --ink:#1E2A32; --ink-2:#4B5A63; --ink-3:#8A969C; --line:#C9CEC5;
     --head:#C8462B; --tail:#2E7D5B; --cross:#C79A2F; --rain:#3B6FB6; --night:#2A3448; --sleep:#6E5A8E; --na:#B8BEB9;
     --info-bg:#E4ECF5; --info-ink:#25405E; --warn-bg:#FBF1DC; --warn-ink:#6B4E12; --err-bg:#F8E3DF; --err-ink:#7A2A1C;
   }
@@ -46,7 +46,7 @@
   .loadBtn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;border:1.5px solid var(--ink);border-radius:8px;
     background:#fff;font-weight:600;cursor:pointer;position:relative;overflow:hidden}
   .loadBtn input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;font-size:0}
-  .loadBtn.on{background:#f7f8f4;border-style:dashed}
+  .loadBtn.on{background:#faf3f1;border-style:dashed}
   .loadBtn:focus-within{outline:2px solid var(--ink);outline-offset:1px}
   .howto{font-size:12px;color:var(--ink-3);line-height:1.5}
   .course{background:var(--paper);border-radius:8px;padding:8px 10px;font-size:13px}
@@ -94,7 +94,7 @@
   th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}
   th{font-weight:600;color:var(--ink-2);font-size:11px}
   td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
-  tr.night td{background:#F3F4F0}
+  tr.night td{background:#F5F0EE}
   tr.na td{color:var(--ink-3)}
   tr.sleep td{background:#F0ECF5;color:var(--sleep);font-weight:600}
   tr.best td{background:#EAF3EE}
@@ -105,8 +105,10 @@
   .src{font-size:11px;color:var(--ink-3);line-height:1.6;margin-top:16px;padding:0 4px}
 
   @media (min-width:900px){
-    .layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start}
-    .layout>aside{position:sticky;top:8px}
+    /* 結果が出るまでは設定欄だけを中央に置き、結果が出たら 2 カラムにする */
+    .layout{max-width:600px;margin:0 auto}
+    .layout.has-results{max-width:none;display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start}
+    .layout.has-results>aside{position:sticky;top:8px}
     .lower{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px}
   }
 </style>
@@ -114,11 +116,11 @@
 <body>
 <div class="app">
   <header class="bar">
-    <h1>ルート天気</h1>
+    <h1>Route Weather JP</h1>
     <span class="sub">コースと出走時刻から、通過時点の風・雨・気温を見る</span>
   </header>
 
-  <div class="layout">
+  <div class="layout" id="layout">
     <aside>
       <details class="settings" id="settings" open>
         <summary>コースと走行計画 <span class="sumLine" id="sumLine"></span></summary>
@@ -716,13 +718,13 @@ const RW = (function () {
 
   // ===== 描画 =====
   function renderOutOfRange(daysAhead) {
-    $('results').classList.add('hidden');
+    $('results').classList.add('hidden'); $('layout').classList.remove('has-results');
     const el = $('notice'); el.className = 'notice warn';
     el.innerHTML = `<div>出走まで ${Math.ceil(daysAhead)} 日。予報は 11 日前（気象庁 GSM の予報期間）から表示できます。</div>`;
     setStatus('');
   }
   function renderAll() {
-    $('results').classList.remove('hidden');
+    $('results').classList.remove('hidden'); $('layout').classList.add('has-results');
     renderNotice(); renderSummary(); renderRibbon(); renderTrend(); renderTable(); renderMap(); renderStarts(); renderModelInfo();
     if (window.innerWidth < 900 && !state.collapsed) { $('settings').open = false; state.collapsed = true; }
   }

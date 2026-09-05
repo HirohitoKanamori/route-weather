@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:c2pa="http://c2pa.org/manifest" version="1.1" viewBox="0 0 1080 1790">
+  <defs>
+    <style>
+      .cls-1, .cls-2, .cls-3, .cls-4, .cls-5, .cls-6, .cls-7, .cls-8, .cls-9, .cls-10, .cls-11, .cls-12, .cls-13, .cls-14, .cls-15, .cls-16, .cls-17, .cls-18, .cls-19, .cls-20, .cls-21, .cls-22, .cls-23, .cls-24, .cls-25, .cls-26 {
+        isolation: isolate;
+      }
+
+      .cls-1, .cls-3, .cls-4, .cls-5, .cls-6, .cls-8, .cls-9, .cls-10, .cls-11, .cls-12, .cls-15, .cls-19, .cls-23, .cls-27, .cls-24 {
+        font-family: NotoSansCJKjp-Black-83pv-RKSJ-H, 'Noto Sans CJK JP';
+        font-weight: 800;
+      }
+
+      .cls-1, .cls-4, .cls-17, .cls-20, .cls-21 {
+        fill: #3b6fb6;
+      }
+
+      .cls-1, .cls-14 {
+        font-size: 26px;
+      }
+
+      .cls-2, .cls-3, .cls-28, .cls-7, .cls-13, .cls-16, .cls-22, .cls-24, .cls-26, .cls-29 {
+        fill: #1e2a32;
+      }
+
+      .cls-3, .cls-11, .cls-27 {
+        font-size: 17px;
+      }
+
+      .cls-30 {
+        fill: #eef0ea;
+      }
+
+      .cls-4, .cls-13, .cls-17, .cls-19, .cls-24, .cls-25 {
+        font-size: 18px;
+      }
+
+      .cls-28, .cls-31 {
+        stroke: #1e2a32;
+      }
+
+      .cls-28, .cls-32 {
+        stroke-width: 1.5px;
+      }
+
+      .cls-5, .cls-6 {
+        fill: #8a969c;
+      }
+
+      .cls-5, .cls-23 {
+        font-size: 15px;
+      }
+
+      .cls-6 {
+        font-size: 16px;
+      }
+
+      .cls-7 {
+        font-size: 34px;
+      }
+
+      .cls-7, .cls-13, .cls-14, .cls-16, .cls-17, .cls-33, .cls-22, .cls-25, .cls-26 {
+        font-family: HiraginoSans-W7-83pv-RKSJ-H, 'Hiragino Sans';
+      }
+
+      .cls-34 {
+        stroke: #8a969c;
+      }
+
+      .cls-34, .cls-14, .cls-32, .cls-35, .cls-36, .cls-25 {
+        fill: #fff;
+      }
+
+      .cls-34, .cls-36 {
+        stroke-width: 2px;
+      }
+
+      .cls-8 {
+        font-size: 21px;
+      }
+
+      .cls-8, .cls-9, .cls-10, .cls-11, .cls-15, .cls-19, .cls-23 {
+        fill: #4b5a63;
+      }
+
+      .cls-37 {
+        stroke-dasharray: 4 4;
+      }
+
+      .cls-37, .cls-31, .cls-38, .cls-39 {
+        fill: none;
+      }
+
+      .cls-37, .cls-32, .cls-40, .cls-39, .cls-41 {
+        stroke: #c9cec5;
+      }
+
+      .cls-9 {
+        font-size: 14px;
+      }
+
+      .cls-10 {
+        font-size: 22px;
+      }
+
+      .cls-31, .cls-38 {
+        stroke-width: 3px;
+      }
+
+      .cls-12, .cls-16, .cls-33 {
+        font-size: 20px;
+      }
+
+      .cls-12, .cls-18 {
+        fill: #c8462b;
+      }
+
+      .cls-15 {
+        font-size: 13px;
+      }
+
+      .cls-38 {
+        stroke: #c8462b;
+      }
+
+      .cls-18 {
+        opacity: .9;
+      }
+
+      .cls-20 {
+        opacity: .7;
+      }
+
+      .cls-21 {
+        opacity: .1;
+      }
+
+      .cls-42, .cls-40 {
+        fill: #e7ebe3;
+      }
+
+      .cls-22 {
+        font-size: 27px;
+      }
+
+      .cls-36 {
+        stroke: #3b6fb6;
+      }
+
+      .cls-41 {
+        fill: #f7f8f4;
+      }
+
+      .cls-26 {
+        font-size: 28px;
+      }
+    </style>
+  </defs>
+  <!-- Generator: Adobe Illustrator 28.6.0, SVG Export Plug-In . SVG Version: 1.2.0 Build 709)  -->
+  <g>
+    <g id="_レイヤー_1" data-name="レイヤー_1">
+      <rect class="cls-30" y="0" width="1080" height="1790"/>
+      <text class="cls-7" transform="translate(60 72)"><tspan x="0" y="0">ルート天気 — コースの読み込み方（iPhone）</tspan></text>
+      <text class="cls-10" transform="translate(60 112)"><tspan x="0" y="0">Ride with GPS アプリのルートを「ファイル」アプリ経由で読み込む 5 ステップ</tspan></text>
+      <text class="cls-12" transform="translate(60 142)"><tspan x="0" y="0">赤い枠がタップする場所です</tspan></text>
+      <line class="cls-39" x1="60" y1="162" x2="1020" y2="162"/>
+      <circle class="cls-29" cx="86" cy="206" r="24"/>
+      <text class="cls-14" transform="translate(76.4 215)"><tspan x="0" y="0">1</tspan></text>
+      <text class="cls-22" transform="translate(480 216)"><tspan x="0" y="0">RwGPS アプリで右上の「…」→「Export GPX」</tspan></text>
+      <text class="cls-8" transform="translate(480 262)"><tspan x="0" y="0">ルートの画面で右上の三点メニューをタップし、</tspan></text>
+      <text class="cls-8" transform="translate(480 294)"><tspan x="0" y="0">「Export GPX」を選びます。</tspan></text>
+      <text class="cls-8" transform="translate(480 326)"><tspan x="0" y="0">アプリ版の書き出しはコースの線だけで、PC のマークや</tspan></text>
+      <text class="cls-8" transform="translate(480 358)"><tspan x="0" y="0">キューは含まれませんが、このアプリには不要です。</tspan></text>
+      <rect class="cls-34" x="130" y="176" width="320" height="270" rx="18" ry="18"/>
+      <text class="cls-1" transform="translate(146 210)"><tspan x="0" y="0">‹</tspan></text>
+      <text class="cls-16" transform="translate(180 210)"><tspan x="0" y="0">BRM〇〇_コースデータ</tspan></text>
+      <text class="cls-26" transform="translate(412 212)"><tspan x="0" y="0">…</tspan></text>
+      <rect class="cls-40" x="142" y="228" width="296" height="120" rx="6" ry="6"/>
+      <polyline class="cls-31" points="160 326 220 286 270 296 320 246 380 266 420 241"/>
+      <rect class="cls-32" x="260" y="224" width="176" height="118" rx="10" ry="10"/>
+      <text class="cls-24" transform="translate(278 254)"><tspan x="0" y="0">Send to Device</tspan></text>
+      <text class="cls-24" transform="translate(278 282)"><tspan x="0" y="0">Export GPX</tspan></text>
+      <text class="cls-24" transform="translate(278 310)"><tspan x="0" y="0">Share</tspan></text>
+      <text class="cls-24" transform="translate(278 338)"><tspan x="0" y="0">Pin Route</tspan></text>
+      <rect class="cls-38" x="266" y="260" width="164" height="30" rx="8" ry="8"/>
+      <circle class="cls-18" cx="426" cy="286" r="13"/>
+      <circle class="cls-35" cx="426" cy="286" r="5"/>
+      <text class="cls-6" transform="translate(146 426)"><tspan x="0" y="0">ルート画面</tspan></text>
+      <line class="cls-39" x1="60" y1="472" x2="1020" y2="472"/>
+      <circle class="cls-29" cx="86" cy="516" r="24"/>
+      <text class="cls-14" transform="translate(76.4 525)"><tspan x="0" y="0">2</tspan></text>
+      <text class="cls-22" transform="translate(480 526)"><tspan x="0" y="0">共有シートで「&quot;ファイル&quot;に保存」を選ぶ</tspan></text>
+      <text class="cls-8" transform="translate(480 572)"><tspan x="0" y="0">iPhone の共有画面が開きます。</tspan></text>
+      <text class="cls-8" transform="translate(480 604)"><tspan x="0" y="0">下段のリストをスクロールして</tspan></text>
+      <text class="cls-8" transform="translate(480 636)"><tspan x="0" y="0">「&quot;ファイル&quot;に保存」をタップします。</tspan></text>
+      <rect class="cls-34" x="130" y="486" width="320" height="270" rx="18" ry="18"/>
+      <text class="cls-16" transform="translate(146 520)"><tspan x="0" y="0">BRM〇〇_コースデータ.gpx</tspan></text>
+      <text class="cls-5" transform="translate(146 542)"><tspan x="0" y="0">GPXファイル・148 KB</tspan></text>
+      <line class="cls-39" x1="142" y1="556" x2="438" y2="556"/>
+      <rect class="cls-42" x="146" y="568" width="80" height="60" rx="10" ry="10"/>
+      <text class="cls-15" transform="translate(153.6 604)"><tspan x="0" y="0">メッセージ</tspan></text>
+      <rect class="cls-42" x="246" y="568" width="80" height="60" rx="10" ry="10"/>
+      <text class="cls-15" transform="translate(266.5 604)"><tspan x="0" y="0">メール</tspan></text>
+      <rect class="cls-42" x="346" y="568" width="80" height="60" rx="10" ry="10"/>
+      <text class="cls-15" transform="translate(332.8 604)"><tspan x="0" y="0">Garmin Connect</tspan></text>
+      <text class="cls-24" transform="translate(154 662)"><tspan x="0" y="0">コピー</tspan></text>
+      <text class="cls-24" transform="translate(154 692)"><tspan x="0" y="0">&quot;ファイル&quot;に保存</tspan></text>
+      <text class="cls-24" transform="translate(154 722)"><tspan x="0" y="0">ファイルを共有</tspan></text>
+      <rect class="cls-38" x="144" y="672" width="290" height="30" rx="8" ry="8"/>
+      <circle class="cls-18" cx="430" cy="698" r="13"/>
+      <circle class="cls-35" cx="430" cy="698" r="5"/>
+      <line class="cls-39" x1="60" y1="782" x2="1020" y2="782"/>
+      <circle class="cls-29" cx="86" cy="826" r="24"/>
+      <text class="cls-14" transform="translate(76.4 835)"><tspan x="0" y="0">3</tspan></text>
+      <text class="cls-22" transform="translate(480 836)"><tspan x="0" y="0">保存先フォルダを決めて「保存」</tspan></text>
+      <text class="cls-8" transform="translate(480 882)"><tspan x="0" y="0">「このiPhone内」や「iCloud Drive」の中に</tspan></text>
+      <text class="cls-8" transform="translate(480 914)"><tspan x="0" y="0">「ルート天気」などのフォルダを作っておくと</tspan></text>
+      <text class="cls-8" transform="translate(480 946)"><tspan x="0" y="0">次回から探しやすくなります。</tspan></text>
+      <rect class="cls-34" x="130" y="796" width="320" height="270" rx="18" ry="18"/>
+      <text class="cls-4" transform="translate(146 830)"><tspan x="0" y="0">キャンセル</tspan></text>
+      <rect class="cls-36" x="364" y="810" width="72" height="30" rx="8" ry="8"/>
+      <text class="cls-17" transform="translate(382 831)"><tspan x="0" y="0">保存</tspan></text>
+      <rect class="cls-38" x="362" y="808" width="76" height="34" rx="8" ry="8"/>
+      <circle class="cls-18" cx="434" cy="838" r="13"/>
+      <circle class="cls-35" cx="434" cy="838" r="5"/>
+      <rect class="cls-40" x="146" y="854" width="288" height="34" rx="6" ry="6"/>
+      <text class="cls-2" transform="translate(158 878)"><tspan class="cls-33" x="0" y="0">BRM〇〇_コースデータ</tspan><tspan class="cls-27" x="221.6" y="0">.gpx</tspan></text>
+      <text class="cls-6" transform="translate(146 922)"><tspan x="0" y="0">このiPhone内</tspan></text>
+      <path class="cls-20" d="M154,939h9l4,4h11v14h-24v-18Z"/>
+      <text class="cls-24" transform="translate(186 952)"><tspan x="0" y="0">ルート天気</tspan></text>
+      <path class="cls-20" d="M154,969h9l4,4h11v14h-24v-18Z"/>
+      <text class="cls-19" transform="translate(186 982)"><tspan x="0" y="0">Downloads</tspan></text>
+      <path class="cls-20" d="M154,999h9l4,4h11v14h-24v-18Z"/>
+      <text class="cls-19" transform="translate(186 1012)"><tspan x="0" y="0">GPX</tspan></text>
+      <rect class="cls-21" x="144" y="934" width="290" height="30" rx="6" ry="6"/>
+      <line class="cls-39" x1="60" y1="1092" x2="1020" y2="1092"/>
+      <circle class="cls-29" cx="86" cy="1136" r="24"/>
+      <text class="cls-14" transform="translate(76.4 1145)"><tspan x="0" y="0">4</tspan></text>
+      <text class="cls-22" transform="translate(480 1146)"><tspan x="0" y="0">Safari でアプリを開き「コースを読み込む」</tspan></text>
+      <text class="cls-8" transform="translate(480 1192)"><tspan x="0" y="0">アプリの URL を Safari で開きます</tspan></text>
+      <text class="cls-8" transform="translate(480 1224)"><tspan x="0" y="0">（ホーム画面に追加しておくと便利）。</tspan></text>
+      <text class="cls-8" transform="translate(480 1256)"><tspan x="0" y="0">「コースを読み込む」をタップすると写真かファイルかを</tspan></text>
+      <text class="cls-8" transform="translate(480 1288)"><tspan x="0" y="0">選ぶ画面が出るので、「ファイルを選択」をタップします。</tspan></text>
+      <rect class="cls-34" x="130" y="1106" width="320" height="270" rx="18" ry="18"/>
+      <rect class="cls-40" x="146" y="1120" width="288" height="28" rx="8" ry="8"/>
+      <text class="cls-23" transform="translate(189.4 1140)"><tspan x="0" y="0">…github.io/route-weather</tspan></text>
+      <text class="cls-16" transform="translate(146 1178)"><tspan x="0" y="0">ルート天気</tspan></text>
+      <rect class="cls-28" x="146" y="1192" width="288" height="40" rx="8" ry="8"/>
+      <text class="cls-25" transform="translate(218.6 1219)"><tspan x="0" y="0">コースを読み込む</tspan></text>
+      <rect class="cls-38" x="144" y="1190" width="292" height="44" rx="8" ry="8"/>
+      <circle class="cls-18" cx="432" cy="1230" r="13"/>
+      <circle class="cls-35" cx="432" cy="1230" r="5"/>
+      <rect class="cls-32" x="170" y="1256" width="240" height="116" rx="12" ry="12"/>
+      <text class="cls-3" transform="translate(230.5 1286)"><tspan x="0" y="0">写真ライブラリ</tspan></text>
+      <line class="cls-39" x1="170" y1="1296" x2="410" y2="1296"/>
+      <text class="cls-3" transform="translate(196.5 1318)"><tspan x="0" y="0">写真またはビデオを撮る</tspan></text>
+      <line class="cls-39" x1="170" y1="1328" x2="410" y2="1328"/>
+      <text class="cls-3" transform="translate(230.5 1350)"><tspan x="0" y="0">ファイルを選択</tspan></text>
+      <rect class="cls-38" x="174" y="1332" width="232" height="34" rx="8" ry="8"/>
+      <circle class="cls-18" cx="402" cy="1362" r="13"/>
+      <circle class="cls-35" cx="402" cy="1362" r="5"/>
+      <line class="cls-39" x1="60" y1="1402" x2="1020" y2="1402"/>
+      <circle class="cls-29" cx="86" cy="1446" r="24"/>
+      <text class="cls-14" transform="translate(76.4 1455)"><tspan x="0" y="0">5</tspan></text>
+      <text class="cls-22" transform="translate(480 1456)"><tspan x="0" y="0">「ファイル」から GPX を選んで読み込み完了</tspan></text>
+      <text class="cls-8" transform="translate(480 1502)"><tspan x="0" y="0">保存したフォルダを開き、GPX をタップします。</tspan></text>
+      <text class="cls-8" transform="translate(480 1534)"><tspan x="0" y="0">コース名・距離・獲得標高が表示されれば成功です。</tspan></text>
+      <text class="cls-8" transform="translate(480 1566)"><tspan x="0" y="0">あとは出走日時・速度・仮眠を入れて</tspan></text>
+      <text class="cls-8" transform="translate(480 1598)"><tspan x="0" y="0">「予報を計算する」をタップしてください。</tspan></text>
+      <rect class="cls-34" x="130" y="1416" width="320" height="270" rx="18" ry="18"/>
+      <text class="cls-4" transform="translate(146 1450)"><tspan x="0" y="0">‹ ブラウズ</tspan></text>
+      <text class="cls-13" transform="translate(245 1450)"><tspan x="0" y="0">ルート天気</tspan></text>
+      <rect class="cls-40" x="154" y="1472" width="26" height="30" rx="4" ry="4"/>
+      <text class="cls-3" transform="translate(192 1494)"><tspan x="0" y="0">BRM〇〇コースデータ.gpx</tspan></text>
+      <rect class="cls-40" x="154" y="1512" width="26" height="30" rx="4" ry="4"/>
+      <text class="cls-11" transform="translate(192 1534)"><tspan x="0" y="0">BRM××400.gpx</tspan></text>
+      <rect class="cls-38" x="144" y="1468" width="290" height="36" rx="8" ry="8"/>
+      <circle class="cls-18" cx="430" cy="1500" r="13"/>
+      <circle class="cls-35" cx="430" cy="1500" r="5"/>
+      <line class="cls-37" x1="142" y1="1562" x2="438" y2="1562"/>
+      <text class="cls-5" transform="translate(146 1586)"><tspan x="0" y="0">↓ 読み込み後</tspan></text>
+      <rect class="cls-41" x="146" y="1596" width="288" height="72" rx="8" ry="8"/>
+      <text class="cls-3" transform="translate(158 1622)"><tspan x="0" y="0">BRM〇〇コースデータ</tspan></text>
+      <text class="cls-9" transform="translate(158 1652)"><tspan x="0" y="0">600.4 km ・ 獲得標高 5,880 m ・ 地点数 3,120</tspan></text>
+      <line class="cls-39" x1="60" y1="1732" x2="1020" y2="1732"/>
+      <text class="cls-6" transform="translate(60 1762)"><tspan x="0" y="0">画面の見た目は説明用に簡略化しています。アプリのバージョンにより名称や位置が変わることがあります。</tspan></text>
+    </g>
+  </g>
+</svg>
