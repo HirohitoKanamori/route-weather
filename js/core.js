@@ -1,4 +1,4 @@
-// Route Weather JP — 純粋関数群（course / plan / wind / sun / forecast / fmt）。DOM・ネットワークに触れない。test/ から直接 import される。
+// Route-WX.jp — 純粋関数群（course / plan / wind / sun / forecast / fmt）。DOM・ネットワークに触れない。test/ から直接 import される。
 // 純粋関数群（course / plan / wind / sun / forecast / fmt）。DOM・ネットワークに触れない。
 // test/ から Node で評価されるので、ここにブラウザ専用 API を書かないこと。
 export const RW = (function () {

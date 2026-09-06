@@ -1,4 +1,4 @@
-// Route Weather JP のサービスワーカー（PWA・オフライン用）
+// Route-WX.jp のサービスワーカー（PWA・オフライン用）
 // - アプリ本体（index.html、js/、アイコン、FIT SDK）はキャッシュし、index.html と js/ はネットワーク優先で更新を取り込む
 // - 予報 API（Open-Meteo・気象庁）はキャッシュしない（アプリ側が localStorage で保持する）
 // - 地図タイルはキャッシュ優先（OSM の利用ポリシーに沿った端末内キャッシュ）。上限を超えたら古いものから消す

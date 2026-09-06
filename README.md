@@ -1,4 +1,4 @@
-# Route Weather JP（route-weather）
+# Route-WX.jp（route-weather）
 
 旧称「ルート天気」。
 
