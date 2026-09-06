@@ -791,13 +791,15 @@ import { RW } from './core.js';
     ctx.fillText('Route-Weather.jp ／ 出典：気象庁 数値予報（MSM/GSM）— Open-Meteo 経由 ／ 予報取得 ' + F.fmtDT(state.series.fetchedAt), pad, head + H + 14);
     await deliverPng(canvas, `route-weather-${F.ymd(p.start)}.png`);
   }
+  const SHARE_TAG = '#routeweatherjp';
   // canvas → PNG → 共有シート（共有非対応なら保存）
   async function deliverPng(canvas, name) {
     const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
     if (!blob) throw new Error('PNG を作れませんでした');
     const file = new File([blob], name, { type: 'image/png' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: 'Route-Weather.jp' }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+      // SNS に貼られる文言はハッシュタグ（X などは text を、他は title を使うので両方に入れる）
+      try { await navigator.share({ files: [file], title: SHARE_TAG, text: SHARE_TAG }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
     }
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
