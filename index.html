@@ -163,10 +163,13 @@
   .leaflet-popup-content{font-size:12px;line-height:1.45;margin:8px 10px}
   .leaflet-popup-content b{font-weight:600}
   .leaflet-container a.leaflet-popup-close-button{color:var(--paper)}
-  .leaflet-control-attribution{font-size:10px;background:var(--card);color:var(--ink-2)}
-  .leaflet-control-attribution a{color:inherit}
-  .leaflet-bar a{background:var(--card);color:var(--ink);border-bottom-color:var(--line)}
-  .leaflet-bar a.leaflet-disabled{background:var(--paper-2)}
+  /* Leaflet 側の .leaflet-container .leaflet-control-attribution（白 80%）より優先させるため、同じ深さのセレクタで上書きする */
+  .leaflet-container .leaflet-control-attribution{font-size:10px;background:var(--card);color:var(--ink-2);opacity:.92}
+  .leaflet-container .leaflet-control-attribution a{color:inherit}
+  .leaflet-container .leaflet-bar a,.leaflet-touch .leaflet-bar a{background:var(--card);color:var(--ink);border-bottom-color:var(--line)}
+  .leaflet-container .leaflet-bar a.leaflet-disabled{background:var(--paper-2);color:var(--ink-3)}
+  .leaflet-touch .leaflet-bar{border-color:var(--line)}
+  .map .osm .attr{opacity:.92}
   .src{font-size:11px;color:var(--ink-3);line-height:1.6;margin-top:16px;padding:0 4px}
 
   @media (min-width:900px){
