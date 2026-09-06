@@ -1,6 +1,6 @@
 {
-  "name": "Route-WX.jp (Beta)",
-  "short_name": "Route-WX",
+  "name": "Route-Weather.jp (Beta)",
+  "short_name": "Route-Weather",
   "description": "ブルベ向け。コースと出走時刻から、通過時点の風・雨・気温を見る",
   "lang": "ja",
   "start_url": "./",

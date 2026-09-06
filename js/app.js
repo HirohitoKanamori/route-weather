@@ -1,4 +1,4 @@
-// Route-WX.jp — 画面・入力・ネットワーク（ui / view / 取得層）
+// Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
 import { RW } from './core.js';
 (function () {
   'use strict';
@@ -741,7 +741,7 @@ import { RW } from './core.js';
       ctx.drawImage(img, pad, head, W, H);
     } finally { URL.revokeObjectURL(url); }
     ctx.fillStyle = v('--ink-3'); ctx.font = '10px ' + FONT;
-    ctx.fillText('Route-WX.jp ／ 出典：気象庁 数値予報（MSM/GSM）— Open-Meteo 経由 ／ 予報取得 ' + F.fmtDT(state.series.fetchedAt), pad, head + H + 14);
+    ctx.fillText('Route-Weather.jp ／ 出典：気象庁 数値予報（MSM/GSM）— Open-Meteo 経由 ／ 予報取得 ' + F.fmtDT(state.series.fetchedAt), pad, head + H + 14);
     await deliverPng(canvas, `route-weather-${F.ymd(p.start)}.png`);
   }
   // canvas → PNG → 共有シート（共有非対応なら保存）
@@ -750,7 +750,7 @@ import { RW } from './core.js';
     if (!blob) throw new Error('PNG を作れませんでした');
     const file = new File([blob], name, { type: 'image/png' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: 'Route-WX.jp' }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+      try { await navigator.share({ files: [file], title: 'Route-Weather.jp' }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
     }
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
