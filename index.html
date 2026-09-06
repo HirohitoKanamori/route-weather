@@ -15,7 +15,7 @@
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <script defer src="vendor/leaflet/leaflet.js"></script>
-<title>Route Weather JP — ブルベ向けコース天候予報</title>
+<title>Route Weather JP (Beta) — ブルベ向けコース天候予報</title>
 <style>
   :root{
     --card:#fff; --paper:#F6EEEC; --paper-2:#EADEDA; --ink:#1E2A32; --ink-2:#4B5A63; --ink-3:#8A969C; --line:#C9CEC5;
@@ -43,6 +43,7 @@
     font-size:14px;line-height:1.5;font-feature-settings:"palt","tnum";-webkit-text-size-adjust:100%}
   button,input,select{font:inherit;color:inherit}
   h1{font-size:16px;font-weight:700;margin:0;letter-spacing:.02em}
+  h1 .beta{font-size:12px;font-weight:600;color:var(--ink-2)}
   h2{font-size:13px;font-weight:600;margin:0 0 6px;color:var(--ink-2)}
   a{color:inherit}
   .app{max-width:1180px;margin:0 auto;padding:8px 10px 48px;
@@ -179,7 +180,7 @@
 <body>
 <div class="app">
   <header class="bar">
-    <h1>Route Weather JP</h1>
+    <h1>Route Weather JP <span class="beta">(Beta)</span></h1>
     <span class="sub">コースと出走時刻から、通過時点の風・雨・気温を見る</span>
     <button type="button" class="btn theme" id="theme" title="表示モード（自動／ダーク／ライト）">表示：自動</button>
   </header>
