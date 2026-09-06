@@ -441,8 +441,23 @@ import { RW } from './core.js';
   // ===== 本地図（V-6）：Leaflet + OSM タイル。Leaflet が読めない場合は静的な略地図にフォールバック =====
   const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   let lmap = null, lmapHash = null, lmapLayers = null, lmapTheme = null;
-  const MAP_NOTE = '<div class="note"><span class="lg" style="--c:var(--wx-rain)"></span>雨 <span class="lg" style="--c:var(--wx-cloud)"></span>曇り <span class="lg" style="--c:var(--wx-sun)"></span>晴れ <span class="lg dash"></span>予報範囲外（線の色＝通過時刻の予報）。矢印＝風の吹いていく向き（実方位）、色は相対風。矢印をタップすると詳細。●スタート ○ゴール</div>';
+  const MAP_NOTE = '<div class="note"><span class="lg" style="--c:var(--wx-rain)"></span>雨 <span class="lg" style="--c:var(--wx-cloud)"></span>曇り <span class="lg" style="--c:var(--wx-sun)"></span>晴れ <span class="lg dash"></span>予報範囲外（線の色＝通過時刻の予報）。»＝進行方向。矢印＝風の吹いていく向き（実方位）、色は相対風。矢印をタップすると詳細。●スタート ○ゴール</div>';
   const WXVAR = { rain: '--wx-rain', cloud: '--wx-cloud', sun: '--wx-sun' };
+  // 進行方向の記号（>>）を置く位置：経路に沿って画素間隔 spacing ごと。px(lat, lon) → [x, y]
+  function chevronSpots(P, px, spacing, max = 250) {
+    const out = []; let acc = spacing * 0.5, prev = null;
+    for (const q of P) {
+      const v = px(q.lat, q.lon);
+      if (prev) {
+        const dx = v[0] - prev[0], dy = v[1] - prev[1], d = Math.hypot(dx, dy); acc += d;
+        if (acc >= spacing && d > 0) { out.push({ x: v[0], y: v[1], ang: Math.atan2(dy, dx) * 180 / Math.PI, lat: q.lat, lon: q.lon }); acc = 0; if (out.length >= max) break; }
+      }
+      prev = v;
+    }
+    return out;
+  }
+  const CHEV_PATH = 'M-6,-5 L-1,0 L-6,5 M0,-5 L5,0 L0,5';
+  const chevSvg = (color, halo) => `<svg width="16" height="14" viewBox="-8 -7 16 14" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="${CHEV_PATH}" stroke="${halo}" stroke-width="4.5"/><path d="${CHEV_PATH}" stroke="${color}" stroke-width="2"/></g></svg>`;
   // 経路をサンプル間で区切り、各区間に通過時刻の天気分類を付ける（線の色分け用）
   function routeSegments(course, S) {
     const segs = [];
@@ -456,7 +471,7 @@ import { RW } from './core.js';
   function renderMap() {
     const host = $('map');
     if (typeof L === 'undefined') { renderMapStatic(); return; }
-    if (!host.clientWidth) { requestAnimationFrame(() => { if (state.result) renderMap(); }); return; } // レイアウト前なら次のフレームで
+    if (!host.clientWidth) { setTimeout(() => { if (state.result) renderMap(); }, 80); return; } // レイアウト前なら少し待って描く（非表示タブでも動くよう rAF は使わない）
     const P = state.course.pts; const hash = RW.course.hashCourse(state.course);
     const theme = document.documentElement.dataset.theme || 'auto';
     const W = Math.max(260, Math.floor(host.clientWidth || 300)); const H = Math.round(Math.min(W * 0.85, 420));
@@ -467,7 +482,8 @@ import { RW } from './core.js';
       lmap = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true });
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' }).addTo(lmap);
       const latlngs = P.map(q => [q.lat, q.lon]);
-      lmapLayers = { route: L.layerGroup().addTo(lmap), arrows: L.layerGroup().addTo(lmap), marks: L.layerGroup().addTo(lmap) };
+      lmap.createPane('chev'); lmap.getPane('chev').style.zIndex = 450; // 経路線（400）の上、風矢印など通常マーカー（600）の下
+      lmapLayers = { route: L.layerGroup().addTo(lmap), chev: L.layerGroup().addTo(lmap), arrows: L.layerGroup().addTo(lmap), marks: L.layerGroup().addTo(lmap) };
       lmap.fitBounds(L.latLngBounds(latlngs), { padding: [16, 16] });
       lmap.on('zoomend moveend', updateMapArrows);
       lmapHash = hash; lmapTheme = theme;
@@ -491,8 +507,14 @@ import { RW } from './core.js';
   function updateMapArrows() {
     if (!lmap || !state.result || !lmapLayers) return;
     const { S, p } = state.result; const P = state.course.pts;
-    lmapLayers.arrows.clearLayers(); lmapLayers.marks.clearLayers();
+    lmapLayers.arrows.clearLayers(); lmapLayers.marks.clearLayers(); lmapLayers.chev.clearLayers();
     const halo = cssVar('--card'); const cols = { head: cssVar('--head'), tail: cssVar('--tail'), cross: cssVar('--cross') };
+    // 進行方向の記号（>>）：一定の画素間隔で経路に沿って置く。風矢印の下に描く
+    const ink = cssVar('--ink');
+    for (const c of chevronSpots(P, (lat, lon) => { const q = lmap.latLngToLayerPoint([lat, lon]); return [q.x, q.y]; }, 90)) {
+      const icon = L.divIcon({ html: `<div style="transform:rotate(${c.ang.toFixed(1)}deg)">${chevSvg(ink, halo)}</div>`, className: 'chevIcon', iconSize: [16, 14], iconAnchor: [8, 7] });
+      L.marker([c.lat, c.lon], { icon, pane: 'chev', interactive: false, keyboard: false }).addTo(lmapLayers.chev);
+    }
     let last = null;
     for (const pt of S) {
       if (pt.na) continue;
@@ -539,6 +561,7 @@ import { RW } from './core.js';
       if (sg.cls) s += `<polyline fill="none" stroke="var(${WXVAR[sg.cls]})" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" points="${toPts(sg.pts)}"/>`;
       else s += `<polyline fill="none" stroke="var(--na)" stroke-width="1.5" stroke-dasharray="3 5" points="${toPts(sg.pts)}"/>`;
     }
+    for (const c of chevronSpots(P, px, 70)) s += `<g transform="translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) rotate(${c.ang.toFixed(1)})" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="${CHEV_PATH}" stroke="var(--card)" stroke-width="4.5"/><path d="${CHEV_PATH}" stroke="var(--ink)" stroke-width="2"/></g>`;
     const st = Math.max(1, Math.ceil(S.length / 28));
     S.forEach((pt, i) => {
       if (pt.na || i % st) return;
@@ -805,6 +828,9 @@ import { RW } from './core.js';
     const line = (pts, color, w, dash) => { ctx.beginPath(); pts.forEach((q, i) => { const a = px(q.lat, q.lon); if (i) ctx.lineTo(a[0], a[1]); else ctx.moveTo(a[0], a[1]); }); ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]); };
     line(P, '#FFFFFF', 14);
     for (const sg of routeSegments(state.course, S)) { if (sg.cls) line(sg.pts, v(WXVAR[sg.cls]), 7); else line(sg.pts, v('--na'), 3, [8, 10]); }
+    // 進行方向の記号（>>）：風矢印の下に描く
+    const chevC = (c, color, w, k) => { ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.ang * Math.PI / 180); ctx.scale(k, k); ctx.strokeStyle = color; ctx.lineWidth = w / k; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(-6, -5); ctx.lineTo(-1, 0); ctx.lineTo(-6, 5); ctx.moveTo(0, -5); ctx.lineTo(5, 0); ctx.lineTo(0, 5); ctx.stroke(); ctx.restore(); };
+    for (const c of chevronSpots(P, px, 110)) { chevC(c, '#FFFFFF', 8, 2); chevC(c, v('--ink'), 3.5, 2); }
     // 風矢印（実方位。40px 以上離れた地点だけ）
     const arrowC = (x, y, angDeg, len, color, w) => { ctx.save(); ctx.translate(x, y); ctx.rotate(angDeg * Math.PI / 180); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-len / 2, 0); ctx.lineTo(len / 2, 0); ctx.stroke(); ctx.beginPath(); ctx.moveTo(len / 2 + 2, 0); ctx.lineTo(len / 2 - 10, -7); ctx.lineTo(len / 2 - 10, 7); ctx.closePath(); ctx.fill(); ctx.restore(); };
     let last = null;
