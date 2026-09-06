@@ -829,10 +829,26 @@ import { RW } from './core.js';
   ['dragenter', 'dragover'].forEach(ev => lb.addEventListener(ev, e => { e.preventDefault(); lb.classList.add('on'); }));
   ['dragleave', 'drop'].forEach(ev => lb.addEventListener(ev, e => { e.preventDefault(); lb.classList.remove('on'); }));
   lb.addEventListener('drop', e => { const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) loadFile(f); });
-  $('sampleLink').addEventListener('click', async e => {
+  const C_META_DEFAULT = $('cMeta').innerHTML; // サンプルリンク入りの初期表示（コース削除時に戻す）
+  $('cMeta').addEventListener('click', async e => { // サンプルリンクは再描画されるので親で受ける
+    const a = e.target.closest('#sampleLink'); if (!a) return;
     e.preventDefault(); setStatus('サンプルを読み込み中…');
-    try { const r = await fetch(e.currentTarget.getAttribute('href')); if (!r.ok) throw new Error('HTTP ' + r.status); setCourse(parseGPX(await r.text(), 'サンプルコース')); }
+    try { const r = await fetch(a.getAttribute('href')); if (!r.ok) throw new Error('HTTP ' + r.status); setCourse(parseGPX(await r.text(), 'サンプルコース')); }
     catch (err) { setStatus('サンプルを読み込めませんでした：' + err.message, 'err'); }
+  });
+  // コース削除：読み込んだコース・最近のコース・予報キャッシュ・注意報／アメダスの保持分を端末から消す（設定値は残す）
+  $('clearData').addEventListener('click', () => {
+    if (!confirm('読み込んだコースと予報のキャッシュを端末から削除します。よろしいですか？\n（出走日時・速度などの設定は残ります）')) return;
+    ['rw:course', 'rw:last', 'rw:courses'].forEach(k => store.del(k));
+    try { Object.keys(localStorage).filter(k => k.startsWith('rw:fc')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* noop */ }
+    state.course = null; state.series = null; state.result = null; state.warnings = null; state.amedas = null; state.offlineNote = ''; state.collapsed = false;
+    if (lmap) { lmap.remove(); lmap = null; lmapHash = null; lmapLayers = null; }
+    $('map').innerHTML = '';
+    $('results').classList.add('hidden'); $('notice').className = 'notice hidden'; $('notice').innerHTML = '';
+    $('layout').classList.remove('has-results');
+    $('cName').textContent = 'コース未読み込み'; $('cMeta').innerHTML = C_META_DEFAULT; $('sumLine').textContent = '';
+    renderRecent(); $('settings').open = true;
+    setStatus('コースと予報のキャッシュを削除しました');
   });
   $('recent').addEventListener('change', e => { const list = store.get('rw:courses') || []; const c = list[+e.target.value]; e.target.value = ''; if (c && c.course && c.course.pts) setCourse(c.course); });
   $('reverse').addEventListener('click', () => { if (state.course) setCourse(RW.course.reverseCourse(state.course)); });

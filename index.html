@@ -134,6 +134,7 @@
   th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}
   th{font-weight:600;color:var(--ink-2);font-size:11px}
   .bar .theme{margin-left:auto;font-size:12px;min-height:32px;padding:0 10px}
+  .bar .theme.clear{margin-left:0}
   td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
   tr.night td{background:var(--paper)}
   tr.na td{color:var(--ink-3)}
@@ -183,6 +184,7 @@
     <h1>Route-WX.jp <span class="beta">(Beta)</span></h1>
     <span class="sub">コースと出走時刻から、通過時点の風・雨・気温を見る</span>
     <button type="button" class="btn theme" id="theme" title="表示モード（自動／ダーク／ライト）">表示：自動</button>
+    <button type="button" class="btn theme clear" id="clearData" title="読み込んだコースと予報のキャッシュを端末から削除">コース削除</button>
   </header>
 
   <div class="layout" id="layout">
