@@ -456,6 +456,16 @@ import { RW } from './core.js';
     }
     return out;
   }
+  // 地図用の風矢印：リボンの約 1.7 倍。矢じりも拡大し、白の縁取りを付ける
+  const MAP_ARROW_K = 1.7;
+  const mapArrow = (x, y, angDeg, len, color) => {
+    const k = MAP_ARROW_K, L2 = len / 2, hl = 8 * k, hw = 5.5 * k;
+    const shaft = `M${(-L2).toFixed(1)} 0 L${(L2 - hl * 0.6).toFixed(1)} 0`;
+    const head = `M${L2.toFixed(1)} 0 L${(L2 - hl).toFixed(1)} ${(-hw).toFixed(1)} L${(L2 - hl * 0.55).toFixed(1)} 0 L${(L2 - hl).toFixed(1)} ${hw.toFixed(1)} Z`;
+    return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${angDeg.toFixed(1)})" stroke-linecap="round" stroke-linejoin="round">` +
+      `<path d="${shaft}" stroke="#fff" stroke-width="${(3.2 * k + 3).toFixed(1)}" fill="none"/><path d="${head}" fill="#fff" stroke="#fff" stroke-width="3"/>` +
+      `<path d="${shaft}" stroke="${color}" stroke-width="${(3.2 * k).toFixed(1)}" fill="none"/><path d="${head}" fill="${color}"/></g>`;
+  };
   const CHEV_PATH = 'M-6,-5 L-1,0 L-6,5 M0,-5 L5,0 L0,5';
   const chevSvg = (color, halo) => `<svg width="16" height="14" viewBox="-8 -7 16 14" xmlns="http://www.w3.org/2000/svg"><g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="${CHEV_PATH}" stroke="${halo}" stroke-width="4.5"/><path d="${CHEV_PATH}" stroke="${color}" stroke-width="2"/></g></svg>`;
   // 経路をサンプル間で区切り、各区間に通過時刻の天気分類を付ける（線の色分け用）
@@ -510,7 +520,7 @@ import { RW } from './core.js';
     lmapLayers.arrows.clearLayers(); lmapLayers.marks.clearLayers(); lmapLayers.chev.clearLayers();
     const halo = cssVar('--card'); const cols = { head: cssVar('--head'), tail: cssVar('--tail'), cross: cssVar('--cross') };
     // 進行方向の記号（>>）：一定の画素間隔で経路に沿って置く。風矢印の下に描く
-    const ink = cssVar('--ink');
+    const ink = cssVar('--ink-2'); // 風矢印より控えめな色
     for (const c of chevronSpots(P, (lat, lon) => { const q = lmap.latLngToLayerPoint([lat, lon]); return [q.x, q.y]; }, 90)) {
       const icon = L.divIcon({ html: `<div style="transform:rotate(${c.ang.toFixed(1)}deg)">${chevSvg(ink, halo)}</div>`, className: 'chevIcon', iconSize: [16, 14], iconAnchor: [8, 7] });
       L.marker([c.lat, c.lon], { icon, pane: 'chev', interactive: false, keyboard: false }).addTo(lmapLayers.chev);
@@ -519,10 +529,10 @@ import { RW } from './core.js';
     for (const pt of S) {
       if (pt.na) continue;
       const pos = lmap.latLngToLayerPoint([pt.lat, pt.lon]);
-      if (last && pos.distanceTo(last) < 30) continue;
+      if (last && pos.distanceTo(last) < 46) continue;
       last = pos;
-      const ang = (pt.wd + 180) - 90; const len = 8 + pt.ws * 1.6; const box = len + 12;
-      const html = `<svg width="${box}" height="${box}" viewBox="${-box / 2} ${-box / 2} ${box} ${box}" xmlns="http://www.w3.org/2000/svg">${arrow(0, 0, ang, len, halo, 4.5)}${arrow(0, 0, ang, len, cols[pt.cls], 2)}</svg>`;
+      const ang = (pt.wd + 180) - 90; const len = (10 + pt.ws * 1.6) * MAP_ARROW_K; const box = len + 20;
+      const html = `<svg width="${box}" height="${box}" viewBox="${-box / 2} ${-box / 2} ${box} ${box}" xmlns="http://www.w3.org/2000/svg">${mapArrow(0, 0, ang, len, cols[pt.cls])}</svg>`;
       const icon = L.divIcon({ html, className: 'windIcon', iconSize: [box, box], iconAnchor: [box / 2, box / 2] });
       L.marker([pt.lat, pt.lon], { icon, keyboard: false }).bindPopup(tipHtml(pt), { maxWidth: 320, closeButton: true }).addTo(lmapLayers.arrows);
     }
@@ -561,12 +571,12 @@ import { RW } from './core.js';
       if (sg.cls) s += `<polyline fill="none" stroke="var(${WXVAR[sg.cls]})" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" points="${toPts(sg.pts)}"/>`;
       else s += `<polyline fill="none" stroke="var(--na)" stroke-width="1.5" stroke-dasharray="3 5" points="${toPts(sg.pts)}"/>`;
     }
-    for (const c of chevronSpots(P, px, 70)) s += `<g transform="translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) rotate(${c.ang.toFixed(1)})" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="${CHEV_PATH}" stroke="var(--card)" stroke-width="4.5"/><path d="${CHEV_PATH}" stroke="var(--ink)" stroke-width="2"/></g>`;
+    for (const c of chevronSpots(P, px, 70)) s += `<g transform="translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) rotate(${c.ang.toFixed(1)})" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="${CHEV_PATH}" stroke="var(--card)" stroke-width="4.5"/><path d="${CHEV_PATH}" stroke="var(--ink-2)" stroke-width="2"/></g>`;
     const st = Math.max(1, Math.ceil(S.length / 28));
     S.forEach((pt, i) => {
       if (pt.na || i % st) return;
-      const v = px(pt.lat, pt.lon); const ang = (pt.wd + 180) - 90; const len = 8 + pt.ws * 1.6; // 吹いていく向き
-      s += arrow(v[0], v[1], ang, len, 'var(--card)', 4.5) + arrow(v[0], v[1], ang, len, COL[pt.cls], 2);
+      const v = px(pt.lat, pt.lon); const ang = (pt.wd + 180) - 90; const len = (10 + pt.ws * 1.6) * MAP_ARROW_K; // 吹いていく向き
+      s += mapArrow(v[0], v[1], ang, len, COL[pt.cls]);
     });
     const s0 = px(P[0].lat, P[0].lon), g = px(P[P.length - 1].lat, P[P.length - 1].lon);
     s += `<circle cx="${s0[0].toFixed(1)}" cy="${s0[1].toFixed(1)}" r="5" fill="var(--ink)" stroke="var(--card)" stroke-width="2"/>`;
@@ -830,16 +840,16 @@ import { RW } from './core.js';
     for (const sg of routeSegments(state.course, S)) { if (sg.cls) line(sg.pts, v(WXVAR[sg.cls]), 7); else line(sg.pts, v('--na'), 3, [8, 10]); }
     // 進行方向の記号（>>）：風矢印の下に描く
     const chevC = (c, color, w, k) => { ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.ang * Math.PI / 180); ctx.scale(k, k); ctx.strokeStyle = color; ctx.lineWidth = w / k; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(-6, -5); ctx.lineTo(-1, 0); ctx.lineTo(-6, 5); ctx.moveTo(0, -5); ctx.lineTo(5, 0); ctx.lineTo(0, 5); ctx.stroke(); ctx.restore(); };
-    for (const c of chevronSpots(P, px, 110)) { chevC(c, '#FFFFFF', 8, 2); chevC(c, v('--ink'), 3.5, 2); }
+    for (const c of chevronSpots(P, px, 110)) { chevC(c, '#FFFFFF', 8, 2); chevC(c, '#4B5A63', 3.5, 2); }
     // 風矢印（実方位。40px 以上離れた地点だけ）
-    const arrowC = (x, y, angDeg, len, color, w) => { ctx.save(); ctx.translate(x, y); ctx.rotate(angDeg * Math.PI / 180); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-len / 2, 0); ctx.lineTo(len / 2, 0); ctx.stroke(); ctx.beginPath(); ctx.moveTo(len / 2 + 2, 0); ctx.lineTo(len / 2 - 10, -7); ctx.lineTo(len / 2 - 10, 7); ctx.closePath(); ctx.fill(); ctx.restore(); };
+    const arrowC = (x, y, angDeg, len, color, w) => { ctx.save(); ctx.translate(x, y); ctx.rotate(angDeg * Math.PI / 180); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-len / 2, 0); ctx.lineTo(len / 2, 0); ctx.stroke(); ctx.beginPath(); ctx.moveTo(len / 2 + 3, 0); ctx.lineTo(len / 2 - 14, -9); ctx.lineTo(len / 2 - 14, 9); ctx.closePath(); ctx.fill(); ctx.restore(); };
     let last = null;
     for (const pt of S) {
       if (pt.na) continue;
       const a = px(pt.lat, pt.lon);
-      if (last && Math.hypot(a[0] - last[0], a[1] - last[1]) < 40) continue;
-      last = a; const ang = (pt.wd + 180) - 90; const len = 16 + pt.ws * 2.4;
-      arrowC(a[0], a[1], ang, len, '#FFFFFF', 9); arrowC(a[0], a[1], ang, len, v('--' + pt.cls), 4);
+      if (last && Math.hypot(a[0] - last[0], a[1] - last[1]) < 56) continue;
+      last = a; const ang = (pt.wd + 180) - 90; const len = (20 + pt.ws * 2.6) * 1.4;
+      arrowC(a[0], a[1], ang, len, '#FFFFFF', 12); arrowC(a[0], a[1], ang, len, v('--' + pt.cls), 5.5);
     }
     // スタート／ゴール／現在地
     const dot = (q, r, fill, stroke) => { const a = px(q.lat, q.lon); ctx.beginPath(); ctx.arc(a[0], a[1], r, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = stroke; ctx.stroke(); };
