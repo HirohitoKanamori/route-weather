@@ -172,6 +172,7 @@
   .map .osm .attr{opacity:.92}
   .src{font-size:11px;color:var(--ink-3);line-height:1.6;margin-top:16px;padding:0 4px}
   .src .ver{color:var(--ink-2)} .src .ver b{font-weight:600}
+  .src .disclaimer{color:var(--ink-2)}
 
   @media (min-width:900px){
     /* 結果が出るまでは設定欄だけを中央に置き、結果が出たら 2 カラムにする */
@@ -318,8 +319,9 @@
   </div>
 
   <footer class="src">
-    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.0.1</b></span><br>
-    出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。予報は参考情報であり、実際の天候は変わり得ます。<span id="modelInfo"></span><br>
+    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.0.2</b></span><br>
+    <span class="disclaimer">予報は参考情報です。実際の天候と異なる場合があり、本サイトの利用により生じた損害について当方は責任を負いません。</span><br>
+    出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。<span id="modelInfo"></span><br>
     注意報・警報、アメダス実況：気象庁ホームページ。市区町村の判定：国土地理院 逆ジオコーダ。地図：© OpenStreetMap contributors（ODbL）。コースファイルは端末内で処理し、外部に送信しません。FIT の読み込みには Garmin FIT SDK を使用しています。
   </footer>
 </div>
