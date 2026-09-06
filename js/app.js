@@ -575,8 +575,22 @@ import { RW } from './core.js';
   const WCODE = { '02': '大雨警報', '03': '洪水警報', '04': '暴風警報', '05': '暴風雪警報', '06': '大雪警報', '07': '波浪警報', '08': '高潮警報',
     '10': '大雨注意報', '12': '大雪注意報', '13': '風雪注意報', '14': '雷注意報', '15': '強風注意報', '16': '波浪注意報', '17': '融雪注意報', '18': '洪水注意報', '19': '高潮注意報',
     '20': '濃霧注意報', '21': '乾燥注意報', '22': 'なだれ注意報', '23': '低温注意報', '24': '霜注意報', '25': '着氷注意報', '26': '着雪注意報',
+    '29': '土砂災害注意報', '49': '土砂災害危険警報', // 2026 年（令和 8 年）改正で追加された土砂災害の警報・注意報
     '32': '暴風特別警報', '33': '大雨特別警報', '35': '暴風特別警報', '36': '暴風雪特別警報', '37': '大雪特別警報', '38': '波浪特別警報', '39': '高潮特別警報' };
-  const wLevel = code => (+code >= 32 ? 'emg' : +code < 10 ? 'warn' : 'adv');
+  const wLevel = code => (code === '29' ? 'adv' : +code >= 32 ? 'emg' : +code < 10 ? 'warn' : 'adv');
+  // 気象庁の警報 JSON（2026 年改正後の r8 形式は報告種別ごとの配列。旧形式のオブジェクトにも対応）→ { areas: {class20 code: [{code,status}]}, reported }
+  function parseWarningReport(rep) {
+    const reps = Array.isArray(rep) ? rep : [rep];
+    const areas = {}; let reported = null;
+    const add = (areaCode, k) => { if (!k || !k.code || k.status === '解除') return; const arr = areas[areaCode] || (areas[areaCode] = []); if (!arr.some(x => x.code === k.code)) arr.push({ code: k.code, status: k.status }); };
+    for (const r of reps) {
+      if (!r) continue;
+      if (r.reportDatetime && (!reported || r.reportDatetime > reported)) reported = r.reportDatetime;
+      if (r.warning) { for (const a of (r.warning.class20Items || [])) for (const k of (a.kinds || [])) add(a.areaCode, k); }
+      else if (r.areaTypes) { for (const t of r.areaTypes) for (const a of (t.areas || [])) for (const w of (a.warnings || [])) add(a.code, w); }
+    }
+    return { areas, reported };
+  }
   const wName = code => WCODE[code] || ('警報・注意報 ' + code);
   const AMEDAS_DIR = ['静穏', '北北東', '北東', '東北東', '東', '東南東', '南東', '南南東', '南', '南南西', '南西', '西南西', '西', '西北西', '北西', '北北西', '北'];
   const p2 = n => String(n).padStart(2, '0');
@@ -633,11 +647,11 @@ import { RW } from './core.js';
       segs[segs.length - 1].to = state.course.total;
       const offices = [...new Set(segs.map(x => x.office).filter(Boolean))];
       const reports = {};
-      await Promise.all(offices.map(async o => { try { reports[o] = await (await fetch(JMA + 'warning/data/warning/' + o + '.json')).json(); } catch (e) { reports[o] = null; } }));
+      await Promise.all(offices.map(async o => { try { reports[o] = parseWarningReport(await (await fetch(JMA + 'warning/data/r8/' + o + '.json')).json()); } catch (e) { reports[o] = null; } }));
       for (const sg of segs) {
         const rep = reports[sg.office]; if (!rep) continue;
-        sg.reported = rep.reportDatetime; const areas = (rep.areaTypes || []).flatMap(t => t.areas || []);
-        for (const code of sg.codes) { const a = areas.find(x => x.code === code); if (!a) continue; for (const w of (a.warnings || [])) { if (w.code && w.status !== '解除' && !sg.warnings.some(x => x.code === w.code)) sg.warnings.push({ code: w.code, status: w.status }); } }
+        sg.reported = rep.reported;
+        for (const code of sg.codes) for (const w of (rep.areas[code] || [])) { if (!sg.warnings.some(x => x.code === w.code)) sg.warnings.push(w); }
       }
       state.warnings = { hash, at: Date.now(), segs, offices: offices.map(o => idx.offices[o] || o), failed: offices.filter(o => !reports[o]).length };
     } catch (e) { state.warnings = { hash, at: Date.now(), segs: [], error: e.message }; }
