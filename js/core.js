@@ -331,7 +331,7 @@ export const RW = (function () {
   function horizon(series) {
     if (!series || !series.length) return null;
     let m = null;
-    for (const s of series) { if (s.validUntil == null) return null; m = m == null ? s.validUntil : Math.min(m, s.validUntil); }
+    for (const s of series) { if (!s) continue; if (s.validUntil == null) return null; m = m == null ? s.validUntil : Math.min(m, s.validUntil); } // 未取得（null）の地点は無視
     return m;
   }
   // 時刻 t（ms）の値。温度・風速は線形補間、風向は円周補間、降水は t を含む 1 時間の値、天気コードは近い方
@@ -368,8 +368,10 @@ export const RW = (function () {
     return { S, step };
   }
   // 要点（V-3）。km の集計はゴール地点を除く各サンプルが step km を代表するとみなす
-  function summarize(S, step) {
-    const body = S.slice(0, -1), ok = body.filter(s => !s.na), okAll = S.filter(s => !s.na);
+  // fromD を渡すと「そこから先（残り）」だけを集計する（ADD_01 R-20）
+  function summarize(S, step, fromD = null) {
+    const ahead = fromD == null ? S : S.filter(s => s.d >= fromD);
+    const body = ahead.slice(0, -1), ok = body.filter(s => !s.na), okAll = ahead.filter(s => !s.na);
     const last = S[S.length - 1];
     const rainS = ok.filter(s => s.mm >= RAIN_MM);
     const naFirst = S.find(s => s.na), gsmFirst = S.find(s => s.model === 'gsm');
@@ -382,7 +384,7 @@ export const RW = (function () {
       tmax: okAll.length ? okAll.reduce((a, b) => b.temp > a.temp ? b : a) : null,
       wsMax: okAll.length ? okAll.reduce((a, b) => b.ws > a.ws ? b : a) : null,
       naFrom: naFirst ? naFirst.d : null, gsmFrom: gsmFirst ? gsmFirst.d : null,
-      nOk: okAll.length, n: S.length
+      nOk: okAll.length, n: ahead.length, fromD
     };
   }
   // 傾向モード（F-9）：segKm 区間 × 通過日 に集約

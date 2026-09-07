@@ -7,7 +7,7 @@ import { RW } from './core.js';
   const REL = { head: '向かい', tail: '追い', cross: '横' };
   const COL = { head: 'var(--head)', tail: 'var(--tail)', cross: 'var(--cross)' };
   const CACHE_MS = 30 * 60e3;
-  const state = { course: null, series: null, result: null, pinned: false, busy: false, offlineNote: '', collapsed: false };
+  const state = { course: null, series: null, result: null, pinned: false, busy: false, offlineNote: '', collapsed: false, lastPos: null, forecastStale: '', posTarget: 'posMsg' };
 
   // localStorage は私的ブラウズ等で例外になるので必ず握りつぶす
   const store = {
@@ -60,7 +60,8 @@ import { RW } from './core.js';
     const spd = Math.min(60, Math.max(5, +$('spd').value || 18));
     const total = state.course ? state.course.total : Infinity;
     const anchor = readAnchor();
-    return { start, spd, sleeps: RW.plan.normSleeps(readSleeps(), total), segments: RW.plan.normSegments(readSegs(), total),
+    const done = doneSleeps(); // R-17 で「仮眠しない」とした地点
+    return { start, spd, sleeps: RW.plan.normSleeps(readSleeps().filter(x => !done.includes(+x.d)), total), segments: RW.plan.normSegments(readSegs(), total),
       anchor: anchor && anchor.d < total ? anchor : null };
   }
   function saveParams() {
@@ -142,7 +143,7 @@ import { RW } from './core.js';
   }
   function setCourse(course) {
     state.course = course; state.series = null; state.result = null; state.offlineNote = '';
-    store.del('rw:posHist'); if ($('posMsg')) posMsg('');
+    store.del('rw:posHist'); state.lastPos = null; state.forecastStale = ''; if ($('posMsg')) { posMsg(''); posMsg('', '', 'gpsMsg'); }
     renderCourse(); store.set('rw:course', course); rememberCourse(course); setStatus('');
     run();
   }
@@ -162,15 +163,46 @@ import { RW } from './core.js';
   }
 
   // ===== 予報取得 =====
-  async function getSeries(model, pts, hash, pastDays, force) {
-    const key = 'rw:fc2:' + hash + ':' + model + ':' + pastDays;
-    if (!force) { const c = store.get(key); if (c && Date.now() - c.at < CACHE_MS) return c.series; }
+  async function fetchSeriesRaw(model, pts, pastDays) {
     const res = await fetch(RW.forecast.buildUrl(pts, model, pastDays));
     if (!res.ok) { let msg = 'HTTP ' + res.status; try { const j = await res.json(); if (j.reason) msg += ' ' + j.reason; } catch (e) { /* noop */ } throw new Error(msg); }
     const series = RW.forecast.parseSeries(await res.json());
     if (series.length !== pts.length) throw new Error('地点数が一致しません（' + series.length + '/' + pts.length + '）');
+    return series;
+  }
+  async function getSeries(model, pts, hash, pastDays, force) {
+    const key = 'rw:fc2:' + hash + ':' + model + ':' + pastDays;
+    if (!force) { const c = store.get(key); if (c && Date.now() - c.at < CACHE_MS) return c.series; }
+    const series = await fetchSeriesRaw(model, pts, pastDays);
     store.set(key, { at: Date.now(), series });
     return series;
+  }
+  // R-18/R-19：現在地より先のサンプル点だけ予報を取り直し、既存の時系列に差し込む。失敗時は前回値のまま false を返す
+  async function refreshForecastFrom(d) {
+    const p = params(); const step = RW.plan.sampleStep(state.course.total);
+    const pts = RW.plan.samplePoints(state.course, p, step); const hash = RW.course.hashCourse(state.course);
+    let idx = pts.findIndex(x => x.d >= d); if (idx < 0) idx = pts.length - 1;
+    const sub = pts.slice(idx); const now = Date.now();
+    const pastDays = Math.min(2, Math.max(0, Math.ceil((now - +p.start) / 86400e3)));
+    try {
+      const msmSub = await fetchSeriesRaw('msm', sub, pastDays);
+      const goalT = +pts[pts.length - 1].t; const hM = RW.forecast.horizon(msmSub);
+      const gsmSub = (hM == null || goalT > hM) ? await fetchSeriesRaw('gsm', sub, pastDays) : null;
+      const merge = (oldArr, subArr) => { const out = (oldArr || []).slice(0, pts.length); while (out.length < pts.length) out.push(null); subArr.forEach((x, i) => { out[idx + i] = x; }); return out; };
+      let ser = state.series;
+      if (!ser || ser.hash !== hash) ser = { msm: [], gsm: null, hash, pastDays, fetchedAt: now, runs: {} };
+      ser.msm = merge(ser.msm, msmSub);
+      if (gsmSub) ser.gsm = merge(ser.gsm, gsmSub);
+      ser.fetchedAt = now; ser.pastDays = pastDays;
+      state.series = ser; state.offlineNote = ''; state.forecastStale = '';
+      store.set('rw:last', { course: state.course, series: ser });
+      fetchRuns(ser);
+      return true;
+    } catch (e) {
+      if (state.series) state.forecastStale = `予報は ${F.fmtH(state.series.fetchedAt)} 取得のものです（更新できませんでした）`;
+      else state.forecastStale = '予報を取得できませんでした（圏外の可能性）';
+      return false;
+    }
   }
   async function fetchRuns(ser) {
     for (const m of ['msm', 'gsm']) {
@@ -226,7 +258,7 @@ import { RW } from './core.js';
   function recompute(p) {
     p = p || params();
     const { S, step } = RW.forecast.computeRide(state.course, p, state.series);
-    const sm = RW.forecast.summarize(S, step);
+    const sm = RW.forecast.summarize(S, step, p.anchor ? p.anchor.d : null); // 再計算中は「残り」で集計（R-20）
     const hM = RW.forecast.horizon(state.series.msm);
     const trend = hM == null ? true : +p.start > hM;
     state.result = { S, step, sm, p, trend };
@@ -257,6 +289,7 @@ import { RW } from './core.js';
   function renderNotice() {
     const { sm, p, trend, S } = state.result; const msgs = [];
     if (state.offlineNote) msgs.push(['warn', state.offlineNote]);
+    if (state.forecastStale) msgs.push(['warn', state.forecastStale]);
     const days = Math.max(0, Math.ceil((+p.start - Date.now()) / 86400e3));
     if (sm.nOk === 0) msgs.push(['warn', `出走まで ${days} 日。通過時刻が予報範囲（気象庁 GSM・11 日先まで）を超えています。出走が近づいてから再取得してください。`]);
     else if (trend) msgs.push(['info', `出走まで ${days} 日。傾向モード：予報は傾向としてお読みください（${M.gsm.label}・${M.gsm.grid}）。出走 4 日前を切ると MSM の詳細表示に切り替わります。`]);
@@ -275,12 +308,13 @@ import { RW } from './core.js';
   function renderSummary() {
     const { sm, S, step, p } = state.result;
     const card = (cls, k, v, s) => `<div class="card ${cls}"><div class="k">${k}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
-    let h = card('', 'ゴール予定', F.fmtDT(sm.goal), `経過 ${n1(sm.totalH)} h（仮眠 ${p.sleeps.reduce((a, s) => a + s.m, 0)} 分を含む）`);
+    const A = !!p.anchor; const rest = A ? Math.max(0, state.course.total - p.anchor.d) : state.course.total; const L = A ? '残りの' : '';
+    let h = card('', 'ゴール予定', F.fmtDT(sm.goal), A ? `現在地 ${Math.round(p.anchor.d)} km（${F.fmtH(p.anchor.t)}）から残り ${n1(rest)} km・${n1(Math.max(0, (+sm.goal - +p.anchor.t) / 3600e3))} h` : `経過 ${n1(sm.totalH)} h（仮眠 ${p.sleeps.reduce((a, s) => a + s.m, 0)} 分を含む）`);
     if (sm.nOk === 0) { $('summary').innerHTML = h; return; }
-    h += card('head', '向かい風区間', `${sm.headKm} km`, `${state.course.total > 0 ? Math.round(sm.headKm / state.course.total * 100) : 0}% ／ 最大風速 ${sm.wsMax ? n1(sm.wsMax.ws) + ' m/s（' + Math.round(sm.wsMax.d) + ' km）' : '—'}`);
-    h += card('rain', '雨中走行', `${sm.rainKm} km`, sm.rainFirst ? `最初 ${Math.round(sm.rainFirst.d)} km（${F.fmtDT(sm.rainFirst.t)}）〜 最後 ${Math.round(Math.min(sm.rainLast.d + step, state.course.total))} km` : `${RAIN_MM} mm/h 以上の降水なし`);
-    h += card('', '最低気温', `${n1(sm.tmin.temp)}℃${sm.tmin.feel != null ? '<small class="sub">（体感 ' + n1(sm.tmin.feel) + '℃）</small>' : ''}`, `${Math.round(sm.tmin.d)} km、${F.fmtDT(sm.tmin.t)}${sm.tmax ? ' ／ 最高 ' + n1(sm.tmax.temp) + '℃' : ''}`);
-    h += card('', '夜間走行', `${sm.nightKm} km`, '日没〜日の出の区間');
+    h += card('head', L + '向かい風区間', `${sm.headKm} km`, `${rest > 0 ? Math.round(sm.headKm / rest * 100) : 0}% ／ 最大風速 ${sm.wsMax ? n1(sm.wsMax.ws) + ' m/s（' + Math.round(sm.wsMax.d) + ' km）' : '—'}`);
+    h += card('rain', L + '雨中走行', `${sm.rainKm} km`, sm.rainFirst ? `最初 ${Math.round(sm.rainFirst.d)} km（${F.fmtDT(sm.rainFirst.t)}）〜 最後 ${Math.round(Math.min(sm.rainLast.d + step, state.course.total))} km` : `${RAIN_MM} mm/h 以上の降水なし`);
+    h += card('', A ? '以降の最低気温' : '最低気温', `${n1(sm.tmin.temp)}℃${sm.tmin.feel != null ? '<small class="sub">（体感 ' + n1(sm.tmin.feel) + '℃）</small>' : ''}`, `${Math.round(sm.tmin.d)} km、${F.fmtDT(sm.tmin.t)}${sm.tmax ? ' ／ 最高 ' + n1(sm.tmax.temp) + '℃' : ''}`);
+    h += card('', L + '夜間走行', `${sm.nightKm} km`, '日没〜日の出の区間');
     $('summary').innerHTML = h;
   }
   // SVG 断片
@@ -371,6 +405,8 @@ import { RW } from './core.js';
       s += `<path d="M${xOf(0).toFixed(1)},${lanes.ele.y + lanes.ele.h} ${course.pts.map(q => 'L' + xOf(q.d).toFixed(1) + ',' + ey(q.ele).toFixed(1)).join(' ')} L${xOf(course.total).toFixed(1)},${lanes.ele.y + lanes.ele.h} Z" fill="var(--paper-2)" stroke="var(--ink-3)" stroke-width="1"/>`;
       s += text(L + innerW - 2, lanes.ele.y + 9, `最高 ${Math.round(emax)} m`, 'tick', 'end');
     } else s += text(L + 4, lanes.ele.y + lanes.ele.h / 2 + 4, '標高データなし', 'tick');
+    // 通過済み区間（現在地より手前）を薄く（ADD_01）
+    if (p.anchor && p.anchor.d > 0) s += rect(xOf(0), top, xOf(Math.min(p.anchor.d, course.total)) - xOf(0), bottom - top, 'var(--card)', .55);
     // カーソルとヒット領域
     s += `<line id="cur" x1="0" y1="${top}" x2="0" y2="${bottom}" stroke="var(--ink)" stroke-width="1" opacity="0"/>`;
     s += `<rect id="hit" x="${L}" y="0" width="${innerW}" height="${H}" fill="transparent"/></svg>`;
@@ -427,7 +463,7 @@ import { RW } from './core.js';
     for (const pt of S) {
       // この地点までに到達する仮眠を挟む
       while (si < p.sleeps.length && p.sleeps[si].d < pt.d) { rows.push(sleepRow(p.sleeps[si], p)); si++; }
-      const cls = (pt.na ? 'na' : '') + (pt.night ? ' night' : '');
+      const cls = (pt.na ? 'na' : '') + (pt.night ? ' night' : '') + (p.anchor && pt.d < p.anchor.d ? ' past' : '');
       if (pt.na) rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}</td><td colspan="4">予報範囲外</td></tr>`);
       else rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}${pt.night ? ' <span class="tag">夜</span>' : ''}</td><td>${esc(RW.forecast.wmoText(pt.code))}${pt.model === 'gsm' ? ' <span class="tag">GSM</span>' : ''}<br><small class="sub">湿度 ${Math.round(pt.rh)}%${pt.sun != null ? '・日照 ' + Math.round(pt.sun / 36) + '%' : ''}</small></td>
         <td>${RW.wind.dir16(pt.wd)} ${n1(pt.ws)} m/s <span class="rel ${pt.cls}">${REL[pt.cls]}風</span></td><td class="n">${n1(pt.mm)} mm/h</td><td class="n">${n1(pt.temp)}℃${pt.feel != null ? '<br><small class="sub">体感 ' + n1(pt.feel) + '℃</small>' : ''}</td></tr>`);
@@ -878,17 +914,64 @@ import { RW } from './core.js';
     await deliverPng(canvas, `route-weather-map-${F.ymd(p.start)}.png`);
   }
 
-  // ===== 現在位置 → コース上の距離 → 走行中の再計算（ADD_01 4.2） =====
+  // ===== 現在位置 → コース上の距離 → 走行中の再計算（ADD_01） =====
   const fmtM = m => m >= 1000 ? (m / 1000).toFixed(1) + ' km' : Math.round(m) + ' m';
-  function posMsg(html, cls) { const el = $('posMsg'); if (!html) { el.className = 'posMsg hidden'; el.innerHTML = ''; return; } el.className = 'posMsg' + (cls ? ' ' + cls : ''); el.innerHTML = html; }
-  function posHistory() { const h = store.get('rw:posHist'); return (h && state.course && h.hash === RW.course.hashCourse(state.course)) ? h.list : []; }
-  // pos = { lat, lon, accuracy(m), t(ms), source }
-  function applyPosition(pos) {
+  function posMsg(html, cls, target) {
+    const el = $(target || state.posTarget); if (!el) return;
+    if (!html) { el.className = 'posMsg hidden'; el.innerHTML = ''; return; }
+    el.className = 'posMsg' + (cls ? ' ' + cls : ''); el.innerHTML = html;
+  }
+  function posStore() { const h = store.get('rw:posHist'); return (h && state.course && h.hash === RW.course.hashCourse(state.course)) ? h : { hash: state.course ? RW.course.hashCourse(state.course) : '', list: [], done: [] }; }
+  function posHistory() { return posStore().list || []; }
+  function doneSleeps() { return posStore().done || []; }
+  const R4 = '位置情報の利用が許可されていません。iPhone の 設定 → プライバシーとセキュリティ → 位置情報サービス → Safari で許可してください';
+  const R5 = '位置を取得できませんでした。空が開けた場所で再度お試しください';
+  const manualLink = '<br><a href="#" class="toManual">距離を手で入力する</a>';
+  function bindManual(scope) { scope.querySelectorAll('.toManual').forEach(x => x.addEventListener('click', e => { e.preventDefault(); openManual(); })); }
+  function openManual() { $('settings').open = true; $('ancD').focus(); $('ancD').scrollIntoView({ block: 'center' }); }
+
+  // R-12〜R-14：NICT の時刻。3 秒で諦めて端末時計にする（2026-09-07 時点で NICT の JSON は 404 のため実質フォールバック）
+  async function serverTime() {
+    const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 3000); const t0 = Date.now();
+    try {
+      const r = await fetch('https://ntp-a1.nict.go.jp/cgi-bin/json', { signal: ctrl.signal, cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json(); const t1 = Date.now();
+      if (!j || typeof j.st !== 'number') throw new Error('bad json');
+      const st = j.st * 1000 + (t1 - t0) / 2;
+      return { t: st, source: 'nict', skew: st - t1 };
+    } catch (e) { return { t: Date.now(), source: 'device', skew: 0 }; }
+    finally { clearTimeout(timer); }
+  }
+  // R-1〜R-2：getCurrentPosition を 1 回だけ
+  function getPosition() {
+    return new Promise((res, rej) => {
+      if (!navigator.geolocation) { rej({ code: 0, message: 'geolocation unsupported' }); return; }
+      navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    });
+  }
+  async function gpsRefresh() {
+    state.posTarget = 'gpsMsg';
+    if (!state.course || !state.result) { posMsg('先にコースを読み込み、出走日時と速度を設定してください', 'err'); return; }
+    const btn = $('gps'); if (btn.disabled) return;
+    const label = btn.querySelector('.lbl'); btn.disabled = true; label.textContent = '位置を取得中…'; posMsg('');
+    try {
+      const [posR, timeR] = await Promise.allSettled([getPosition(), serverTime()]); // R-15：並行取得
+      if (posR.status === 'rejected') {
+        const e = posR.reason; posMsg((e && e.code === 1 ? R4 : R5) + manualLink, 'err'); bindManual($('gpsMsg')); return;
+      }
+      const pos = posR.value; const tm = timeR.status === 'fulfilled' ? timeR.value : { t: Date.now(), source: 'device', skew: 0 };
+      label.textContent = '予報を更新中…';
+      await applyPosition({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy, t: tm.t, posT: pos.timestamp, clock: tm, source: 'gps' });
+    } finally { btn.disabled = false; label.textContent = '現在位置から予報を再取得'; }
+  }
+  // pos = { lat, lon, accuracy(m), t(ms), posT?, clock?, source }
+  async function applyPosition(pos) {
     if (!state.course || !state.result) { posMsg('先にコースを読み込み、出走日時と速度を設定してください', 'err'); return; }
     const p = params();
     const loc = RW.locate.locateOnCourse(state.course, pos.lat, pos.lon);
     if (!loc.candidates.length) { // R-8：1 km 超は走行中とみなさない
-      posMsg(`コースから約 ${fmtM(loc.nearest ? loc.nearest.distM : Infinity)} 離れています。コース上で再取得するか、距離を手入力してください`, 'err');
+      posMsg(`コースから約 ${fmtM(loc.nearest ? loc.nearest.distM : Infinity)} 離れています。コース上で再取得するか、距離を手入力してください` + manualLink, 'err'); bindManual($(state.posTarget));
       return;
     }
     const hist = posHistory(); const prev = hist.length ? hist[hist.length - 1] : null;
@@ -897,20 +980,43 @@ import { RW } from './core.js';
     if (ch.kind === 'ask') { // R-10 (c)：利用者に選ばせる
       posMsg('現在地に近いコース上の地点が複数あります。どちらですか？<div class="choices">' +
         ch.cands.map((c, i) => `<button type="button" class="btn small" data-i="${i}">${Math.round(c.d)} km 付近（コースから ${fmtM(c.distM)}）</button>`).join('') + '</div>');
-      $('posMsg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => commitPosition(ch.cands[+b.dataset.i], pos)));
+      $(state.posTarget).querySelectorAll('button').forEach(b => b.addEventListener('click', () => commitPosition(ch.cands[+b.dataset.i], pos)));
       return;
     }
-    commitPosition(ch.cand, pos);
+    await commitPosition(ch.cand, pos);
   }
-  // R-11：確定した距離と時刻を P-5 の欄に書き込み、同じ再計算を通す。履歴（R-21）は端末内に最大 50 件
-  function commitPosition(cand, pos) {
+  // R-11：確定した距離と時刻を P-5 の欄に書き込み、予報を取り直してから同じ再計算を通す。履歴（R-21）は端末内に最大 50 件
+  async function commitPosition(cand, pos) {
     $('ancD').value = cand.d.toFixed(1); $('ancT').value = localDT(pos.t);
-    const list = posHistory().concat([{ d: cand.d, t: pos.t, acc: pos.accuracy, distM: cand.distM }]).slice(-50);
-    store.set('rw:posHist', { hash: RW.course.hashCourse(state.course), list });
-    onParamChange();
-    const lowAcc = pos.accuracy > 500; // R-9
-    posMsg(`${Math.round(cand.d)} km 地点として再計算しました（${F.fmtH(pos.t)}、コースから ${fmtM(cand.distM)}、GPS 精度 ±${Math.round(pos.accuracy)} m）` +
-      (lowAcc ? `<br>GPS 精度が ±${Math.round(pos.accuracy)} m と低いため、位置がずれている可能性があります` : ''), lowAcc ? 'warn' : '');
+    const ps = posStore(); ps.list = (ps.list || []).concat([{ d: cand.d, t: pos.t, acc: pos.accuracy, distM: cand.distM }]).slice(-50);
+    store.set('rw:posHist', ps);
+    state.lastPos = { d: cand.d, t: pos.t, acc: pos.accuracy, distM: cand.distM, clock: pos.clock || null, posT: pos.posT || null, source: pos.source };
+    saveParams();
+    posMsg(`${Math.round(cand.d)} km 地点として再計算しました`); // R-23
+    await refreshForecastFrom(cand.d); // R-18/R-19
+    recompute();
+    setTimeout(renderPosStatus, 3000);
+  }
+  // ステータス行（R-3, R-9, R-13〜R-15, R-17, R-19）
+  function renderPosStatus() {
+    const lp = state.lastPos; if (!lp || !state.result) return;
+    const p = state.result.p; const parts = [`現在地 ${Math.round(lp.d)} km`, `${F.fmtH(lp.t)} 取得`, `GPS 精度 ±${Math.round(lp.acc)} m`];
+    const run = state.series && state.series.runs && state.series.runs.msm; if (run) parts.push(`予報 ${F.fmtH(run)} 発表`);
+    if (!lp.clock || lp.clock.source !== 'nict') parts.push('端末時計');
+    let html = parts.join(' ・ '); let cls = '';
+    if (lp.acc > 500) { html += `<br>GPS 精度が ±${Math.round(lp.acc)} m と低いため、位置がずれている可能性があります`; cls = 'warn'; }
+    if (lp.clock && lp.clock.source === 'nict' && Math.abs(lp.clock.skew) > 60e3) html += `<br>端末の時計が ${Math.round(Math.abs(lp.clock.skew) / 1000)} 秒ずれています`;
+    if (lp.posT && Math.abs(lp.t - lp.posT) > 30e3) html += `<br>位置は ${Math.round(Math.abs(lp.t - lp.posT) / 1000)} 秒前のものです`;
+    if (state.forecastStale) { html += '<br>' + esc(state.forecastStale); cls = 'warn'; }
+    const near = p.sleeps.find(x => x.d >= lp.d && x.d - lp.d <= 2); // R-17：±2 km 先の仮眠は確認（既定は「する」）
+    if (near) html += `<br>仮眠ポイント（${Math.round(near.d)} km・${near.m} 分）が近くにあります。これから仮眠しますか？<div class="choices"><button type="button" class="btn small" data-sleep="keep">する（既定）</button><button type="button" class="btn small" data-sleep="skip">しない</button></div>`;
+    html += manualLink;
+    posMsg(html, cls);
+    const el = $(state.posTarget); bindManual(el);
+    el.querySelectorAll('[data-sleep]').forEach(b => b.addEventListener('click', () => {
+      if (b.dataset.sleep === 'skip') { const ps = posStore(); ps.done = [...new Set((ps.done || []).concat([+near.d]))]; store.set('rw:posHist', ps); }
+      recompute(); renderPosStatus();
+    }));
   }
 
   // ===== 配線 =====
@@ -957,13 +1063,16 @@ import { RW } from './core.js';
   $('addSeg').addEventListener('click', () => { addSegRow().querySelector('.sf').focus(); });
   ['ancD', 'ancT'].forEach(id => $(id).addEventListener('change', onParamChange));
   $('ancNow').addEventListener('click', () => { $('ancT').value = localDT(Date.now()); if (!$('ancD').value) { $('ancD').focus(); return; } onParamChange(); });
-  $('ancClear').addEventListener('click', () => { $('ancD').value = ''; $('ancT').value = ''; posMsg(''); onParamChange(); });
+  $('ancClear').addEventListener('click', () => { $('ancD').value = ''; $('ancT').value = ''; state.lastPos = null; state.forecastStale = ''; posMsg('', '', 'posMsg'); posMsg('', '', 'gpsMsg'); onParamChange(); });
+  $('gps').addEventListener('click', gpsRefresh);
+  $('manualLink').addEventListener('click', e => { e.preventDefault(); openManual(); });
   // R-25：デバッグ用の位置手入力。GPS 取得と同じ applyPosition を通す
   $('dbgRun').addEventListener('click', () => {
     const lat = +$('dbgLat').value, lon = +$('dbgLon').value;
     if (!$('dbgLat').value || !$('dbgLon').value || !(Math.abs(lat) <= 90) || !(Math.abs(lon) <= 180)) { posMsg('緯度・経度を入力してください', 'err'); return; }
     const acc = $('dbgAcc').value ? +$('dbgAcc').value : 20;
     const t = $('dbgT').value ? Date.parse($('dbgT').value + ':00+09:00') : Date.now();
+    state.posTarget = 'posMsg';
     applyPosition({ lat, lon, accuracy: acc, t, source: 'debug' });
   });
   ['date', 'time', 'spd'].forEach(id => $(id).addEventListener('change', onParamChange));

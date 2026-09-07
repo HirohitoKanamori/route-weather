@@ -90,6 +90,12 @@
   .sleeps .sleep{display:grid;grid-template-columns:1fr 1fr 44px;gap:6px} /* 設定欄の仮眠行。区間表の tr.sleep とは別物 */
   .sleeps .seg{display:grid;grid-template-columns:1fr 1fr 1fr 44px;gap:6px}
   .anchor{display:grid;grid-template-columns:1fr 1.5fr 44px 44px;gap:6px}
+  .gpsWrap{margin-top:10px}
+  .gps{width:100%;display:flex;align-items:center;justify-content:center;gap:6px}
+  .gps .trial{font-weight:400;font-size:11px;opacity:.85}
+  .gpsNote{margin:6px 2px 0}
+  .gpsNote a{color:var(--ink-2)}
+  tr.past td{opacity:.45}
   .posMsg{font-size:12px;line-height:1.5;margin-top:6px;padding:8px 10px;border-radius:6px;background:var(--info-bg);color:var(--info-ink)}
   .posMsg.err{background:var(--err-bg);color:var(--err-ink)} .posMsg.warn{background:var(--warn-bg);color:var(--warn-ink)}
   .posMsg .choices{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
@@ -271,6 +277,11 @@
       <div id="notice" class="notice hidden" role="status"></div>
       <div id="results" class="hidden">
         <section class="summary" id="summary" aria-label="要点"></section>
+        <section class="gpsWrap" id="gpsWrap">
+          <button type="button" class="primary gps" id="gps"><span class="lbl">現在位置から予報を再取得</span><small class="trial">（試験運用中）</small></button>
+          <div class="posMsg hidden" id="gpsMsg" aria-live="polite"></div>
+          <div class="howto gpsNote">位置情報は端末内でコース上の距離に変換するためだけに使い、外部に送信しません。予報の取得に使う座標はコースのサンプル点で、現在地そのものではありません。<a href="#" id="manualLink">距離を手で入力する</a></div>
+        </section>
 
         <section class="panel ribbon" id="ribbonWrap">
           <div class="panelBar"><button type="button" class="btn small" id="share" title="リボンと要点を画像にして共有・保存">画像で共有</button></div>
@@ -344,7 +355,7 @@
   </div>
 
   <footer class="src">
-    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.0.4</b></span><br>
+    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.1.0</b></span><br>
     <span class="disclaimer">予報は参考情報です。実際の天候と異なる場合があり、本サイトの利用により生じた損害について当方は責任を負いません。</span><br>
     出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。<span id="modelInfo"></span><br>
     注意報・警報、アメダス実況：気象庁ホームページ。市区町村の判定：国土地理院 逆ジオコーダ。地図：© OpenStreetMap contributors（ODbL）。コースファイルは端末内で処理し、外部に送信しません。FIT の読み込みには Garmin FIT SDK を使用しています。

@@ -65,3 +65,30 @@ test('geo：反転しても点列と距離が対応する', () => {
   assert.equal(r.geo.length, c.geo.length); assert.equal(r.geo[0].d, 0);
   assert.ok(Math.abs(r.geo[0].lat - c.geo[c.geo.length - 1].lat) < 1e-12);
 });
+
+test('テスト 4：仮眠ポイントの直前・直後（現在地の先の仮眠は残り、手前の仮眠は消化済み）', () => {
+  const p = { start, spd: 20, sleeps: RW.plan.normSleeps([{ d: 120, m: 60 }], c.total), segments: [] };
+  const t0 = JST(2026, 9, 7, 12, 0);
+  const before = Object.assign({}, p, { anchor: { d: 119, t: new Date(t0) } });
+  assert.equal(RW.plan.timeAt(130, before).getTime(), t0 + (11 / 20 + 1) * 3600e3, '直前：仮眠 1 時間を含む');
+  const after = Object.assign({}, p, { anchor: { d: 121, t: new Date(t0) } });
+  assert.equal(RW.plan.timeAt(130, after).getTime(), t0 + (9 / 20) * 3600e3, '直後：仮眠は消化済み');
+  // 「仮眠しない」＝ sleeps から外す
+  const skip = Object.assign({}, before, { sleeps: [] });
+  assert.equal(RW.plan.timeAt(130, skip).getTime(), t0 + (11 / 20) * 3600e3);
+});
+
+test('summarize(fromD)：現在地より先だけを集計する', () => {
+  const S = [];
+  for (let d = 0; d <= 100; d += 10) S.push({ d, t: new Date(+start + d / 20 * 3600e3), eh: d / 20, na: false, cls: d < 50 ? 'head' : 'tail', mm: d < 50 ? 1 : 0, temp: 20 + d / 10, ws: 1, night: false });
+  const all = RW.forecast.summarize(S, 10), rest = RW.forecast.summarize(S, 10, 50);
+  assert.equal(all.headKm, 50); assert.equal(rest.headKm, 0);
+  assert.equal(all.rainKm, 50); assert.equal(rest.rainKm, 0);
+  assert.equal(rest.tmin.d, 50); assert.equal(rest.goal.getTime(), all.goal.getTime());
+});
+
+test('horizon：未取得（null）の地点は無視する', () => {
+  const s = { validFrom: 1, validUntil: 100 };
+  assert.equal(RW.forecast.horizon([null, s, null]), 100);
+  assert.equal(RW.forecast.horizon([null, { validFrom: 1, validUntil: null }]), null);
+});
