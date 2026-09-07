@@ -22,6 +22,7 @@
     --head:#C8462B; --tail:#2E7D5B; --cross:#C79A2F; --rain:#3B6FB6; --night:#2A3448; --sleep:#6E5A8E; --na:#6F7A80;
     --info-bg:#E4ECF5; --info-ink:#25405E; --warn-bg:#FBF1DC; --warn-ink:#6B4E12; --err-bg:#F8E3DF; --err-ink:#7A2A1C;
     --sleep-row:#F0ECF5; --best-row:#EAF3EE; --map-filter:grayscale(1) brightness(1.08) contrast(.85);
+    --lv4:#7E3FA8; --lv5:#1E2A32; --lv5-edge:transparent;
     --wx-rain:#6E9AD6; --wx-cloud:#A6AEB3; --wx-sun:#F0B36B; /* 地図の経路色：雨／曇り／晴れ（矢印より淡く） */
     color-scheme:light;
   }
@@ -30,11 +31,13 @@
     --head:#E5694E; --tail:#4FB086; --cross:#DDB553; --rain:#6A9DE0; --night:#AEB9D6; --sleep:#B39FD9; --na:#9AA4A9;
     --info-bg:#22344A; --info-ink:#C9DAF0; --warn-bg:#4A3A15; --warn-ink:#F1DDA8; --err-bg:#4A241C; --err-ink:#F3C4BA;
     --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85);
+    --lv4:#9A5FC4; --lv5:#0B0D0F; --lv5-edge:#8A969C;
     --wx-rain:#6F9FE0; --wx-cloud:#8E979C; --wx-sun:#E8A857; color-scheme:dark; }
   @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --paper:#1B1F23; --paper-2:#2B3237; --card:#23292E; --ink:#E9ECEB; --ink-2:#B9C1C5; --ink-3:#8A969C; --line:#3B444A;
     --head:#E5694E; --tail:#4FB086; --cross:#DDB553; --rain:#6A9DE0; --night:#AEB9D6; --sleep:#B39FD9; --na:#9AA4A9;
     --info-bg:#22344A; --info-ink:#C9DAF0; --warn-bg:#4A3A15; --warn-ink:#F1DDA8; --err-bg:#4A241C; --err-ink:#F3C4BA;
     --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85);
+    --lv4:#9A5FC4; --lv5:#0B0D0F; --lv5-edge:#8A969C;
     --wx-rain:#6F9FE0; --wx-cloud:#8E979C; --wx-sun:#E8A857; color-scheme:dark; } 
   }
   *{box-sizing:border-box}
@@ -143,7 +146,8 @@
   .rel{display:inline-block;padding:0 6px;border-radius:4px;color:#fff;font-size:11px;line-height:18px;vertical-align:1px}
   .wtag{display:inline-block;padding:0 6px;border-radius:4px;font-size:11px;line-height:18px;margin:1px 2px 1px 0;border:1px solid transparent}
   .wtag.adv{background:var(--warn-bg);color:var(--warn-ink)} .wtag.warn{background:var(--err-bg);color:var(--err-ink);font-weight:600}
-  .wtag.danger,.wtag.emg{background:var(--head);color:#fff;font-weight:700} /* 危険警報・特別警報の色分けは v1.0.4 で（デザイン確認中） */
+  .wtag.danger{background:var(--lv4);color:#fff;font-weight:600} /* 危険警報（警戒レベル 4）＝紫 */
+  .wtag.emg{background:var(--lv5);color:#fff;font-weight:600;border-color:var(--lv5-edge)} /* 特別警報（警戒レベル 5）＝黒 */
   td.wrap{white-space:normal;min-width:180px}
   .rel.head{background:var(--head)} .rel.tail{background:var(--tail)} .rel.cross{background:var(--cross)}
   small.sub{font-size:11px;color:var(--ink-3);font-weight:400}
@@ -320,7 +324,7 @@
   </div>
 
   <footer class="src">
-    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.0.3</b></span><br>
+    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.0.4</b></span><br>
     <span class="disclaimer">予報は参考情報です。実際の天候と異なる場合があり、本サイトの利用により生じた損害について当方は責任を負いません。</span><br>
     出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。<span id="modelInfo"></span><br>
     注意報・警報、アメダス実況：気象庁ホームページ。市区町村の判定：国土地理院 逆ジオコーダ。地図：© OpenStreetMap contributors（ODbL）。コースファイルは端末内で処理し、外部に送信しません。FIT の読み込みには Garmin FIT SDK を使用しています。
