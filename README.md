@@ -1,6 +1,6 @@
 # Route-Weather.jp（route-weather）
 
-公開版 v1.1.0（2026-09-07、Beta）。バージョンは `index.html` フッターの `#appVersion` を更新し、`git tag vX.Y.Z` を打つ。
+公開版 v1.1.1（2026-09-07、Beta）。バージョンは `index.html` フッターの `#appVersion` を更新し、`git tag vX.Y.Z` を打つ。
 
 旧称「ルート天気」。
 

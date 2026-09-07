@@ -99,6 +99,11 @@
   .posMsg{font-size:12px;line-height:1.5;margin-top:6px;padding:8px 10px;border-radius:6px;background:var(--info-bg);color:var(--info-ink)}
   .posMsg.err{background:var(--err-bg);color:var(--err-ink)} .posMsg.warn{background:var(--warn-bg);color:var(--warn-ink)}
   .posMsg .choices{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .posMsg .manual{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;margin-top:8px}
+  .posMsg .manual .lbl{grid-column:1 / -1;font-size:12px}
+  .posMsg .manual input{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px;color:var(--ink)}
+  .posMsg .manual button{min-height:44px}
+  .posMsg a{color:inherit}
   details.debug{border-top:1px dashed var(--line);padding-top:8px}
   details.debug>summary{font-size:12px;color:var(--ink-3);cursor:pointer;min-height:32px;display:flex;align-items:center}
   .dbg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
@@ -246,16 +251,7 @@
             <div class="sleeps" id="segRows"></div>
             <button type="button" class="btn" id="addSeg">＋ 区間を追加</button>
           </div>
-          <div class="field">
-            <span class="lbl">走行中の再計算（現在地点と現在時刻を入れると、以降の通過時刻を計算し直します）</span>
-            <div class="anchor">
-              <input type="number" id="ancD" inputmode="decimal" min="0" step="1" placeholder="現在 km" aria-label="現在地点 km">
-              <input type="datetime-local" id="ancT" aria-label="現在時刻">
-              <button type="button" class="btn" id="ancNow" title="現在時刻を入れる" aria-label="現在時刻を入れる">今</button>
-              <button type="button" class="btn" id="ancClear" title="解除" aria-label="再計算を解除">×</button>
-            </div>
-            <div class="posMsg hidden" id="posMsg" aria-live="polite"></div>
-          </div>
+          <div class="hidden" id="ancHidden"><input type="number" id="ancD" aria-hidden="true" tabindex="-1"><input type="datetime-local" id="ancT" aria-hidden="true" tabindex="-1"></div>
           <details class="debug" id="debugPos">
             <summary>デバッグ：位置を手入力してテスト</summary>
             <div class="dbg">
@@ -265,7 +261,8 @@
               <input type="datetime-local" id="dbgT" aria-label="時刻（空欄なら現在時刻）">
               <button type="button" class="btn" id="dbgRun">この位置で再計算</button>
             </div>
-            <div class="howto">実機がコース上に無いときの試験用。緯度経度をコース上の距離に変換し、走行中の再計算（P-5）と同じ処理を通します。</div>
+            <div class="posMsg hidden" id="posMsg" aria-live="polite"></div>
+            <div class="howto">実機がコース上に無いときの試験用。緯度経度をコース上の距離に変換し、「現在位置から予報を再取得」と同じ処理を通します。</div>
           </details>
           <button type="button" class="primary" id="run">予報を取得する</button>
           <div class="status" id="status" aria-live="polite"></div>
@@ -280,7 +277,7 @@
         <section class="gpsWrap" id="gpsWrap">
           <button type="button" class="primary gps" id="gps"><span class="lbl">現在位置から予報を再取得</span><small class="trial">（試験運用中）</small></button>
           <div class="posMsg hidden" id="gpsMsg" aria-live="polite"></div>
-          <div class="howto gpsNote">位置情報は端末内でコース上の距離に変換するためだけに使い、外部に送信しません。予報の取得に使う座標はコースのサンプル点で、現在地そのものではありません。<a href="#" id="manualLink">距離を手で入力する</a></div>
+          <div class="howto gpsNote">位置情報は端末内でコース上の距離に変換するためだけに使い、外部に送信しません。予報の取得に使う座標はコースのサンプル点で、現在地そのものではありません。</div>
         </section>
 
         <section class="panel ribbon" id="ribbonWrap">
@@ -355,7 +352,7 @@
   </div>
 
   <footer class="src">
-    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.1.0</b></span><br>
+    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.1.1</b></span><br>
     <span class="disclaimer">予報は参考情報です。実際の天候と異なる場合があり、本サイトの利用により生じた損害について当方は責任を負いません。</span><br>
     出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。<span id="modelInfo"></span><br>
     注意報・警報、アメダス実況：気象庁ホームページ。市区町村の判定：国土地理院 逆ジオコーダ。地図：© OpenStreetMap contributors（ODbL）。コースファイルは端末内で処理し、外部に送信しません。FIT の読み込みには Garmin FIT SDK を使用しています。

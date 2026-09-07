@@ -926,9 +926,28 @@ import { RW } from './core.js';
   function doneSleeps() { return posStore().done || []; }
   const R4 = '位置情報の利用が許可されていません。iPhone の 設定 → プライバシーとセキュリティ → 位置情報サービス → Safari で許可してください';
   const R5 = '位置を取得できませんでした。空が開けた場所で再度お試しください';
-  const manualLink = '<br><a href="#" class="toManual">距離を手で入力する</a>';
-  function bindManual(scope) { scope.querySelectorAll('.toManual').forEach(x => x.addEventListener('click', e => { e.preventDefault(); openManual(); })); }
-  function openManual() { $('settings').open = true; $('ancD').focus(); $('ancD').scrollIntoView({ block: 'center' }); }
+  // 位置取得に失敗したときだけ出す、現在キロ数の手入力欄（v1.1.1：設定欄の P-5 入力は非表示にした）
+  const manualForm = '<div class="manual"><span class="lbl">代わりに現在のキロ数を入力して再計算できます</span><input type="number" class="manualKm" inputmode="decimal" min="0" step="0.1" placeholder="現在 km" aria-label="現在のキロ数"><button type="button" class="btn small manualGo">再計算</button></div>';
+  function bindManual(scope) {
+    scope.querySelectorAll('.clearAnchor').forEach(x => x.addEventListener('click', e => { e.preventDefault(); clearAnchor(); }));
+    const btn = scope.querySelector('.manualGo'), inp = scope.querySelector('.manualKm'); if (!btn || !inp) return;
+    const go = () => { const km = +inp.value; if (!inp.value || !(km >= 0) || km > state.course.total) { inp.focus(); return; } commitManual(km); };
+    btn.addEventListener('click', go); inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  }
+  function clearAnchor() {
+    $('ancD').value = ''; $('ancT').value = ''; state.lastPos = null; state.forecastStale = '';
+    posMsg('', '', 'posMsg'); posMsg('', '', 'gpsMsg'); onParamChange();
+  }
+  async function commitManual(km) {
+    const t = Date.now();
+    $('ancD').value = km.toFixed(1); $('ancT').value = localDT(t);
+    state.lastPos = { d: km, t, acc: null, distM: null, clock: null, posT: null, source: 'manual' };
+    saveParams();
+    posMsg(`${Math.round(km)} km 地点として再計算しました`);
+    await refreshForecastFrom(km);
+    recompute();
+    setTimeout(renderPosStatus, 3000);
+  }
 
   // R-12〜R-14：NICT の時刻。3 秒で諦めて端末時計にする（2026-09-07 時点で NICT の JSON は 404 のため実質フォールバック）
   async function serverTime() {
@@ -958,7 +977,7 @@ import { RW } from './core.js';
     try {
       const [posR, timeR] = await Promise.allSettled([getPosition(), serverTime()]); // R-15：並行取得
       if (posR.status === 'rejected') {
-        const e = posR.reason; posMsg((e && e.code === 1 ? R4 : R5) + manualLink, 'err'); bindManual($('gpsMsg')); return;
+        const e = posR.reason; posMsg((e && e.code === 1 ? R4 : R5) + manualForm, 'err'); bindManual($('gpsMsg')); return;
       }
       const pos = posR.value; const tm = timeR.status === 'fulfilled' ? timeR.value : { t: Date.now(), source: 'device', skew: 0 };
       label.textContent = '予報を更新中…';
@@ -971,7 +990,7 @@ import { RW } from './core.js';
     const p = params();
     const loc = RW.locate.locateOnCourse(state.course, pos.lat, pos.lon);
     if (!loc.candidates.length) { // R-8：1 km 超は走行中とみなさない
-      posMsg(`コースから約 ${fmtM(loc.nearest ? loc.nearest.distM : Infinity)} 離れています。コース上で再取得するか、距離を手入力してください` + manualLink, 'err'); bindManual($(state.posTarget));
+      posMsg(`コースから約 ${fmtM(loc.nearest ? loc.nearest.distM : Infinity)} 離れています。コース上で再取得するか、距離を手入力してください` + manualForm, 'err'); bindManual($(state.posTarget));
       return;
     }
     const hist = posHistory(); const prev = hist.length ? hist[hist.length - 1] : null;
@@ -1000,17 +1019,19 @@ import { RW } from './core.js';
   // ステータス行（R-3, R-9, R-13〜R-15, R-17, R-19）
   function renderPosStatus() {
     const lp = state.lastPos; if (!lp || !state.result) return;
-    const p = state.result.p; const parts = [`現在地 ${Math.round(lp.d)} km`, `${F.fmtH(lp.t)} 取得`, `GPS 精度 ±${Math.round(lp.acc)} m`];
+    const p = state.result.p; const manual = lp.source === 'manual';
+    const parts = [`現在地 ${Math.round(lp.d)} km`, manual ? `${F.fmtH(lp.t)} 手入力` : `${F.fmtH(lp.t)} 取得`];
+    if (!manual) parts.push(`GPS 精度 ±${Math.round(lp.acc)} m`);
     const run = state.series && state.series.runs && state.series.runs.msm; if (run) parts.push(`予報 ${F.fmtH(run)} 発表`);
     if (!lp.clock || lp.clock.source !== 'nict') parts.push('端末時計');
     let html = parts.join(' ・ '); let cls = '';
-    if (lp.acc > 500) { html += `<br>GPS 精度が ±${Math.round(lp.acc)} m と低いため、位置がずれている可能性があります`; cls = 'warn'; }
+    if (!manual && lp.acc > 500) { html += `<br>GPS 精度が ±${Math.round(lp.acc)} m と低いため、位置がずれている可能性があります`; cls = 'warn'; }
     if (lp.clock && lp.clock.source === 'nict' && Math.abs(lp.clock.skew) > 60e3) html += `<br>端末の時計が ${Math.round(Math.abs(lp.clock.skew) / 1000)} 秒ずれています`;
     if (lp.posT && Math.abs(lp.t - lp.posT) > 30e3) html += `<br>位置は ${Math.round(Math.abs(lp.t - lp.posT) / 1000)} 秒前のものです`;
     if (state.forecastStale) { html += '<br>' + esc(state.forecastStale); cls = 'warn'; }
     const near = p.sleeps.find(x => x.d >= lp.d && x.d - lp.d <= 2); // R-17：±2 km 先の仮眠は確認（既定は「する」）
     if (near) html += `<br>仮眠ポイント（${Math.round(near.d)} km・${near.m} 分）が近くにあります。これから仮眠しますか？<div class="choices"><button type="button" class="btn small" data-sleep="keep">する（既定）</button><button type="button" class="btn small" data-sleep="skip">しない</button></div>`;
-    html += manualLink;
+    html += '<br><a href="#" class="clearAnchor">再計算を解除して計画に戻す</a>';
     posMsg(html, cls);
     const el = $(state.posTarget); bindManual(el);
     el.querySelectorAll('[data-sleep]').forEach(b => b.addEventListener('click', () => {
@@ -1062,10 +1083,7 @@ import { RW } from './core.js';
   $('addSleep').addEventListener('click', () => { addSleepRow().querySelector('.sd').focus(); });
   $('addSeg').addEventListener('click', () => { addSegRow().querySelector('.sf').focus(); });
   ['ancD', 'ancT'].forEach(id => $(id).addEventListener('change', onParamChange));
-  $('ancNow').addEventListener('click', () => { $('ancT').value = localDT(Date.now()); if (!$('ancD').value) { $('ancD').focus(); return; } onParamChange(); });
-  $('ancClear').addEventListener('click', () => { $('ancD').value = ''; $('ancT').value = ''; state.lastPos = null; state.forecastStale = ''; posMsg('', '', 'posMsg'); posMsg('', '', 'gpsMsg'); onParamChange(); });
   $('gps').addEventListener('click', gpsRefresh);
-  $('manualLink').addEventListener('click', e => { e.preventDefault(); openManual(); });
   // R-25：デバッグ用の位置手入力。GPS 取得と同じ applyPosition を通す
   $('dbgRun').addEventListener('click', () => {
     const lat = +$('dbgLat').value, lon = +$('dbgLon').value;
@@ -1081,6 +1099,11 @@ import { RW } from './core.js';
   window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.result) { renderRibbon(); renderMap(); } }, 150); });
   window.addEventListener('online', () => { if (state.course && state.offlineNote) run(); });
 
+  // 前回の現在地（P-5 の欄は非表示なので）が残っていれば、解除できるようステータス行を出す
+  function restorePosStatus() {
+    const d = +$('ancD').value, t = $('ancT').value; if (!$('ancD').value || !t || !state.result) return;
+    state.lastPos = state.lastPos || { d, t: Date.parse(t + ':00+09:00'), acc: null, source: 'manual' }; state.posTarget = 'gpsMsg'; renderPosStatus();
+  }
   // ===== 起動：前回のコース・予報を復元してから最新を取りに行く =====
   loadParams(); renderRecent();
   const last = store.get('rw:last');
@@ -1089,7 +1112,7 @@ import { RW } from './core.js';
     state.course = savedCourse; renderCourse();
     if (last && last.series && last.series.hash === RW.course.hashCourse(savedCourse)) state.series = last.series;
     if (window.innerWidth >= 900) $('settings').open = true;
-    if (state.series) { try { recompute(); } catch (e) { /* 壊れた保存データは無視して再取得へ */ } }
+    if (state.series) { try { recompute(); restorePosStatus(); } catch (e) { /* 壊れた保存データは無視して再取得へ */ } }
     run();
   }
 })();
