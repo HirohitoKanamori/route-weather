@@ -81,3 +81,21 @@ test('samplePoints：0 km とゴールを必ず含み、方位は北向き', () 
   assert.equal(S.length, 61);
   for (const s of S) assert.ok(s.hb < 1 || s.hb > 359, `方位 ${s.hb}`);
 });
+
+test('nextStart：現在時刻より先にある最も近い 06:00（JST）', () => {
+  const at = (h, mi = 0) => RW.fmt.nextStart(JST(2026, 9, 7, h, mi));
+  assert.equal(at(5, 59).date, '2026-09-07'); assert.equal(at(5, 59).ms, JST(2026, 9, 7, 6, 0));
+  assert.equal(at(6, 0).date, '2026-09-08', '06:00 ちょうどは翌日');
+  assert.equal(at(23, 30).date, '2026-09-08');
+  assert.equal(at(0, 10).date, '2026-09-07', '深夜 0 時台は当日');
+  assert.equal(at(12).time, '06:00');
+  // 月末・年末をまたぐ
+  assert.equal(RW.fmt.nextStart(JST(2026, 9, 30, 7)).date, '2026-10-01');
+  assert.equal(RW.fmt.nextStart(JST(2026, 12, 31, 9)).date, '2027-01-01');
+});
+
+test('minStart：出走日時の下限は前日の 0:00（JST）', () => {
+  assert.equal(RW.fmt.minStart(JST(2026, 9, 8, 1, 58)), JST(2026, 9, 7, 0, 0));
+  assert.equal(RW.fmt.minStart(JST(2026, 9, 8, 23, 0)), JST(2026, 9, 7, 0, 0));
+  assert.equal(RW.fmt.minStart(JST(2026, 10, 1, 3, 0)), JST(2026, 9, 30, 0, 0), '月初');
+});

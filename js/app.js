@@ -7,7 +7,7 @@ import { RW } from './core.js';
   const REL = { head: '向かい', tail: '追い', cross: '横' };
   const COL = { head: 'var(--head)', tail: 'var(--tail)', cross: 'var(--cross)' };
   const CACHE_MS = 30 * 60e3;
-  const state = { course: null, series: null, result: null, pinned: false, busy: false, offlineNote: '', collapsed: false, lastPos: null, forecastStale: '', posTarget: 'posMsg' };
+  const state = { course: null, series: null, result: null, pinned: false, busy: false, offlineNote: '', collapsed: false, lastPos: null, forecastStale: '', posTarget: 'posMsg', startNote: '' };
 
   // localStorage は私的ブラウズ等で例外になるので必ず握りつぶす
   const store = {
@@ -69,11 +69,13 @@ import { RW } from './core.js';
   }
   function loadParams() {
     const s = store.get('rw:params') || {};
-    // 初期値は「現在時刻の翌日 06:00」。保存値があっても、前々日より前の日付なら初期値に戻す
-    const tomorrow = F.ymd(Date.now() + 86400e3);
-    const stale = !s.date || s.date < F.ymd(Date.now() - 86400e3);
-    $('date').value = stale ? tomorrow : s.date;
-    $('time').value = stale ? '06:00' : (s.time || '06:00');
+    // 初期値は「現在時刻より先にある最も近い 06:00」。保存値が下限（前日 0:00）より過去なら初期値に戻す
+    const nx = F.nextStart(Date.now());
+    const savedMs = s.date ? Date.parse(s.date + 'T' + (s.time || '06:00') + ':00+09:00') : NaN;
+    const past = !(savedMs >= F.minStart(Date.now()));
+    $('date').value = past ? nx.date : s.date;
+    $('time').value = past ? nx.time : (s.time || '06:00');
+    $('date').min = F.ymd(F.minStart(Date.now()));
     $('spd').value = s.spd || 18;
     $('sleeps').innerHTML = '';
     (s.sleeps || []).forEach(x => addSleepRow(x.d, x.m));
@@ -96,7 +98,17 @@ import { RW } from './core.js';
     $('cName').textContent = c.name;
     $('cMeta').textContent = `${n1(c.total)} km ・ 獲得標高 ${c.hasEle ? c.gain.toLocaleString() + ' m' : '不明'} ・ 地点数 ${c.n.toLocaleString()}`;
   }
-  function onParamChange() { saveParams(); if (state.course) run(); }
+  // 出走日時は前日 0:00（JST）より過去にできない（走行中に実際の出走時刻を入れられる範囲は残す）。下限より前なら次の 06:00 に戻して知らせる
+  function enforceStart() {
+    const lim = F.minStart(Date.now()); $('date').min = F.ymd(lim);
+    const ms = Date.parse($('date').value + 'T' + ($('time').value || '06:00') + ':00+09:00');
+    if (ms >= lim) { state.startNote = ''; return false; }
+    const nx = F.nextStart(Date.now()); $('date').value = nx.date; $('time').value = nx.time;
+    state.startNote = `出走日時は前日の 0:00 より前にできません。${F.fmtDT(nx.ms)} に戻しました`; // 予報取得後も残るよう帯に出す
+    setStatus(state.startNote);
+    return true;
+  }
+  function onParamChange() { enforceStart(); saveParams(); if (state.course) run(); }
 
   // ===== コース読み込み =====
   function parseGPX(text, fallback) {
@@ -289,6 +301,7 @@ import { RW } from './core.js';
   function renderNotice() {
     const { sm, p, trend, S } = state.result; const msgs = [];
     if (state.offlineNote) msgs.push(['warn', state.offlineNote]);
+    if (state.startNote) msgs.push(['warn', state.startNote]);
     if (state.forecastStale) msgs.push(['warn', state.forecastStale]);
     const days = Math.max(0, Math.ceil((+p.start - Date.now()) / 86400e3));
     if (sm.nOk === 0) msgs.push(['warn', `出走まで ${days} 日。通過時刻が予報範囲（気象庁 GSM・11 日先まで）を超えています。出走が近づいてから再取得してください。`]);
