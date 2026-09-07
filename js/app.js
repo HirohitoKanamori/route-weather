@@ -574,9 +574,9 @@ import { RW } from './core.js';
       L.marker([pt.lat, pt.lon], { icon, keyboard: false }).bindPopup(tipHtml(pt), { maxWidth: 320, closeButton: true }).addTo(lmapLayers.arrows);
     }
     const s0 = P[0], g = P[P.length - 1];
-    L.circleMarker([s0.lat, s0.lon], { radius: 6, color: halo, weight: 2, fillColor: cssVar('--ink'), fillOpacity: 1 }).bindTooltip('スタート').addTo(lmapLayers.marks);
-    L.circleMarker([g.lat, g.lon], { radius: 5, color: cssVar('--ink'), weight: 2, fillColor: halo, fillOpacity: 1 }).bindTooltip('ゴール').addTo(lmapLayers.marks);
-    if (p.anchor) { const q = RW.course.interp(state.course, p.anchor.d); L.circleMarker([q.lat, q.lon], { radius: 7, color: cssVar('--ink'), weight: 2, dashArray: '3 3', fillColor: cssVar('--sleep'), fillOpacity: .8 }).bindTooltip('現在地 ' + Math.round(p.anchor.d) + ' km').addTo(lmapLayers.marks); }
+    L.circleMarker([s0.lat, s0.lon], { radius: 12, color: halo, weight: 3, fillColor: cssVar('--ink'), fillOpacity: 1 }).bindTooltip('スタート').addTo(lmapLayers.marks);
+    L.circleMarker([g.lat, g.lon], { radius: 10, color: cssVar('--ink'), weight: 3, fillColor: halo, fillOpacity: 1 }).bindTooltip('ゴール').addTo(lmapLayers.marks);
+    if (p.anchor) { const q = RW.course.interp(state.course, p.anchor.d); L.circleMarker([q.lat, q.lon], { radius: 12, color: cssVar('--ink'), weight: 2.5, dashArray: '4 3', fillColor: cssVar('--sleep'), fillOpacity: .8 }).bindTooltip('現在地 ' + Math.round(p.anchor.d) + ' km').addTo(lmapLayers.marks); }
   }
   // 略地図（静的）：OpenStreetMap の標準タイルを並べ、その上に SVG でコース線と風矢印を重ねる。Leaflet 非読込時のフォールバック
   function renderMapStatic() {
@@ -616,8 +616,8 @@ import { RW } from './core.js';
       s += mapArrow(v[0], v[1], ang, len, COL[pt.cls]);
     });
     const s0 = px(P[0].lat, P[0].lon), g = px(P[P.length - 1].lat, P[P.length - 1].lon);
-    s += `<circle cx="${s0[0].toFixed(1)}" cy="${s0[1].toFixed(1)}" r="5" fill="var(--ink)" stroke="var(--card)" stroke-width="2"/>`;
-    s += `<circle cx="${g[0].toFixed(1)}" cy="${g[1].toFixed(1)}" r="4" fill="var(--card)" stroke="var(--ink)" stroke-width="2"/>`;
+    s += `<circle cx="${s0[0].toFixed(1)}" cy="${s0[1].toFixed(1)}" r="10" fill="var(--ink)" stroke="var(--card)" stroke-width="3"/>`;
+    s += `<circle cx="${g[0].toFixed(1)}" cy="${g[1].toFixed(1)}" r="8" fill="var(--card)" stroke="var(--ink)" stroke-width="3"/>`;
     s += `<text x="${(s0[0] + 8).toFixed(1)}" y="${(s0[1] + 4).toFixed(1)}" class="tick" fill="var(--ink)" stroke="var(--card)" stroke-width="3" paint-order="stroke">スタート</text></svg>`;
     host.innerHTML = `<div class="osm" style="width:${W}px;height:${H}px">${tiles}${s}<div class="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div></div>` + MAP_NOTE;
   }
@@ -905,8 +905,8 @@ import { RW } from './core.js';
     }
     // スタート／ゴール／現在地
     const dot = (q, r, fill, stroke) => { const a = px(q.lat, q.lon); ctx.beginPath(); ctx.arc(a[0], a[1], r, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = stroke; ctx.stroke(); };
-    dot(P[0], 11, v('--ink'), '#FFFFFF'); dot(P[P.length - 1], 9, '#FFFFFF', v('--ink'));
-    if (p.anchor) dot(RW.course.interp(state.course, p.anchor.d), 12, '#6E5A8E', '#FFFFFF');
+    dot(P[0], 20, v('--ink'), '#FFFFFF'); dot(P[P.length - 1], 17, '#FFFFFF', v('--ink'));
+    if (p.anchor) dot(RW.course.interp(state.course, p.anchor.d), 20, '#6E5A8E', '#FFFFFF');
     // 出典（OSM の利用条件）
     ctx.font = '22px ' + FONT; const attr = '© OpenStreetMap contributors'; const tw = ctx.measureText(attr).width;
     ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(size - tw - 24, size - 40, tw + 24, 40);
