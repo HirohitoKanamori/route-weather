@@ -605,12 +605,25 @@ import { RW } from './core.js';
 
   // ===== 注意報・警報（V-7）とアメダス実況：気象庁ホームページの JSON を直接取得 =====
   const JMA = 'https://www.jma.go.jp/bosai/';
-  const WCODE = { '02': '大雨警報', '03': '洪水警報', '04': '暴風警報', '05': '暴風雪警報', '06': '大雪警報', '07': '波浪警報', '08': '高潮警報',
-    '10': '大雨注意報', '12': '大雪注意報', '13': '風雪注意報', '14': '雷注意報', '15': '強風注意報', '16': '波浪注意報', '17': '融雪注意報', '18': '洪水注意報', '19': '高潮注意報',
-    '20': '濃霧注意報', '21': '乾燥注意報', '22': 'なだれ注意報', '23': '低温注意報', '24': '霜注意報', '25': '着氷注意報', '26': '着雪注意報',
-    '29': '土砂災害注意報', '49': '土砂災害危険警報', // 2026 年（令和 8 年）改正で追加された土砂災害の警報・注意報
-    '32': '暴風特別警報', '33': '大雨特別警報', '35': '暴風特別警報', '36': '暴風雪特別警報', '37': '大雪特別警報', '38': '波浪特別警報', '39': '高潮特別警報' };
-  const wLevel = code => (code === '29' ? 'adv' : +code >= 32 ? 'emg' : +code < 10 ? 'warn' : 'adv');
+  // 令和 8 年（2026 年 5 月）改正後の気象庁コード表 [名称, 警戒レベル]。気象庁ページの内部表（elem × level）から転記。
+  // 旧表とは番号の意味が変わっている（例：03 は旧「洪水警報」→ 新「大雨警報」、05 は旧「暴風雪警報」→ 新「暴風警報」）
+  const WCODE = {
+    '10': ['大雨注意報', 2], '03': ['大雨警報', 3], '43': ['大雨危険警報', 4], '33': ['大雨特別警報', 5],
+    '29': ['土砂災害注意報', 2], '09': ['土砂災害警報', 3], '49': ['土砂災害危険警報', 4], '39': ['土砂災害特別警報', 5],
+    '19': ['高潮注意報', 2], '08': ['高潮警報', 3], '48': ['高潮危険警報', 4], '38': ['高潮特別警報', 5],
+    '15': ['強風注意報', 2], '05': ['暴風警報', 3], '35': ['暴風特別警報', 5],
+    '13': ['風雪注意報', 2], '02': ['暴風雪警報', 3], '32': ['暴風雪特別警報', 5],
+    '12': ['大雪注意報', 2], '06': ['大雪警報', 3], '36': ['大雪特別警報', 5],
+    '16': ['波浪注意報', 2], '07': ['波浪警報', 3], '37': ['波浪特別警報', 5],
+    '14': ['雷注意報', 2], '17': ['融雪注意報', 2], '20': ['濃霧注意報', 2], '21': ['乾燥注意報', 2], '22': ['なだれ注意報', 2],
+    '23': ['低温注意報', 2], '24': ['霜注意報', 2], '25': ['着氷注意報', 2], '26': ['着雪注意報', 2],
+    '30': ['氾濫警報', 3], '31': ['氾濫警報', 3], '40': ['氾濫危険警報', 4], '41': ['氾濫危険警報', 4], '51': ['氾濫特別警報', 5], '53': ['氾濫特別警報', 5]
+  };
+  // 未知のコードは番号の規則（0X＝警報、1X/2X＝注意報、3X＝特別警報、4X＝危険警報、5X＝特別警報）で仮に分類する
+  const wInfo = code => WCODE[code] || ['警報・注意報 ' + code, +code >= 50 ? 5 : +code >= 40 ? 4 : +code >= 30 ? 5 : +code < 10 ? 3 : 2];
+  const wLevelNum = code => wInfo(code)[1];
+  // 表示クラス：adv＝注意報（レベル 2）、warn＝警報（3）、danger＝危険警報（4）、emg＝特別警報（5）
+  const wLevel = code => ({ 2: 'adv', 3: 'warn', 4: 'danger', 5: 'emg' })[wLevelNum(code)] || 'adv';
   // 気象庁の警報 JSON（2026 年改正後の r8 形式は報告種別ごとの配列。旧形式のオブジェクトにも対応）→ { areas: {class20 code: [{code,status}]}, reported }
   function parseWarningReport(rep) {
     const reps = Array.isArray(rep) ? rep : [rep];
@@ -624,7 +637,7 @@ import { RW } from './core.js';
     }
     return { areas, reported };
   }
-  const wName = code => WCODE[code] || ('警報・注意報 ' + code);
+  const wName = code => wInfo(code)[0];
   const AMEDAS_DIR = ['静穏', '北北東', '北東', '東北東', '東', '東南東', '南東', '南南東', '南', '南南西', '南西', '西南西', '西', '西北西', '北西', '北北西', '北'];
   const p2 = n => String(n).padStart(2, '0');
   async function mapLimit(items, n, fn) { const out = new Array(items.length); let i = 0; await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k], k); } })); return out; }
@@ -697,7 +710,7 @@ import { RW } from './core.js';
     const tb = $('warnTable').querySelector('tbody');
     if (w.error || !w.segs.length) { tb.innerHTML = `<tr><td colspan="3">取得できませんでした${w.error ? '（' + esc(w.error) + '）' : ''}</td></tr>`; $('warnNote').textContent = ''; $('warnSum').textContent = '取得できませんでした'; return; }
     { // 折りたたみ時の要約：発表中の種類を列挙（警報以上を先に）
-      const names = [...new Set(w.segs.flatMap(x => x.warnings.map(y => y.code)))].sort((c1, c2) => (+c1) - (+c2)).map(wName);
+      const names = [...new Set(w.segs.flatMap(x => x.warnings.map(y => y.code)))].sort((c1, c2) => wLevelNum(c2) - wLevelNum(c1) || (+c1) - (+c2)).map(wName);
       $('warnSum').textContent = names.length ? '発表中：' + names.join('・') : '発表中の注意報・警報なし';
     }
     tb.innerHTML = w.segs.map(sg => `<tr><td class="n">${Math.round(sg.from)}–${Math.round(sg.to)} km</td><td>${esc(sg.name)}</td><td class="wrap">${sg.warnings.length ? sg.warnings.map(x => `<span class="wtag ${wLevel(x.code)}">${esc(wName(x.code))}</span>`).join('') : '<span class="sub">なし</span>'}</td></tr>`).join('');
