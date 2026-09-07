@@ -142,6 +142,7 @@ import { RW } from './core.js';
   }
   function setCourse(course) {
     state.course = course; state.series = null; state.result = null; state.offlineNote = '';
+    store.del('rw:posHist'); if ($('posMsg')) posMsg('');
     renderCourse(); store.set('rw:course', course); rememberCourse(course); setStatus('');
     run();
   }
@@ -877,6 +878,41 @@ import { RW } from './core.js';
     await deliverPng(canvas, `route-weather-map-${F.ymd(p.start)}.png`);
   }
 
+  // ===== 現在位置 → コース上の距離 → 走行中の再計算（ADD_01 4.2） =====
+  const fmtM = m => m >= 1000 ? (m / 1000).toFixed(1) + ' km' : Math.round(m) + ' m';
+  function posMsg(html, cls) { const el = $('posMsg'); if (!html) { el.className = 'posMsg hidden'; el.innerHTML = ''; return; } el.className = 'posMsg' + (cls ? ' ' + cls : ''); el.innerHTML = html; }
+  function posHistory() { const h = store.get('rw:posHist'); return (h && state.course && h.hash === RW.course.hashCourse(state.course)) ? h.list : []; }
+  // pos = { lat, lon, accuracy(m), t(ms), source }
+  function applyPosition(pos) {
+    if (!state.course || !state.result) { posMsg('先にコースを読み込み、出走日時と速度を設定してください', 'err'); return; }
+    const p = params();
+    const loc = RW.locate.locateOnCourse(state.course, pos.lat, pos.lon);
+    if (!loc.candidates.length) { // R-8：1 km 超は走行中とみなさない
+      posMsg(`コースから約 ${fmtM(loc.nearest ? loc.nearest.distM : Infinity)} 離れています。コース上で再取得するか、距離を手入力してください`, 'err');
+      return;
+    }
+    const hist = posHistory(); const prev = hist.length ? hist[hist.length - 1] : null;
+    const plannedD = RW.plan.distAtTime(state.course, Object.assign({}, p, { anchor: null }), pos.t);
+    const ch = RW.locate.chooseCandidate(loc.candidates, { prev, now: pos.t, spd: p.spd, plannedD });
+    if (ch.kind === 'ask') { // R-10 (c)：利用者に選ばせる
+      posMsg('現在地に近いコース上の地点が複数あります。どちらですか？<div class="choices">' +
+        ch.cands.map((c, i) => `<button type="button" class="btn small" data-i="${i}">${Math.round(c.d)} km 付近（コースから ${fmtM(c.distM)}）</button>`).join('') + '</div>');
+      $('posMsg').querySelectorAll('button').forEach(b => b.addEventListener('click', () => commitPosition(ch.cands[+b.dataset.i], pos)));
+      return;
+    }
+    commitPosition(ch.cand, pos);
+  }
+  // R-11：確定した距離と時刻を P-5 の欄に書き込み、同じ再計算を通す。履歴（R-21）は端末内に最大 50 件
+  function commitPosition(cand, pos) {
+    $('ancD').value = cand.d.toFixed(1); $('ancT').value = localDT(pos.t);
+    const list = posHistory().concat([{ d: cand.d, t: pos.t, acc: pos.accuracy, distM: cand.distM }]).slice(-50);
+    store.set('rw:posHist', { hash: RW.course.hashCourse(state.course), list });
+    onParamChange();
+    const lowAcc = pos.accuracy > 500; // R-9
+    posMsg(`${Math.round(cand.d)} km 地点として再計算しました（${F.fmtH(pos.t)}、コースから ${fmtM(cand.distM)}、GPS 精度 ±${Math.round(pos.accuracy)} m）` +
+      (lowAcc ? `<br>GPS 精度が ±${Math.round(pos.accuracy)} m と低いため、位置がずれている可能性があります` : ''), lowAcc ? 'warn' : '');
+  }
+
   // ===== 配線 =====
   $('share').addEventListener('click', async () => { try { await shareImage(); } catch (e) { setStatus('画像の共有に失敗しました：' + e.message, 'err'); } });
   $('shareMap').addEventListener('click', async () => { const b = $('shareMap'); b.disabled = true; b.textContent = '作成中…'; try { await shareMapImage(); } catch (e) { setStatus('地図画像の共有に失敗しました：' + e.message, 'err'); } finally { b.disabled = false; b.textContent = '地図を画像で共有'; } });
@@ -921,7 +957,15 @@ import { RW } from './core.js';
   $('addSeg').addEventListener('click', () => { addSegRow().querySelector('.sf').focus(); });
   ['ancD', 'ancT'].forEach(id => $(id).addEventListener('change', onParamChange));
   $('ancNow').addEventListener('click', () => { $('ancT').value = localDT(Date.now()); if (!$('ancD').value) { $('ancD').focus(); return; } onParamChange(); });
-  $('ancClear').addEventListener('click', () => { $('ancD').value = ''; $('ancT').value = ''; onParamChange(); });
+  $('ancClear').addEventListener('click', () => { $('ancD').value = ''; $('ancT').value = ''; posMsg(''); onParamChange(); });
+  // R-25：デバッグ用の位置手入力。GPS 取得と同じ applyPosition を通す
+  $('dbgRun').addEventListener('click', () => {
+    const lat = +$('dbgLat').value, lon = +$('dbgLon').value;
+    if (!$('dbgLat').value || !$('dbgLon').value || !(Math.abs(lat) <= 90) || !(Math.abs(lon) <= 180)) { posMsg('緯度・経度を入力してください', 'err'); return; }
+    const acc = $('dbgAcc').value ? +$('dbgAcc').value : 20;
+    const t = $('dbgT').value ? Date.parse($('dbgT').value + ':00+09:00') : Date.now();
+    applyPosition({ lat, lon, accuracy: acc, t, source: 'debug' });
+  });
   ['date', 'time', 'spd'].forEach(id => $(id).addEventListener('change', onParamChange));
   $('run').addEventListener('click', () => { state.warnings = null; state.amedas = null; run({ force: true }); });
   let rt = null;

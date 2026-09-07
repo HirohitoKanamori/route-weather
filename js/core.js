@@ -62,7 +62,17 @@ export const RW = (function () {
       let prev = null; for (const p of pts) { if (p.ele == null) p.ele = prev; else prev = p.ele; }
       let next = null; for (let i = pts.length - 1; i >= 0; i--) { if (pts[i].ele == null) pts[i].ele = next; else next = pts[i].ele; }
     }
-    return { name: name || 'コース', pts, total, gain: Math.round(gain), loss: Math.round(loss), n: src.length, hasEle };
+    // 現在地→コース上距離の変換用に、表示用より細かい点列（最大 GEO_PTS 点、600 km で約 150 m 間隔）も持つ
+    const geo = thinGeo(src, cum, total);
+    return { name: name || 'コース', pts, geo, total, gain: Math.round(gain), loss: Math.round(loss), n: src.length, hasEle };
+  }
+  const GEO_PTS = 4000;
+  function thinGeo(src, cum, total) {
+    const gap = total / GEO_PTS; const out = []; let lastD = -Infinity;
+    for (let i = 0; i < src.length; i++) {
+      if (cum[i] - lastD >= gap || i === src.length - 1) { out.push({ lat: src[i].lat, lon: src[i].lon, d: cum[i] }); lastD = cum[i]; }
+    }
+    return out;
   }
   // 獲得標高：標高を前後 ±100 m の距離窓で平滑化してから、3 m のヒステリシスで登りだけを積算する
   // （RwGPS/Garmin の標高ノイズをそのまま足すと 1.5 倍前後に膨らむため）
@@ -110,7 +120,8 @@ export const RW = (function () {
     let gain = course.loss;
     if (gain == null) { gain = 0; if (course.hasEle) { let base = null; for (const q of pts) { if (q.ele == null) continue; if (base === null) base = q.ele; else if (q.ele - base >= 3) { gain += q.ele - base; base = q.ele; } else if (q.ele < base) base = q.ele; } } }
     const name = /（反転）$/.test(course.name) ? course.name.replace(/（反転）$/, '') : course.name + '（反転）';
-    return { name, pts, total, gain: course.hasEle ? Math.round(gain) : 0, loss: course.gain, n: course.n, hasEle: course.hasEle };
+    const geo = course.geo ? course.geo.slice().reverse().map(q => ({ lat: q.lat, lon: q.lon, d: Math.max(0, total - q.d) })) : undefined;
+    return { name, pts, geo, total, gain: course.hasEle ? Math.round(gain) : 0, loss: course.gain, n: course.n, hasEle: course.hasEle };
   }
   function hashCourse(course) {
     const s = course.pts.map(p => p.lat.toFixed(4) + ',' + p.lon.toFixed(4)).join(';') + '|' + course.n;
@@ -188,6 +199,64 @@ export const RW = (function () {
       }
     }
     return out;
+  }
+
+  // 計画上、時刻 t にいるはずの距離（timeAt の逆関数。仮眠中はその仮眠地点）
+  function distAtTime(course, p, t) {
+    const T = +t;
+    if (T <= +timeAt(0, p)) return 0;
+    if (T >= +timeAt(course.total, p)) return course.total;
+    let lo = 0, hi = course.total;
+    for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (+timeAt(m, p) <= T) lo = m; else hi = m; }
+    return lo;
+  }
+
+  // ---------- locate：現在地 → コース上の距離（ADD_01 4.2） ----------
+  // 平面近似（緯度 1°≒111.195 km、経度 1°≒111.195×cos(緯度) km）で、各区間への垂線距離と投影位置を求める
+  function locateOnCourse(course, lat, lon, opt = {}) {
+    const P = course.geo || course.pts; const maxM = opt.maxM ?? 1000, mergeKm = opt.mergeKm ?? 5;
+    if (!P || P.length < 2) return { nearest: null, candidates: [] };
+    const kx = 111.195 * Math.cos(lat * R), ky = 111.195;
+    const px = lon * kx, py = lat * ky;
+    const segs = new Array(P.length - 1); let best = null;
+    for (let i = 0; i < P.length - 1; i++) {
+      const a = P[i], b = P[i + 1];
+      const ax = a.lon * kx, ay = a.lat * ky, dx = b.lon * kx - ax, dy = b.lat * ky - ay;
+      const L2 = dx * dx + dy * dy;
+      let t = L2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0; t = Math.max(0, Math.min(1, t));
+      const distM = Math.hypot(px - (ax + dx * t), py - (ay + dy * t)) * 1000;
+      const d = a.d + (b.d - a.d) * t;
+      segs[i] = { distM, d };
+      if (!best || distM < best.distM) best = { distM, d };
+    }
+    // 極小点（前後の区間より近い）で maxM 以内のものを候補にし、mergeKm 以内で連続するものは近い方だけ残す
+    const cands = [];
+    for (let i = 0; i < segs.length; i++) {
+      const sg = segs[i]; if (sg.distM > maxM) continue;
+      const prev = segs[i - 1], next = segs[i + 1];
+      if ((prev && prev.distM < sg.distM) || (next && next.distM < sg.distM)) continue;
+      const last = cands[cands.length - 1];
+      if (last && Math.abs(sg.d - last.d) < mergeKm) { if (sg.distM < last.distM) cands[cands.length - 1] = { d: sg.d, distM: sg.distM }; }
+      else cands.push({ d: sg.d, distM: sg.distM });
+    }
+    return { nearest: best, candidates: cands.sort((a, b) => a.distM - b.distM) };
+  }
+  // R-10：候補の絞り込み。ctx = { prev: {d, t}|null（前回の現在地）, now: ms, spd: km/h, plannedD: 計画上の距離 }
+  // 戻り値：{ kind: 'none' } | { kind: 'pick', cand, by } | { kind: 'ask', cands }
+  function chooseCandidate(cands, ctx) {
+    if (!cands.length) return { kind: 'none' };
+    if (cands.length === 1) return { kind: 'pick', cand: cands[0], by: 'single' };
+    let pool = cands;
+    if (ctx.prev) { // (a) 前回位置より先で、経過時間 × 速度 × 1.5 以内
+      const maxAhead = Math.max(0, (ctx.now - +ctx.prev.t) / 3600e3) * ctx.spd * 1.5;
+      const ahead = cands.filter(c => c.d > ctx.prev.d && c.d - ctx.prev.d <= maxAhead);
+      if (ahead.length === 1) return { kind: 'pick', cand: ahead[0], by: 'prev' };
+      if (ahead.length > 1) pool = ahead;
+    }
+    const ds = pool.map(c => c.d);
+    if (Math.max(...ds) - Math.min(...ds) >= 20) return { kind: 'ask', cands: pool.slice().sort((a, b) => a.d - b.d) }; // (c)
+    const target = ctx.plannedD ?? 0; // (b) 計画上の現在距離に最も近い候補
+    return { kind: 'pick', cand: pool.reduce((a, b) => Math.abs(b.d - target) < Math.abs(a.d - target) ? b : a), by: 'planned' };
   }
 
   // ---------- wind ----------
@@ -359,7 +428,8 @@ export const RW = (function () {
     const: { RAIN_MM, TAIL_DEG, HEAD_DEG, MAX_PTS, HOURLY, MODELS },
     fmt: { jstParts, fmtH, fmtT, fmtDT, dateKey, ymd },
     course: { hav, bearing, fromPoints, elevationGain, interp, headingAt, reverseCourse, hashCourse },
-    plan: { normSleeps, normSegments, rideHours, sleepHours, elapsedH, timeAt, sampleStep, samplePoints, timeNodes, hourTicks },
+    plan: { normSleeps, normSegments, rideHours, sleepHours, elapsedH, timeAt, distAtTime, sampleStep, samplePoints, timeNodes, hourTicks },
+    locate: { locateOnCourse, chooseCandidate },
     wind: { relative, dir16 },
     sun: { sunTimes, isNight },
     forecast: { buildUrl, parseSeries, horizon, at, pick, computeRide, summarize, trendAggregate, startComparison, wmoText, wxClass }

@@ -90,6 +90,14 @@
   .sleeps .sleep{display:grid;grid-template-columns:1fr 1fr 44px;gap:6px} /* 設定欄の仮眠行。区間表の tr.sleep とは別物 */
   .sleeps .seg{display:grid;grid-template-columns:1fr 1fr 1fr 44px;gap:6px}
   .anchor{display:grid;grid-template-columns:1fr 1.5fr 44px 44px;gap:6px}
+  .posMsg{font-size:12px;line-height:1.5;margin-top:6px;padding:8px 10px;border-radius:6px;background:var(--info-bg);color:var(--info-ink)}
+  .posMsg.err{background:var(--err-bg);color:var(--err-ink)} .posMsg.warn{background:var(--warn-bg);color:var(--warn-ink)}
+  .posMsg .choices{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  details.debug{border-top:1px dashed var(--line);padding-top:8px}
+  details.debug>summary{font-size:12px;color:var(--ink-3);cursor:pointer;min-height:32px;display:flex;align-items:center}
+  .dbg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+  .dbg input{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px}
+  .dbg button{grid-column:1 / -1}
   .sleeps .seg input,.anchor input{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px}
   .sleeps .seg input:focus,.anchor input:focus{outline:2px solid var(--ink);outline-offset:1px}
   .btn{border:1px solid var(--line);background:var(--card);border-radius:6px;min-height:44px;min-width:44px;padding:0 12px;cursor:pointer}
@@ -240,7 +248,19 @@
               <button type="button" class="btn" id="ancNow" title="現在時刻を入れる" aria-label="現在時刻を入れる">今</button>
               <button type="button" class="btn" id="ancClear" title="解除" aria-label="再計算を解除">×</button>
             </div>
+            <div class="posMsg hidden" id="posMsg" aria-live="polite"></div>
           </div>
+          <details class="debug" id="debugPos">
+            <summary>デバッグ：位置を手入力してテスト</summary>
+            <div class="dbg">
+              <input type="number" id="dbgLat" step="0.00001" inputmode="decimal" placeholder="緯度" aria-label="緯度">
+              <input type="number" id="dbgLon" step="0.00001" inputmode="decimal" placeholder="経度" aria-label="経度">
+              <input type="number" id="dbgAcc" step="1" min="0" inputmode="numeric" placeholder="精度 m（任意）" aria-label="GPS 精度 m">
+              <input type="datetime-local" id="dbgT" aria-label="時刻（空欄なら現在時刻）">
+              <button type="button" class="btn" id="dbgRun">この位置で再計算</button>
+            </div>
+            <div class="howto">実機がコース上に無いときの試験用。緯度経度をコース上の距離に変換し、走行中の再計算（P-5）と同じ処理を通します。</div>
+          </details>
           <button type="button" class="primary" id="run">予報を取得する</button>
           <div class="status" id="status" aria-live="polite"></div>
         </div>
