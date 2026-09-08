@@ -26,6 +26,7 @@
     --info-bg:#E4ECF5; --info-ink:#25405E; --warn-bg:#FBF1DC; --warn-ink:#6B4E12; --err-bg:#F8E3DF; --err-ink:#7A2A1C;
     --sleep-row:#F0ECF5; --best-row:#EAF3EE; --map-filter:grayscale(1) brightness(1.08) contrast(.85);
     --lv4:#7E3FA8; --lv5:#1E2A32; --lv5-edge:transparent;
+    --night-row:#EDEEEF; /* 区間表の夜間行：無彩色のグレー */
     --wx-rain:#6E9AD6; --wx-cloud:#A6AEB3; --wx-sun:#F0B36B; /* 地図の経路色：雨／曇り／晴れ（矢印より淡く） */
     color-scheme:light;
   }
@@ -35,12 +36,14 @@
     --info-bg:#22344A; --info-ink:#C9DAF0; --warn-bg:#4A3A15; --warn-ink:#F1DDA8; --err-bg:#4A241C; --err-ink:#F3C4BA;
     --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85);
     --lv4:#9A5FC4; --lv5:#0B0D0F; --lv5-edge:#8A969C;
+    --night-row:#2B3035;
     --wx-rain:#6F9FE0; --wx-cloud:#8E979C; --wx-sun:#E8A857; color-scheme:dark; }
   @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --paper:#1B1F23; --paper-2:#2B3237; --card:#23292E; --ink:#E9ECEB; --ink-2:#B9C1C5; --ink-3:#8A969C; --line:#3B444A;
     --head:#E5694E; --tail:#4FB086; --cross:#DDB553; --rain:#6A9DE0; --night:#AEB9D6; --sleep:#B39FD9; --na:#9AA4A9;
     --info-bg:#22344A; --info-ink:#C9DAF0; --warn-bg:#4A3A15; --warn-ink:#F1DDA8; --err-bg:#4A241C; --err-ink:#F3C4BA;
     --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85);
     --lv4:#9A5FC4; --lv5:#0B0D0F; --lv5-edge:#8A969C;
+    --night-row:#2B3035;
     --wx-rain:#6F9FE0; --wx-cloud:#8E979C; --wx-sun:#E8A857; color-scheme:dark; } 
   }
   *{box-sizing:border-box}
@@ -161,7 +164,7 @@
   .bar .theme{margin-left:auto;font-size:12px;min-height:32px;padding:0 10px}
   .bar .theme.clear{margin-left:0}
   td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
-  tr.night td{background:var(--paper)}
+  tr.night td{background:var(--night-row)}
   tr.na td{color:var(--ink-3)}
   tr.sleep td{background:var(--sleep-row);color:var(--sleep);font-weight:600}
   tr.best td{background:var(--best-row)}
