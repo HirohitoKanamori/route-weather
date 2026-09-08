@@ -111,7 +111,7 @@ test('wmoText と fmt', () => {
   assert.equal(RW.fmt.fmtDT(JST(2026, 9, 5, 6, 0)), '9/5(土) 06:00');
 });
 
-test('wxClass：雨は降水 0.5 mm/h 以上または雨系コード、曇りは曇・霧、晴れは快晴・晴', () => {
+test('wxClass：雨は降水 0.5 mm/h 以上のみ。雨系コードでも 0.5 mm/h 未満は曇り。晴れは快晴・晴', () => {
   const w = RW.forecast.wxClass;
   assert.equal(w({ code: 0, mm: 0 }), 'sun');
   assert.equal(w({ code: 1, mm: 0.4 }), 'sun');
@@ -119,10 +119,12 @@ test('wxClass：雨は降水 0.5 mm/h 以上または雨系コード、曇りは
   assert.equal(w({ code: 2, mm: 0 }), 'cloud');
   assert.equal(w({ code: 3, mm: 0 }), 'cloud');
   assert.equal(w({ code: 45, mm: 0 }), 'cloud', '霧は曇り扱い');
-  assert.equal(w({ code: 51, mm: 0 }), 'rain', '霧雨');
-  assert.equal(w({ code: 61, mm: 0.1 }), 'rain');
-  assert.equal(w({ code: 71, mm: 0 }), 'rain', '雪も雨系');
-  assert.equal(w({ code: 95, mm: 0 }), 'rain', '雷雨');
+  assert.equal(w({ code: 51, mm: 0 }), 'cloud', '霧雨コードでも降水 0 なら曇り');
+  assert.equal(w({ code: 61, mm: 0.1 }), 'cloud', '小雨コードでも 0.5 mm/h 未満は曇り');
+  assert.equal(w({ code: 61, mm: 0.5 }), 'rain');
+  assert.equal(w({ code: 71, mm: 1.2 }), 'rain', '雪も降水量で判定');
+  assert.equal(w({ code: 95, mm: 0 }), 'cloud', '雷雨コードでも降水 0 なら曇り');
+  assert.equal(w({ code: 61, mm: null }), 'rain', '降水量が無いデータはコードで判定');
   assert.equal(w({ na: true }), null);
   assert.equal(w(null), null);
 });
