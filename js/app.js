@@ -103,7 +103,7 @@ import { RW } from './core.js';
   function enforceStart() {
     const lim = F.minStart(Date.now()); $('date').min = F.ymd(lim);
     const ms = Date.parse($('date').value + 'T' + ($('time').value || '06:00') + ':00+09:00');
-    if (ms >= lim) { state.startNote = ''; return false; }
+    if (ms >= lim) { if (state.startNote && state.startNote.startsWith('出走日時は')) state.startNote = ''; return false; }
     const nx = F.nextStart(Date.now()); $('date').value = nx.date; $('time').value = nx.time;
     state.startNote = `出走日時は ${RW.const.START_BACK_DAYS} 日前の 0:00 より前にできません。${F.fmtDT(nx.ms)} に戻しました`; // 予報取得後も残るよう帯に出す
     setStatus(state.startNote);
@@ -1021,7 +1021,7 @@ import { RW } from './core.js';
   // R-11：確定した距離と時刻を P-5 の欄に書き込み、予報を取り直してから同じ再計算を通す。履歴（R-21）は端末内に最大 50 件
   async function commitPosition(cand, pos) {
     $('ancD').value = cand.d.toFixed(1); $('ancT').value = localDT(pos.t);
-    const ps = posStore(); ps.list = (ps.list || []).concat([{ d: cand.d, t: pos.t, acc: pos.accuracy, distM: cand.distM }]).slice(-50);
+    const ps = posStore(); ps.list = (ps.list || []).concat([{ d: cand.d, t: pos.t, acc: pos.accuracy, distM: cand.distM, source: pos.source }]).slice(-50);
     store.set('rw:posHist', ps);
     state.lastPos = { d: cand.d, t: pos.t, acc: pos.accuracy, distM: cand.distM, clock: pos.clock || null, posT: pos.posT || null, source: pos.source };
     saveParams();
@@ -1107,7 +1107,18 @@ import { RW } from './core.js';
     state.posTarget = 'posMsg';
     applyPosition({ lat, lon, accuracy: acc, t, source: 'debug' });
   });
-  ['date', 'time', 'spd'].forEach(id => $(id).addEventListener('change', onParamChange));
+  $('spd').addEventListener('change', onParamChange);
+  // 出走日時を変えたら、現在位置からの再計算（隠れた現在地の固定）は解除する。残したままだと以降の通過時刻が更新されず「予報が変わらない」ように見えるため
+  ['date', 'time'].forEach(id => $(id).addEventListener('change', () => {
+    if (readAnchor()) {
+      $('ancD').value = ''; $('ancT').value = ''; state.lastPos = null; state.forecastStale = '';
+      store.del('rw:posHist'); posMsg('', '', 'posMsg'); posMsg('', '', 'gpsMsg');
+      state.startNote = '出走日時を変更したため、現在位置からの再計算を解除しました。走行中なら「現在位置から予報を再取得」を押し直してください';
+      onParamChange(); return;
+    }
+    if (state.startNote && state.startNote.startsWith('出走日時を変更')) state.startNote = '';
+    onParamChange();
+  }));
   $('run').addEventListener('click', () => { state.warnings = null; state.amedas = null; run({ force: true }); });
   let rt = null;
   window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.result) { renderRibbon(); renderMap(); } }, 150); });
@@ -1116,7 +1127,9 @@ import { RW } from './core.js';
   // 前回の現在地（P-5 の欄は非表示なので）が残っていれば、解除できるようステータス行を出す
   function restorePosStatus() {
     const d = +$('ancD').value, t = $('ancT').value; if (!$('ancD').value || !t || !state.result) return;
-    state.lastPos = state.lastPos || { d, t: Date.parse(t + ':00+09:00'), acc: null, source: 'manual' }; state.posTarget = 'gpsMsg'; renderPosStatus();
+    const h = posHistory(); const lastH = h.length ? h[h.length - 1] : null; // GPS 由来なら精度も復元
+    state.lastPos = state.lastPos || (lastH && Math.abs(lastH.d - d) < 0.05 ? { d, t: lastH.t, acc: lastH.acc, distM: lastH.distM, clock: null, posT: null, source: lastH.source || 'gps' } : { d, t: Date.parse(t + ':00+09:00'), acc: null, source: 'manual' });
+    state.posTarget = 'gpsMsg'; renderPosStatus();
   }
   // ===== 起動：前回のコース・予報を復元してから最新を取りに行く =====
   loadParams(); renderRecent();
