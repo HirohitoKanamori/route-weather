@@ -1,0 +1,13 @@
+{
+  "name": "ride-weather.jp — ブルベのコース天気",
+  "short_name": "ride-weather",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#3f83c5",
+  "theme_color": "#051426",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
