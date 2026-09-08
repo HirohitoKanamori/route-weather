@@ -27,8 +27,9 @@ export const RW = (function () {
   const dateKey = t => { const x = jstParts(t); return x.mo + '/' + x.d; };
   const ymd = t => { const x = jstParts(t); return x.y + '-' + p2(x.mo) + '-' + p2(x.d); };
   // 出走日時の初期値：現在時刻（JST）より先にある最も近い 06:00。{ date: 'YYYY-MM-DD', time: '06:00', ms }
-  // 出走日時として許す下限：前日の 0:00（JST）。走行中（当日〜翌日）に開いても実際の出走時刻を入れられるようにする
-  function minStart(now) { const x = jstParts(+now - 86400e3); return Date.UTC(x.y, x.mo - 1, x.d, -9, 0); }
+  // 出走日時として許す下限：4 日前の 0:00（JST）。1200 km（制限 90 時間）の走行中に開いても実際の出走時刻を入れられるようにする
+  const START_BACK_DAYS = 4;
+  function minStart(now) { const x = jstParts(+now - START_BACK_DAYS * 86400e3); return Date.UTC(x.y, x.mo - 1, x.d, -9, 0); }
   function nextStart(now) {
     const x = jstParts(now);
     const todaySix = Date.UTC(x.y, x.mo - 1, x.d, 6 - 9, 0);
@@ -436,7 +437,7 @@ export const RW = (function () {
   }
 
   return {
-    const: { RAIN_MM, TAIL_DEG, HEAD_DEG, MAX_PTS, HOURLY, MODELS },
+    const: { RAIN_MM, TAIL_DEG, HEAD_DEG, MAX_PTS, HOURLY, MODELS, START_BACK_DAYS },
     fmt: { jstParts, fmtH, fmtT, fmtDT, dateKey, ymd, nextStart, minStart },
     course: { hav, bearing, fromPoints, elevationGain, interp, headingAt, reverseCourse, hashCourse },
     plan: { normSleeps, normSegments, rideHours, sleepHours, elapsedH, timeAt, distAtTime, sampleStep, samplePoints, timeNodes, hourTicks },

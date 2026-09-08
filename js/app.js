@@ -7,6 +7,7 @@ import { RW } from './core.js';
   const REL = { head: '向かい', tail: '追い', cross: '横' };
   const COL = { head: 'var(--head)', tail: 'var(--tail)', cross: 'var(--cross)' };
   const CACHE_MS = 30 * 60e3;
+  const PAST_DAYS_MAX = RW.const.START_BACK_DAYS + 1; // 予報取得の過去日数。出走日時の下限（4 日前）を覆う
   const state = { course: null, series: null, result: null, pinned: false, busy: false, offlineNote: '', collapsed: false, lastPos: null, forecastStale: '', posTarget: 'posMsg', startNote: '' };
 
   // localStorage は私的ブラウズ等で例外になるので必ず握りつぶす
@@ -98,13 +99,13 @@ import { RW } from './core.js';
     $('cName').textContent = c.name;
     $('cMeta').textContent = `${n1(c.total)} km ・ 獲得標高 ${c.hasEle ? c.gain.toLocaleString() + ' m' : '不明'} ・ 地点数 ${c.n.toLocaleString()}`;
   }
-  // 出走日時は前日 0:00（JST）より過去にできない（走行中に実際の出走時刻を入れられる範囲は残す）。下限より前なら次の 06:00 に戻して知らせる
+  // 出走日時は 4 日前の 0:00（JST）より過去にできない（1200 km・90 時間の走行中でも実際の出走時刻を入れられる）。下限より前なら次の 06:00 に戻して知らせる
   function enforceStart() {
     const lim = F.minStart(Date.now()); $('date').min = F.ymd(lim);
     const ms = Date.parse($('date').value + 'T' + ($('time').value || '06:00') + ':00+09:00');
     if (ms >= lim) { state.startNote = ''; return false; }
     const nx = F.nextStart(Date.now()); $('date').value = nx.date; $('time').value = nx.time;
-    state.startNote = `出走日時は前日の 0:00 より前にできません。${F.fmtDT(nx.ms)} に戻しました`; // 予報取得後も残るよう帯に出す
+    state.startNote = `出走日時は ${RW.const.START_BACK_DAYS} 日前の 0:00 より前にできません。${F.fmtDT(nx.ms)} に戻しました`; // 予報取得後も残るよう帯に出す
     setStatus(state.startNote);
     return true;
   }
@@ -195,7 +196,7 @@ import { RW } from './core.js';
     const pts = RW.plan.samplePoints(state.course, p, step); const hash = RW.course.hashCourse(state.course);
     let idx = pts.findIndex(x => x.d >= d); if (idx < 0) idx = pts.length - 1;
     const sub = pts.slice(idx); const now = Date.now();
-    const pastDays = Math.min(2, Math.max(0, Math.ceil((now - +p.start) / 86400e3)));
+    const pastDays = Math.min(PAST_DAYS_MAX, Math.max(0, Math.ceil((now - +p.start) / 86400e3)));
     try {
       const msmSub = await fetchSeriesRaw('msm', sub, pastDays);
       const goalT = +pts[pts.length - 1].t; const hM = RW.forecast.horizon(msmSub);
@@ -236,7 +237,7 @@ import { RW } from './core.js';
     const pts = RW.plan.samplePoints(state.course, p, RW.plan.sampleStep(state.course.total));
     const goalT = +pts[pts.length - 1].t;
     const hash = RW.course.hashCourse(state.course);
-    const pastDays = Math.min(2, Math.max(0, Math.ceil((now - +p.start) / 86400e3)));
+    const pastDays = Math.min(PAST_DAYS_MAX, Math.max(0, Math.ceil((now - +p.start) / 86400e3)));
     let ser = state.series;
     const fresh = ser && ser.hash === hash && ser.pastDays === pastDays && now - ser.fetchedAt < CACHE_MS;
     const covered = s => { const hM = RW.forecast.horizon(s.msm); return (hM != null && goalT <= hM) || !!s.gsm; };

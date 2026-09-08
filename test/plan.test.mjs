@@ -94,8 +94,11 @@ test('nextStart：現在時刻より先にある最も近い 06:00（JST）', ()
   assert.equal(RW.fmt.nextStart(JST(2026, 12, 31, 9)).date, '2027-01-01');
 });
 
-test('minStart：出走日時の下限は前日の 0:00（JST）', () => {
-  assert.equal(RW.fmt.minStart(JST(2026, 9, 8, 1, 58)), JST(2026, 9, 7, 0, 0));
-  assert.equal(RW.fmt.minStart(JST(2026, 9, 8, 23, 0)), JST(2026, 9, 7, 0, 0));
-  assert.equal(RW.fmt.minStart(JST(2026, 10, 1, 3, 0)), JST(2026, 9, 30, 0, 0), '月初');
+test('minStart：出走日時の下限は 4 日前の 0:00（JST）。1200 km・90 時間を覆う', () => {
+  assert.equal(RW.const.START_BACK_DAYS, 4);
+  assert.equal(RW.fmt.minStart(JST(2026, 9, 8, 1, 58)), JST(2026, 9, 4, 0, 0));
+  assert.equal(RW.fmt.minStart(JST(2026, 9, 8, 23, 0)), JST(2026, 9, 4, 0, 0));
+  assert.equal(RW.fmt.minStart(JST(2026, 10, 2, 3, 0)), JST(2026, 9, 28, 0, 0), '月またぎ');
+  // 例：9/4 06:00 出走の 1200 km、制限 90 時間 → 9/8 00:00 まで。9/7 23:00 に開いても出走時刻を入れられる
+  assert.ok(JST(2026, 9, 4, 6, 0) >= RW.fmt.minStart(JST(2026, 9, 7, 23, 0)));
 });
