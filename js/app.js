@@ -492,7 +492,7 @@ import { RW } from './core.js';
   // ===== 本地図（V-6）：Leaflet + OSM タイル。Leaflet が読めない場合は静的な略地図にフォールバック =====
   const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   let lmap = null, lmapHash = null, lmapLayers = null, lmapTheme = null;
-  const MAP_NOTE = '<div class="note"><span class="lg" style="--c:var(--wx-rain)"></span>雨 <span class="lg" style="--c:var(--wx-cloud)"></span>曇り <span class="lg" style="--c:var(--wx-sun)"></span>晴れ <span class="lg dash"></span>予報範囲外（線の色＝通過時刻の予報）。»＝進行方向。矢印＝風の吹いていく向き（実方位）、色は相対風。矢印をタップすると詳細。●スタート ○ゴール</div>';
+  const MAP_NOTE = '<div class="note"><span class="lg" style="--c:var(--wx-rain)"></span>雨（降水 0.5 mm/h 以上） <span class="lg" style="--c:var(--wx-cloud)"></span>曇り <span class="lg" style="--c:var(--wx-sun)"></span>晴れ <span class="lg dash"></span>予報範囲外（線の色＝通過時刻の予報）。»＝進行方向。矢印＝風の吹いていく向き（実方位）、色は相対風。矢印をタップすると詳細。●スタート ○ゴール</div>';
   const WXVAR = { rain: '--wx-rain', cloud: '--wx-cloud', sun: '--wx-sun' };
   // 進行方向の記号（>>）を置く位置：経路に沿って画素間隔 spacing ごと。px(lat, lon) → [x, y]
   function chevronSpots(P, px, spacing, max = 250) {
