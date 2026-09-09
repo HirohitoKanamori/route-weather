@@ -3,9 +3,9 @@
 // - 予報 API（Open-Meteo・気象庁）はキャッシュしない（アプリ側が localStorage で保持する）
 // - 地図タイルはキャッシュ優先（OSM の利用ポリシーに沿った端末内キャッシュ）。上限を超えたら古いものから消す
 // vendor/ を更新したら VERSION を上げること
-const VERSION = 'rw-v3';
+const VERSION = 'rw-v4';
 const SHELL = 'shell-' + VERSION, TILES = 'tiles-' + VERSION;
-const SHELL_FILES = ['./', './index.html', './js/core.js', './js/app.js', './vendor/leaflet/leaflet.js', './vendor/leaflet/leaflet.css', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-512-maskable.png', './icons/apple-touch-icon.png', './icons/favicon.svg', './icons/favicon-32.png', './icons/favicon-16.png', './icons/favicon.ico'];
+const SHELL_FILES = ['./', './index.html', './js/core.js', './js/app.js', './vendor/leaflet/leaflet.js', './vendor/leaflet/leaflet.css', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-512-maskable.png', './icons/apple-touch-icon.png', './icons/favicon.svg', './icons/favicon-32.png', './icons/favicon-16.png', './icons/favicon.ico', './logo/logo-light.png', './logo/logo-dark.png'];
 const TILE_MAX = 300;
 
 self.addEventListener('install', e => {
@@ -19,7 +19,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   if (url.origin === location.origin) {
     if (req.mode === 'navigate' || url.pathname.endsWith('/index.html') || url.pathname.endsWith('/') || url.pathname.includes('/js/')) { e.respondWith(networkFirst(req, SHELL)); return; }
-    if (url.pathname.includes('/vendor/') || url.pathname.includes('/icons/') || url.pathname.endsWith('.webmanifest')) { e.respondWith(cacheFirst(req, SHELL)); return; }
+    if (url.pathname.includes('/vendor/') || url.pathname.includes('/icons/') || url.pathname.includes('/logo/') || url.pathname.endsWith('.webmanifest')) { e.respondWith(cacheFirst(req, SHELL)); return; }
     return; // samples 等はそのまま
   }
   if (url.hostname === 'tile.openstreetmap.org') { e.respondWith(cacheFirst(req, TILES, TILE_MAX)); return; }

@@ -1157,6 +1157,12 @@ import { RW } from './core.js';
     state.posTarget = 'gpsMsg'; renderPosStatus();
   }
   // ===== 起動：前回のコース・予報を復元してから最新を取りに行く =====
+  // 開発・確認用：?theme=dark|light で表示モードを指定、?sample=1 でサンプルコースを自動で読む（通常利用では使わない）
+  try {
+    const q = new URLSearchParams(location.search);
+    const th = q.get('theme'); if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th;
+    if (q.get('sample') === '1') setTimeout(() => { const l = $('sampleLink'); if (l && !state.course) l.click(); }, 50);
+  } catch (e) { /* noop */ }
   loadParams(); renderRecent();
   const last = store.get('rw:last');
   const savedCourse = (last && last.course) || store.get('rw:course');
