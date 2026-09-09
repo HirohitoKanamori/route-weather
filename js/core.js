@@ -151,7 +151,7 @@ export const RW = (function () {
       .filter(x => x.spd > 0 && x.from >= 0 && x.from < total && x.to > x.from)
       .map(x => ({ from: x.from, to: Math.min(x.to, total), spd: x.spd }))
       .sort((a, b) => a.from - b.from)
-      .filter((x, i, arr) => i === 0 || x.from >= arr[i - 1].to);
+      .reduce((acc, x) => { const last = acc[acc.length - 1]; if (!last || x.from >= last.to) acc.push(x); return acc; }, []); // 採用済みの末尾と比べる
   }
   // 0 → d km の走行時間（停止を除く）。区間別速度がある区間はその速度、無い区間はグロス速度
   function rideHours(d, p) {
@@ -351,11 +351,12 @@ export const RW = (function () {
     let i = Math.floor((t - T[0]) / 3600e3); if (i < 0) i = 0; if (i >= T.length - 1) i = T.length - 2;
     const k = (t - T[i]) / 3600e3;
     const L = a => { const x = a[i], y = a[i + 1]; if (x == null && y == null) return null; if (x == null) return y; if (y == null) return x; return x + (y - x) * k; };
-    let wd; { const x = s.wd[i], y = s.wd[i + 1]; if (x == null || y == null) wd = x ?? y ?? 0; else { const dd = ((y - x) + 540) % 360 - 180; wd = ((x + dd * k) % 360 + 360) % 360; } }
+    let wd; { const x = s.wd[i], y = s.wd[i + 1]; if (x == null || y == null) wd = x ?? y ?? null; else { const dd = ((y - x) + 540) % 360 - 180; wd = ((x + dd * k) % 360 + 360) % 360; } }
     const near = k < 0.5 ? i : i + 1;
     const sunArr = s.sun || [], feelArr = s.feel || [];
-    return { temp: L(s.temp), feel: feelArr.length ? L(feelArr) : null, rh: L(s.rh) ?? 0, mm: s.mm[i + 1] ?? s.mm[i] ?? 0, code: s.code[near] ?? s.code[i] ?? null,
-      cloud: L(s.cloud) ?? 0, ws: L(s.ws) ?? 0, wd, sun: sunArr.length ? (sunArr[i + 1] ?? sunArr[i] ?? null) : null };
+    // 欠測は null のまま返す（0 にしない）。表示側で「—」にし、集計から除く
+    return { temp: L(s.temp), feel: feelArr.length ? L(feelArr) : null, rh: L(s.rh), mm: s.mm[i + 1] ?? s.mm[i] ?? null, code: s.code[near] ?? s.code[i] ?? null,
+      cloud: L(s.cloud), ws: L(s.ws), wd, sun: sunArr.length ? (sunArr[i + 1] ?? sunArr[i] ?? null) : null };
   }
   // 地点 idx・時刻 t について MSM → GSM の順で採用（F-8）
   function pick(series, idx, t) {
@@ -373,46 +374,62 @@ export const RW = (function () {
       const pk = pick(series, i, +s.t);
       if (!pk) { s.na = true; return; }
       Object.assign(s, pk.v); s.model = pk.model;
-      Object.assign(s, relative(s.wd, s.ws, s.hb));
+      if (s.ws == null || s.wd == null) { s.rel = null; s.comp = null; s.cls = null; } // 風の欠測は分類しない
+      else Object.assign(s, relative(s.wd, s.ws, s.hb));
     });
     return { S, step };
   }
-  // 要点（V-3）。km の集計はゴール地点を除く各サンプルが step km を代表するとみなす
-  // fromD を渡すと「そこから先（残り）」だけを集計する（ADD_01 R-20）
+  // 要点（V-3）。km の集計は「サンプル i からサンプル i+1 までの実距離」をサンプル i の状態で代表させる。
+  // fromD を渡すと「そこから先（残り）」だけを集計する（ADD_01 R-20）。fromD を含む区間は fromD で切り詰める
+  const r1 = v => Math.round(v * 10) / 10;
   function summarize(S, step, fromD = null) {
     const ahead = fromD == null ? S : S.filter(s => s.d >= fromD);
-    const body = ahead.slice(0, -1), ok = body.filter(s => !s.na), okAll = ahead.filter(s => !s.na);
+    const okAll = ahead.filter(s => !s.na);
     const last = S[S.length - 1];
-    const rainS = ok.filter(s => s.mm >= RAIN_MM);
+    let headKm = 0, rainKm = 0, nightKm = 0; let rainFirst = null, rainLast = null;
+    for (let i = 0; i < S.length - 1; i++) {
+      const s = S[i]; const a = fromD == null ? s.d : Math.max(s.d, fromD); const len = S[i + 1].d - a;
+      if (len <= 0) continue;
+      if (s.night) nightKm += len;
+      if (s.na) continue;
+      if (s.cls === 'head') headKm += len;
+      if (s.mm != null && s.mm >= RAIN_MM) { rainKm += len; if (!rainFirst) rainFirst = s; rainLast = s; }
+    }
     const naFirst = S.find(s => s.na), gsmFirst = S.find(s => s.model === 'gsm');
+    const wsOk = okAll.filter(s => s.ws != null);
     return {
       goal: last.t, totalH: last.eh,
-      headKm: ok.filter(s => s.cls === 'head').length * step,
-      rainKm: rainS.length * step, rainFirst: rainS[0] || null, rainLast: rainS[rainS.length - 1] || null,
-      nightKm: body.filter(s => s.night).length * step,
+      headKm: r1(headKm), rainKm: r1(rainKm), rainFirst, rainLast,
+      nightKm: r1(nightKm),
       tmin: okAll.length ? okAll.reduce((a, b) => b.temp < a.temp ? b : a) : null,
       tmax: okAll.length ? okAll.reduce((a, b) => b.temp > a.temp ? b : a) : null,
-      wsMax: okAll.length ? okAll.reduce((a, b) => b.ws > a.ws ? b : a) : null,
+      wsMax: wsOk.length ? wsOk.reduce((a, b) => b.ws > a.ws ? b : a) : null,
       naFrom: naFirst ? naFirst.d : null, gsmFrom: gsmFirst ? gsmFirst.d : null,
       nOk: okAll.length, n: ahead.length, fromD
     };
   }
-  // 傾向モード（F-9）：segKm 区間 × 通過日 に集約
-  function trendAggregate(S, step, total, spd, segKm = 50) {
+  // 傾向モード（F-9）：segKm 区間 × 通過日 に集約。距離はサンプル間の実距離、降水量は「走行時間 × 降水強度」（p があれば区間別速度を反映、仮眠は含めない）
+  function trendAggregate(S, step, total, spd, segKm = 50, p = null) {
     const map = new Map();
-    for (const s of S) {
+    for (let i = 0; i < S.length; i++) {
+      const s = S[i];
       if (s.na) continue;
       const seg = Math.floor(Math.min(s.d, total - 1e-6) / segKm); const day = dateKey(s.t); const key = seg + '|' + day;
       let r = map.get(key);
-      if (!r) { r = { seg, from: seg * segKm, to: Math.min((seg + 1) * segKm, total), day, firstT: +s.t, n: 0, ux: 0, uy: 0, wsSum: 0, mmSum: 0, tmax: -Infinity, tmin: Infinity, headN: 0, models: new Set() }; map.set(key, r); }
-      r.n++; r.ux += Math.sin(s.wd * R) * s.ws; r.uy += Math.cos(s.wd * R) * s.ws; r.wsSum += s.ws;
-      r.mmSum += s.mm * (step / spd); r.tmax = Math.max(r.tmax, s.temp); r.tmin = Math.min(r.tmin, s.temp);
-      if (s.cls === 'head') r.headN++; r.models.add(s.model);
+      if (!r) { r = { seg, from: seg * segKm, to: Math.min((seg + 1) * segKm, total), day, firstT: +s.t, n: 0, nw: 0, ux: 0, uy: 0, wsSum: 0, mmSum: 0, tmax: -Infinity, tmin: Infinity, headKm: 0, models: new Set() }; map.set(key, r); }
+      r.n++; r.tmax = Math.max(r.tmax, s.temp); r.tmin = Math.min(r.tmin, s.temp); r.models.add(s.model);
+      if (s.ws != null && s.wd != null) { r.nw++; r.ux += Math.sin(s.wd * R) * s.ws; r.uy += Math.cos(s.wd * R) * s.ws; r.wsSum += s.ws; }
+      if (i < S.length - 1) { // ゴール地点には距離を割り当てない
+        const len = S[i + 1].d - s.d;
+        const hours = p ? rideHours(S[i + 1].d, p) - rideHours(s.d, p) : len / spd;
+        if (s.cls === 'head') r.headKm += len;
+        if (s.mm != null) r.mmSum += s.mm * hours;
+      }
     }
     return [...map.values()].sort((a, b) => a.seg - b.seg || a.firstT - b.firstT).map(r => ({
       seg: r.seg, from: r.from, to: r.to, day: r.day, n: r.n,
-      wdPrev: (Math.atan2(r.ux, r.uy) / R + 360) % 360, wsMean: r.wsSum / r.n, mmSum: r.mmSum,
-      tmax: r.tmax, tmin: r.tmin, headKm: r.headN * step, models: [...r.models]
+      wdPrev: r.nw ? (Math.atan2(r.ux, r.uy) / R + 360) % 360 : null, wsMean: r.nw ? r.wsSum / r.nw : null, mmSum: r.mmSum,
+      tmax: r.tmax, tmin: r.tmin, headKm: r1(r.headKm), models: [...r.models]
     }));
   }
   // 出走時刻の比較（F-6）

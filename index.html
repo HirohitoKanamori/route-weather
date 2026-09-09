@@ -367,7 +367,7 @@
 
 <script>
 // 表示モードを最初に適用（自動＝OS 設定に従う）
-try { const th = localStorage.getItem('rw:theme'); if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
+try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式（生文字列）はそのまま */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
 </script>
 <script type="module" src="js/app.js"></script>
 </body>

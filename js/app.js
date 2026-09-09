@@ -18,6 +18,7 @@ import { RW } from './core.js';
   };
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const n1 = v => v.toFixed(1);
+  const nv = (v, d = 1) => (v == null || Number.isNaN(v)) ? '—' : v.toFixed(d); // 欠測は「—」
 
   // ===== 設定欄 =====
   function addSleepRow(d = '', m = '') {
@@ -156,7 +157,8 @@ import { RW } from './core.js';
   }
   function setCourse(course) {
     state.course = course; state.series = null; state.result = null; state.offlineNote = '';
-    store.del('rw:posHist'); state.lastPos = null; state.forecastStale = ''; if ($('posMsg')) { posMsg(''); posMsg('', '', 'gpsMsg'); }
+    store.del('rw:posHist'); state.lastPos = null; state.forecastStale = ''; state.startNote = ''; if ($('posMsg')) { posMsg(''); posMsg('', '', 'gpsMsg'); }
+    $('ancD').value = ''; $('ancT').value = ''; // 前のコースの現在地固定は持ち越さない
     renderCourse(); store.set('rw:course', course); rememberCourse(course); setStatus('');
     run();
   }
@@ -201,6 +203,7 @@ import { RW } from './core.js';
       const msmSub = await fetchSeriesRaw('msm', sub, pastDays);
       const goalT = +pts[pts.length - 1].t; const hM = RW.forecast.horizon(msmSub);
       const gsmSub = (hM == null || goalT > hM) ? await fetchSeriesRaw('gsm', sub, pastDays) : null;
+      if (!state.course || RW.course.hashCourse(state.course) !== hash) return false; // 取得中にコースが変わった
       const merge = (oldArr, subArr) => { const out = (oldArr || []).slice(0, pts.length); while (out.length < pts.length) out.push(null); subArr.forEach((x, i) => { out[idx + i] = x; }); return out; };
       let ser = state.series;
       if (!ser || ser.hash !== hash) ser = { msm: [], gsm: null, hash, pastDays, fetchedAt: now, runs: {} };
@@ -228,6 +231,7 @@ import { RW } from './core.js';
   async function run(opts) {
     const force = !!(opts && opts.force);
     if (!state.course) { setStatus('先にコースを読み込んでください', 'err'); return; }
+    const seq = (state.runSeq = (state.runSeq || 0) + 1); // 取得中に設定・コースが変わったら、古い応答を捨てて最後の設定で取り直す
     const p = params();
     if (isNaN(+p.start)) { setStatus('出走日時を入力してください', 'err'); return; }
     saveParams(); updateSumLine(p);
@@ -242,29 +246,40 @@ import { RW } from './core.js';
     const fresh = ser && ser.hash === hash && ser.pastDays === pastDays && now - ser.fetchedAt < CACHE_MS;
     const covered = s => { const hM = RW.forecast.horizon(s.msm); return (hM != null && goalT <= hM) || !!s.gsm; };
     if (force || !fresh || !covered(ser)) {
-      if (state.busy) return;
+      if (state.busy) { state.rerun = true; return; } // 取得中の変更は捨てず、終わってから最後の設定で再実行
       state.busy = true; $('run').disabled = true; setStatus('予報を取得中…');
+      let stale = false;
       try {
         const msm = await getSeries('msm', pts, hash, pastDays, force);
         const hM = RW.forecast.horizon(msm);
         const gsm = (hM == null || goalT > hM) ? await getSeries('gsm', pts, hash, pastDays, force) : null;
-        ser = { msm, gsm, hash, pastDays, fetchedAt: Date.now(), runs: {} };
-        state.series = ser; state.offlineNote = '';
-        store.set('rw:last', { course: state.course, series: ser });
-        try { Object.keys(localStorage).filter(k => k.startsWith('rw:fc:')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* 旧キャッシュの掃除 */ }
-        setStatus('');
-        fetchRuns(ser);
-      } catch (e) {
-        const last = store.get('rw:last');
-        if (last && last.series && last.series.hash === hash) {
-          ser = state.series = last.series;
-          state.offlineNote = `予報を取得できませんでした（${e.message}）。${F.fmtDT(ser.fetchedAt)} に取得した予報を表示しています。`;
+        stale = seq !== state.runSeq || !state.course || RW.course.hashCourse(state.course) !== hash;
+        if (!stale) {
+          ser = { msm, gsm, hash, pastDays, fetchedAt: Date.now(), runs: {} };
+          state.series = ser; state.offlineNote = '';
+          store.set('rw:last', { course: state.course, series: ser });
+          try { Object.keys(localStorage).filter(k => k.startsWith('rw:fc:')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* 旧キャッシュの掃除 */ }
           setStatus('');
-        } else {
-          setStatus('予報を取得できませんでした：' + e.message, 'err');
-          state.busy = false; $('run').disabled = false; return;
+          fetchRuns(ser);
         }
-      } finally { state.busy = false; $('run').disabled = false; }
+      } catch (e) {
+        stale = seq !== state.runSeq || !state.course || RW.course.hashCourse(state.course) !== hash;
+        if (!stale) {
+          const last = store.get('rw:last');
+          if (last && last.series && last.series.hash === hash) {
+            ser = state.series = last.series;
+            state.offlineNote = `予報を取得できませんでした（${e.message}）。${F.fmtDT(ser.fetchedAt)} に取得した予報を表示しています。`;
+            setStatus('');
+          } else {
+            setStatus('予報を取得できませんでした：' + e.message, 'err');
+            stale = true;
+          }
+        }
+      } finally {
+        state.busy = false; $('run').disabled = false;
+        if (state.rerun) { state.rerun = false; stale = true; run(); }
+      }
+      if (stale) return;
     }
     recompute(p);
   }
@@ -389,7 +404,7 @@ import { RW } from './core.js';
     if (!trend) {
       const wy = lanes.wind.y + lanes.wind.h / 2 - 4; const st = stride(16);
       S.forEach((pt, i) => {
-        if (pt.na || i % st) return;
+        if (pt.na || !pt.cls || i % st) return;
         const x = xOf(pt.d); const len = Math.min(26, 7 + pt.ws * 2.2);
         s += arrow(x, wy, -pt.rel - 90, len, COL[pt.cls]); // 上＝追い風、下＝向かい風
         if (pt.ws >= 5) s += text(x, lanes.wind.y + lanes.wind.h - 2, pt.ws.toFixed(0) + 'm', 'tick', 'middle', COL[pt.cls]);
@@ -432,9 +447,10 @@ import { RW } from './core.js';
     if (pt.na) return head + '<br>予報範囲外';
     const ele = pt.ele != null ? `　標高 ${Math.round(pt.ele)} m` : '';
     const sun = pt.sun != null ? `　日照 ${Math.round(pt.sun / 36)}%` : '';
-    return head + `<br>${esc(RW.forecast.wmoText(pt.code))}　${n1(pt.temp)}℃${pt.feel != null ? '（体感 ' + n1(pt.feel) + '℃）' : ''}　湿度 ${Math.round(pt.rh)}%${sun}${ele}` +
-      `<br>${RW.wind.dir16(pt.wd)}の風 ${n1(pt.ws)} m/s → <b>${REL[pt.cls]}風</b>（進行方向成分 ${pt.comp >= 0 ? '+' : ''}${n1(pt.comp)} m/s）` +
-      `<br>降水 ${n1(pt.mm)} mm/h${pt.model === 'gsm' ? '　<span class="tag" style="color:inherit;border-color:currentColor">GSM</span>' : ''}`;
+    const wind = pt.cls ? `${RW.wind.dir16(pt.wd)}の風 ${n1(pt.ws)} m/s → <b>${REL[pt.cls]}風</b>（進行方向成分 ${pt.comp >= 0 ? '+' : ''}${n1(pt.comp)} m/s）` : '風：欠測';
+    return head + `<br>${esc(RW.forecast.wmoText(pt.code))}　${n1(pt.temp)}℃${pt.feel != null ? '（体感 ' + n1(pt.feel) + '℃）' : ''}　湿度 ${nv(pt.rh, 0)}%${sun}${ele}` +
+      `<br>${wind}` +
+      `<br>降水 ${nv(pt.mm)} mm/h${pt.model === 'gsm' ? '　<span class="tag" style="color:inherit;border-color:currentColor">GSM</span>' : ''}`;
   }
   function bindRibbon(host, S, xOf, L, innerW, W) {
     const svg = host.querySelector('svg'), hit = svg.querySelector('#hit'), cur = svg.querySelector('#cur'), tip = $('tip'), wrap = $('ribbonWrap');
@@ -462,10 +478,10 @@ import { RW } from './core.js';
     const { S, step, p, trend } = state.result; const wrap = $('trendWrap');
     if (!trend) { wrap.classList.add('hidden'); return; }
     wrap.classList.remove('hidden');
-    const rows = RW.forecast.trendAggregate(S, step, state.course.total, p.spd, 50);
+    const rows = RW.forecast.trendAggregate(S, step, state.course.total, p.spd, 50, p);
     $('trend').querySelector('tbody').innerHTML = rows.map(r => `<tr>
       <td class="n">${Math.round(r.from)}–${Math.round(r.to)} km</td><td>${r.day}</td>
-      <td>${RW.wind.dir16(r.wdPrev)}の風 ${n1(r.wsMean)} m/s</td>
+      <td>${r.wdPrev != null ? RW.wind.dir16(r.wdPrev) + 'の風 ' + n1(r.wsMean) + ' m/s' : '風：欠測'}</td>
       <td class="n">${r.headKm} km</td><td class="n">${n1(r.mmSum)} mm</td><td class="n">${n1(r.tmax)}℃ ／ ${n1(r.tmin)}℃</td></tr>`).join('') ||
       '<tr><td colspan="6">予報範囲内の区間がありません</td></tr>';
     $('trendNote').textContent = `${M.gsm.label}（${M.gsm.grid}）。山岳部の風向は地形の影響を反映しません。「降水量 目安」は各区間の滞在時間 × 予報降水強度の合計です。`;
@@ -480,8 +496,8 @@ import { RW } from './core.js';
       while (si < p.sleeps.length && p.sleeps[si].d < pt.d) { rows.push(sleepRow(p.sleeps[si], p)); si++; }
       const cls = (pt.na ? 'na' : '') + (pt.night ? ' night' : '') + (p.anchor && pt.d < p.anchor.d ? ' past' : '');
       if (pt.na) rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}</td><td colspan="4">予報範囲外</td></tr>`);
-      else rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}${pt.night ? ' <span class="tag">夜</span>' : ''}</td><td>${esc(RW.forecast.wmoText(pt.code))}${pt.model === 'gsm' ? ' <span class="tag">GSM</span>' : ''}<br><small class="sub">湿度 ${Math.round(pt.rh)}%${pt.sun != null ? '・日照 ' + Math.round(pt.sun / 36) + '%' : ''}</small></td>
-        <td>${RW.wind.dir16(pt.wd)} ${n1(pt.ws)} m/s <span class="rel ${pt.cls}">${REL[pt.cls]}風</span></td><td class="n">${n1(pt.mm)} mm/h</td><td class="n">${n1(pt.temp)}℃${pt.feel != null ? '<br><small class="sub">体感 ' + n1(pt.feel) + '℃</small>' : ''}</td></tr>`);
+      else rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}${pt.night ? ' <span class="tag">夜</span>' : ''}</td><td>${esc(RW.forecast.wmoText(pt.code))}${pt.model === 'gsm' ? ' <span class="tag">GSM</span>' : ''}<br><small class="sub">湿度 ${nv(pt.rh, 0)}%${pt.sun != null ? '・日照 ' + Math.round(pt.sun / 36) + '%' : ''}</small></td>
+        <td>${pt.cls ? `${RW.wind.dir16(pt.wd)} ${n1(pt.ws)} m/s <span class="rel ${pt.cls}">${REL[pt.cls]}風</span>` : '<span class="sub">欠測</span>'}</td><td class="n">${nv(pt.mm)} mm/h</td><td class="n">${n1(pt.temp)}℃${pt.feel != null ? '<br><small class="sub">体感 ' + n1(pt.feel) + '℃</small>' : ''}</td></tr>`);
       while (si < p.sleeps.length && p.sleeps[si].d === pt.d) { rows.push(sleepRow(p.sleeps[si], p)); si++; }
     }
     tb.innerHTML = rows.join('');
@@ -579,7 +595,7 @@ import { RW } from './core.js';
     }
     let last = null;
     for (const pt of S) {
-      if (pt.na) continue;
+      if (pt.na || !pt.cls) continue;
       const pos = lmap.latLngToLayerPoint([pt.lat, pt.lon]);
       if (last && pos.distanceTo(last) < 46) continue;
       last = pos;
@@ -626,7 +642,7 @@ import { RW } from './core.js';
     for (const c of chevronSpots(P, px, 70)) s += `<g transform="translate(${c.x.toFixed(1)} ${c.y.toFixed(1)}) rotate(${c.ang.toFixed(1)})" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="${CHEV_PATH}" stroke="var(--card)" stroke-width="4.5"/><path d="${CHEV_PATH}" stroke="var(--ink-2)" stroke-width="2"/></g>`;
     const st = Math.max(1, Math.ceil(S.length / 28));
     S.forEach((pt, i) => {
-      if (pt.na || i % st) return;
+      if (pt.na || !pt.cls || i % st) return;
       const v = px(pt.lat, pt.lon); const ang = (pt.wd + 180) - 90; const len = (10 + pt.ws * 1.6) * MAP_ARROW_K; // 吹いていく向き
       s += mapArrow(v[0], v[1], ang, len, COL[pt.cls]);
     });
@@ -641,9 +657,9 @@ import { RW } from './core.js';
     $('startsWrap').classList.toggle('hidden', !!p.anchor); // 走行中の再計算では出走時刻の比較は意味を持たない
     if (p.anchor) return;
     const rows = RW.forecast.startComparison(state.course, p, state.series);
-    const full = rows.filter(r => r.nOk === r.n);
-    const best = (full.length ? full : rows).reduce((a, b) => b.score < a.score ? b : a);
-    $('startsSum').textContent = best ? `おすすめ ${F.fmtDT(best.start)}（向かい風 ${best.headKm} km・雨 ${best.rainKm} km）` : '';
+    const full = rows.filter(r => r.n > 0 && r.nOk === r.n); // 全区間に予報がある候補だけを比べる
+    const best = full.length ? full.reduce((a, b) => b.score < a.score ? b : a) : null;
+    $('startsSum').textContent = best ? `おすすめ ${F.fmtDT(best.start)}（向かい風 ${best.headKm} km・雨 ${best.rainKm} km）` : '比較できる予報が不足しています（予報範囲外の候補があります）';
     tb.innerHTML = rows.map(r => `<tr class="${r === best ? 'best' : ''}"><td>${F.fmtDT(r.start)}${r.off === 0 ? ' <span class="tag">設定</span>' : ''}${r.nOk < r.n ? ' <span class="tag">一部範囲外</span>' : ''}</td>
       <td class="n">${r.nOk ? r.headKm : '—'}</td><td class="n">${r.nOk ? r.rainKm : '—'}</td><td class="n">${r.tmin ? n1(r.tmin.temp) + '℃' : '—'}</td><td>${F.fmtDT(r.goal)}</td></tr>`).join('');
   }
@@ -739,7 +755,7 @@ import { RW } from './core.js';
       pts.forEach((pt, i) => {
         const codes = c20For(idx, munis[i]); const key = codes.join('|'); const last = segs[segs.length - 1];
         if (last && last.key === key) { last.to = pt.d; return; }
-        segs.push({ key, codes, from: pt.d, to: pt.d, name: codes.length ? idx.c20[codes[0]][0] : '海上・判定不能', office: codes.length ? idx.c20[codes[0]][1] : null, warnings: [], reported: null });
+        segs.push({ key, codes, from: pt.d, to: pt.d, name: codes.length ? idx.c20[codes[0]][0] : '海上・判定不能', office: codes.length ? idx.c20[codes[0]][1] : null, warnings: [], reported: null, status: codes.length ? 'pending' : 'unknown' });
       });
       for (let i = 0; i < segs.length - 1; i++) segs[i].to = segs[i + 1].from;
       if (segs.length > 1 && segs[segs.length - 1].from >= state.course.total - 1e-6) segs.pop(); // ゴール地点だけの空区間は前の区間に含める
@@ -747,12 +763,14 @@ import { RW } from './core.js';
       const offices = [...new Set(segs.map(x => x.office).filter(Boolean))];
       const reports = {};
       await Promise.all(offices.map(async o => { try { reports[o] = parseWarningReport(await (await fetch(JMA + 'warning/data/r8/' + o + '.json')).json()); } catch (e) { reports[o] = null; } }));
+      if (!state.course || RW.course.hashCourse(state.course) !== hash) return; // 取得中にコースが変わった
       for (const sg of segs) {
-        const rep = reports[sg.office]; if (!rep) continue;
-        sg.reported = rep.reported;
+        if (sg.status === 'unknown') continue;
+        const rep = reports[sg.office]; if (!rep) { sg.status = 'failed'; continue; } // 取得失敗は「なし」と区別する
+        sg.status = 'ok'; sg.reported = rep.reported;
         for (const code of sg.codes) for (const w of (rep.areas[code] || [])) { if (!sg.warnings.some(x => x.code === w.code)) sg.warnings.push(w); }
       }
-      state.warnings = { hash, at: Date.now(), segs, offices: offices.map(o => idx.offices[o] || o), failed: offices.filter(o => !reports[o]).length };
+      state.warnings = { hash, at: Date.now(), segs, offices: offices.map(o => idx.offices[o] || o), failed: offices.filter(o => !reports[o]).length, total: offices.length };
     } catch (e) { state.warnings = { hash, at: Date.now(), segs: [], error: e.message }; }
     renderWarnings();
   }
@@ -762,11 +780,15 @@ import { RW } from './core.js';
     wrap.classList.remove('hidden');
     const tb = $('warnTable').querySelector('tbody');
     if (w.error || !w.segs.length) { tb.innerHTML = `<tr><td colspan="3">取得できませんでした${w.error ? '（' + esc(w.error) + '）' : ''}</td></tr>`; $('warnNote').textContent = ''; $('warnSum').textContent = '取得できませんでした'; return; }
-    { // 折りたたみ時の要約：発表中の種類を列挙（警報以上を先に）
+    const allFailed = w.total > 0 && w.failed === w.total;
+    { // 折りたたみ時の要約：発表中の種類を列挙（警報以上を先に）。未取得は「なし」と言わない
       const names = [...new Set(w.segs.flatMap(x => x.warnings.map(y => y.code)))].sort((c1, c2) => wLevelNum(c2) - wLevelNum(c1) || (+c1) - (+c2)).map(wName);
-      $('warnSum').textContent = names.length ? '発表中：' + names.join('・') : '発表中の注意報・警報なし';
+      const okSegs = w.segs.some(x => x.status === 'ok');
+      $('warnSum').textContent = allFailed || !okSegs ? '確認できませんでした（取得失敗）' : (names.length ? '発表中：' + names.join('・') : '発表中の注意報・警報なし') + (w.failed ? '　※一部未取得' : '');
     }
-    tb.innerHTML = w.segs.map(sg => `<tr><td class="n">${Math.round(sg.from)}–${Math.round(sg.to)} km</td><td>${esc(sg.name)}</td><td class="wrap">${sg.warnings.length ? sg.warnings.map(x => `<span class="wtag ${wLevel(x.code)}">${esc(wName(x.code))}</span>`).join('') : '<span class="sub">なし</span>'}</td></tr>`).join('');
+    const cell = sg => sg.status === 'failed' ? '<span class="sub">取得できませんでした</span>' : sg.status === 'unknown' ? '<span class="sub">判定できません</span>' :
+      (sg.warnings.length ? sg.warnings.map(x => `<span class="wtag ${wLevel(x.code)}">${esc(wName(x.code))}</span>`).join('') : '<span class="sub">なし</span>');
+    tb.innerHTML = w.segs.map(sg => `<tr><td class="n">${Math.round(sg.from)}–${Math.round(sg.to)} km</td><td>${esc(sg.name)}</td><td class="wrap">${cell(sg)}</td></tr>`).join('');
     const rep = w.segs.map(x => x.reported).filter(Boolean).sort().pop();
     $('warnNote').textContent = `対象：${w.offices.join('・')}${rep ? '　発表 ' + F.fmtDT(Date.parse(rep)) : ''}　確認 ${F.fmtH(w.at)}。約 15 km ごとの地点で市区町村を判定しています（海上・河川上は判定できないことがあります）。${w.failed ? ' 一部の府県で取得に失敗しました。' : ''}`;
     renderNotice();
@@ -800,6 +822,7 @@ import { RW } from './core.js';
         try { const j = await (await fetch(JMA + `amedas/data/point/${pk.st.id}/${bucket}.json`)).json(); const ks = Object.keys(j).sort(); const k = ks[ks.length - 1]; return Object.assign({ time: k, obs: j[k] }, pk); }
         catch (e) { return Object.assign({ err: true }, pk); }
       }));
+      if (!state.course || RW.course.hashCourse(state.course) + ':' + (p.anchor ? Math.round(p.anchor.d) : 0) !== hash) return; // 取得中にコースが変わった
       state.amedas = { hash, at: Date.now(), latest, rows };
     } catch (e) { state.amedas = { hash, at: Date.now(), rows: [], error: e.message }; }
     renderAmedas();
@@ -913,7 +936,7 @@ import { RW } from './core.js';
     const arrowC = (x, y, angDeg, len, color, w) => { ctx.save(); ctx.translate(x, y); ctx.rotate(angDeg * Math.PI / 180); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-len / 2, 0); ctx.lineTo(len / 2, 0); ctx.stroke(); ctx.beginPath(); ctx.moveTo(len / 2 + 3, 0); ctx.lineTo(len / 2 - 14, -9); ctx.lineTo(len / 2 - 14, 9); ctx.closePath(); ctx.fill(); ctx.restore(); };
     let last = null;
     for (const pt of S) {
-      if (pt.na) continue;
+      if (pt.na || !pt.cls) continue;
       const a = px(pt.lat, pt.lon);
       if (last && Math.hypot(a[0] - last[0], a[1] - last[1]) < 56) continue;
       last = a; const ang = (pt.wd + 180) - 90; const len = (20 + pt.ws * 2.6) * 1.4;
