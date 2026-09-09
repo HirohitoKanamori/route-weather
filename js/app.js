@@ -326,7 +326,7 @@ import { RW } from './core.js';
     let h = card('', 'ゴール予定', F.fmtDT(sm.goal), A ? `現在地 ${Math.round(p.anchor.d)} km（${F.fmtH(p.anchor.t)}）から残り ${n1(rest)} km・${n1(Math.max(0, (+sm.goal - +p.anchor.t) / 3600e3))} h` : `経過 ${n1(sm.totalH)} h（仮眠 ${p.sleeps.reduce((a, s) => a + s.m, 0)} 分を含む）`);
     if (sm.nOk === 0) { $('summary').innerHTML = h; return; }
     h += card('head', L + '向かい風区間', `${sm.headKm} km`, `${rest > 0 ? Math.round(sm.headKm / rest * 100) : 0}% ／ 最大風速 ${sm.wsMax ? n1(sm.wsMax.ws) + ' m/s（' + Math.round(sm.wsMax.d) + ' km）' : '—'}`);
-    h += card('rain', L + '雨中走行', `${sm.rainKm} km`, sm.rainFirst ? `最初 ${Math.round(sm.rainFirst.d)} km（${F.fmtDT(sm.rainFirst.t)}）〜 最後 ${Math.round(Math.min(sm.rainLast.d + step, state.course.total))} km` : `${RAIN_MM} mm/h 以上の降水なし`);
+    h += card('rain', L + '雨中走行', `${sm.rainKm} km`, sm.rainFirst ? `${Math.round(sm.rainFirst.d)} km（${F.fmtDT(sm.rainFirst.t)}）〜 ${Math.round(Math.min(sm.rainLast.d + step, state.course.total))} km` : `${RAIN_MM} mm/h 以上の降水なし`);
     h += card('', A ? '以降の最低気温' : '最低気温', `${n1(sm.tmin.temp)}℃${sm.tmin.feel != null ? '<small class="sub">（体感 ' + n1(sm.tmin.feel) + '℃）</small>' : ''}`, `${Math.round(sm.tmin.d)} km、${F.fmtDT(sm.tmin.t)}${sm.tmax ? ' ／ 最高 ' + n1(sm.tmax.temp) + '℃' : ''}`);
     h += card('', L + '夜間走行', `${sm.nightKm} km`, '日没〜日の出の区間');
     $('summary').innerHTML = h;
@@ -471,7 +471,8 @@ import { RW } from './core.js';
     $('trendNote').textContent = `${M.gsm.label}（${M.gsm.grid}）。山岳部の風向は地形の影響を反映しません。「降水量 目安」は各区間の滞在時間 × 予報降水強度の合計です。`;
   }
   function renderTable() {
-    const { S, p } = state.result; const tb = $('segs').querySelector('tbody');
+    const { S, p, step } = state.result; const tb = $('segs').querySelector('tbody');
+    $('segsSum').textContent = `${step} km ごと・${S.length} 地点`;
     const rows = [];
     let si = 0;
     for (const pt of S) {
@@ -642,6 +643,7 @@ import { RW } from './core.js';
     const rows = RW.forecast.startComparison(state.course, p, state.series);
     const full = rows.filter(r => r.nOk === r.n);
     const best = (full.length ? full : rows).reduce((a, b) => b.score < a.score ? b : a);
+    $('startsSum').textContent = best ? `おすすめ ${F.fmtDT(best.start)}（向かい風 ${best.headKm} km・雨 ${best.rainKm} km）` : '';
     tb.innerHTML = rows.map(r => `<tr class="${r === best ? 'best' : ''}"><td>${F.fmtDT(r.start)}${r.off === 0 ? ' <span class="tag">設定</span>' : ''}${r.nOk < r.n ? ' <span class="tag">一部範囲外</span>' : ''}</td>
       <td class="n">${r.nOk ? r.headKm : '—'}</td><td class="n">${r.nOk ? r.rainKm : '—'}</td><td class="n">${r.tmin ? n1(r.tmin.temp) + '℃' : '—'}</td><td>${F.fmtDT(r.goal)}</td></tr>`).join('');
   }
