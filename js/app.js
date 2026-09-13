@@ -8,7 +8,7 @@ import { RW } from './core.js';
   const COL = { head: 'var(--head)', tail: 'var(--tail)', cross: 'var(--cross)' };
   const CACHE_MS = 30 * 60e3;
   const PAST_DAYS_MAX = RW.const.START_BACK_DAYS + 1; // 予報取得の過去日数。出走日時の下限（4 日前）を覆う
-  const state = { course: null, series: null, result: null, pinned: false, busy: false, offlineNote: '', collapsed: false, lastPos: null, forecastStale: '', posTarget: 'posMsg', startNote: '' };
+  const state = { course: null, series: null, result: null, pinned: false, busy: false, offlineNote: '', collapsed: false, lastPos: null, forecastStale: '', posTarget: 'gpsMsg', startNote: '' };
 
   // localStorage は私的ブラウズ等で例外になるので必ず握りつぶす
   const store = {
@@ -1204,15 +1204,6 @@ import { RW } from './core.js';
   $('addSeg').addEventListener('click', () => { addSegRow().querySelector('.sf').focus(); });
   ['ancD', 'ancT'].forEach(id => $(id).addEventListener('change', onParamChange));
   $('gps').addEventListener('click', gpsRefresh);
-  // R-25：デバッグ用の位置手入力。GPS 取得と同じ applyPosition を通す
-  $('dbgRun').addEventListener('click', () => {
-    const lat = +$('dbgLat').value, lon = +$('dbgLon').value;
-    if (!$('dbgLat').value || !$('dbgLon').value || !(Math.abs(lat) <= 90) || !(Math.abs(lon) <= 180)) { posMsg('緯度・経度を入力してください', 'err'); return; }
-    const acc = $('dbgAcc').value ? +$('dbgAcc').value : 20;
-    const t = $('dbgT').value ? Date.parse($('dbgT').value + ':00+09:00') : Date.now();
-    state.posTarget = 'posMsg';
-    applyPosition({ lat, lon, accuracy: acc, t, source: 'debug' });
-  });
   $('spd').addEventListener('change', onParamChange);
   // 出走日時を変えたら、現在位置からの再計算（隠れた現在地の固定）は解除する。残したままだと以降の通過時刻が更新されず「予報が変わらない」ように見えるため
   ['date', 'time'].forEach(id => $(id).addEventListener('change', () => {
