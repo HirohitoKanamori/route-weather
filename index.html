@@ -293,7 +293,8 @@
         </section>
 
         <section class="panel ribbon" id="ribbonWrap">
-          <div class="panelBar"><button type="button" class="btn small" id="share" title="リボンと要点を画像にして共有・保存">画像で共有</button></div>
+          <h2>タイムライン概要</h2>
+          <div class="panelBar"><button type="button" class="btn small" id="share" title="タイムライン概要と要点を画像にして共有・保存">画像で共有</button></div>
           <div id="ribbon"></div>
           <div class="tip" id="tip"></div>
           <div class="legend">
@@ -301,6 +302,7 @@
             <span><i class="swatch" style="background:var(--cross)"></i>横風</span>
             <span><i class="swatch" style="background:var(--tail)"></i>追い風</span>
             <span><i class="swatch" style="background:var(--rain)"></i>降水量 mm/h</span>
+            <span><i class="swatch" style="background:var(--rain);opacity:.2"></i>雨（0.5 mm/h 以上）</span>
             <span><i class="swatch" style="background:var(--night);opacity:.25"></i>夜間</span>
             <span><i class="swatch" style="background:var(--sleep);opacity:.45"></i>仮眠</span>
             <span><i class="swatch" style="background:var(--na);opacity:.5"></i>予報範囲外</span>
@@ -364,7 +366,7 @@
   </div>
 
   <footer class="src">
-    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.1.7</b></span><br>
+    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.2.0</b></span><br>
     <span class="disclaimer">予報は参考情報です。実際の天候と異なる場合があり、本サイトの利用により生じた損害について当方は責任を負いません。</span><br>
     出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。<span id="modelInfo"></span><br>
     注意報・警報、アメダス実況：気象庁ホームページ。市区町村の判定：国土地理院 逆ジオコーダ。地図：© OpenStreetMap contributors（ODbL）。コースファイルは端末内で処理し、外部に送信しません。FIT の読み込みには Garmin FIT SDK を使用しています。
