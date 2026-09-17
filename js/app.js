@@ -636,7 +636,7 @@ import { RW } from './core.js';
   // 略地図（静的）：OpenStreetMap の標準タイルを並べ、その上に SVG でコース線と風矢印を重ねる。Leaflet 非読込時のフォールバック
   function renderMapStatic() {
     const host = $('map'); const { S } = state.result; const P = state.course.pts;
-    const W = Math.max(260, Math.floor(host.clientWidth || 300)); const H = Math.round(Math.min(W * 0.85, 400)); const pad = 26;
+    const W = Math.max(260, Math.floor(host.clientWidth || 300)); const H = mapFS.open ? Math.max(200, host.clientHeight) : Math.round(Math.min(W * 0.85, 400)); const pad = 26;
     const lats = P.map(q => q.lat), lons = P.map(q => q.lon);
     const minLa = Math.min(...lats), maxLa = Math.max(...lats), minLo = Math.min(...lons), maxLo = Math.max(...lons);
     // Web メルカトルの世界ピクセル座標（ズーム z）
@@ -1162,6 +1162,37 @@ import { RW } from './core.js';
 
   // ===== 配線 =====
   $('share').addEventListener('click', async () => { try { await shareImage(); } catch (e) { setStatus('画像の共有に失敗しました：' + e.message, 'err'); } });
+  // ===== 地図の全画面表示（ADD_02）：#mapWrap にクラスを付けて画面に固定し、Leaflet は invalidateSize で広げる =====
+  const mapFS = { open: false, scrollY: 0, pushed: false };
+  function mapFullOpen() {
+    if (mapFS.open || !state.result) return;
+    mapFS.open = true; mapFS.scrollY = window.scrollY;
+    const wrap = $('mapWrap'); wrap.classList.add('fullscreen'); wrap.querySelector('.fsUi').setAttribute('aria-hidden', 'false');
+    document.documentElement.classList.add('noScroll'); document.body.classList.add('noScroll');
+    $('fsBtns').classList.toggle('hidden', !lmap); $('fsHere').classList.toggle('hidden', !(state.result.p && state.result.p.anchor));
+    try { history.pushState({ mapFull: true }, ''); mapFS.pushed = true; } catch (e) { mapFS.pushed = false; }
+    // 全画面 API が使える環境（Android Chrome・PC）では併用。iPhone Safari では未定義なので擬似全画面だけになる
+    if (document.fullscreenEnabled && wrap.requestFullscreen) { try { const r = wrap.requestFullscreen(); if (r && r.catch) r.catch(() => { /* 拒否されても擬似全画面で継続 */ }); } catch (e) { /* noop */ } }
+    requestAnimationFrame(() => { if (lmap) { lmap.invalidateSize(); lmap.scrollWheelZoom.enable(); } else renderMap(); });
+  }
+  // 閉じる処理の実体。×・Esc・全画面 API からの離脱・戻る操作のどれからでもここに集約する
+  function mapFullClose() {
+    if (!mapFS.open) return;
+    mapFS.open = false; mapFS.pushed = false;
+    const wrap = $('mapWrap'); wrap.classList.remove('fullscreen'); wrap.querySelector('.fsUi').setAttribute('aria-hidden', 'true');
+    document.documentElement.classList.remove('noScroll'); document.body.classList.remove('noScroll');
+    if (document.fullscreenElement && document.exitFullscreen) { try { const r = document.exitFullscreen(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* noop */ } }
+    requestAnimationFrame(() => { if (lmap) { lmap.invalidateSize(); lmap.scrollWheelZoom.disable(); } else if (state.result) renderMap(); window.scrollTo(0, mapFS.scrollY); });
+  }
+  // 利用者の操作（×・Esc・全画面 API の離脱）から閉じるとき：開くときに積んだ履歴を戻して popstate 側で閉じる（二重に閉じない）
+  function closeMapFull() { if (!mapFS.open) return; if (mapFS.pushed) { mapFS.pushed = false; history.back(); } else mapFullClose(); }
+  $('mapFull').addEventListener('click', mapFullOpen);
+  $('fsClose').addEventListener('click', closeMapFull);
+  $('fsFit').addEventListener('click', () => { if (lmap && state.course) lmap.fitBounds(L.latLngBounds(state.course.pts.map(q => [q.lat, q.lon])), { padding: [16, 16] }); });
+  $('fsHere').addEventListener('click', () => { const a = state.result && state.result.p.anchor; if (lmap && a) { const q = RW.course.interp(state.course, a.d); lmap.setView([q.lat, q.lon], Math.max(lmap.getZoom(), 13)); } });
+  window.addEventListener('popstate', () => { if (mapFS.open) mapFullClose(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && mapFS.open) closeMapFull(); });
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && mapFS.open) closeMapFull(); });
   $('shareMap').addEventListener('click', async () => { const b = $('shareMap'); b.disabled = true; b.textContent = '作成中…'; try { await shareMapImage(); } catch (e) { setStatus('地図画像の共有に失敗しました：' + e.message, 'err'); } finally { b.disabled = false; b.textContent = '地図を画像で共有'; } });
   $('theme').addEventListener('click', () => {
     const cur = document.documentElement.dataset.theme || 'auto';

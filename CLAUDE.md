@@ -44,3 +44,9 @@ V-6 本地図は Leaflet で実装済み（2026-09-05 に利用者が許可）�
 - `getCurrentPosition` を 1 回呼ぶ。`watchPosition` は使わない
 - NICT 時刻が取れなければ端末時計にフォールバックする。CORS の可否は実機で確認して結果を docs に記録する
 - デバッグ用の位置手入力（R-25）は実装・実機確認を終えたため v1.2.0 で画面から外した（2026-09-13）。再テストが必要なら git 履歴（v1.2.0 タグ直前）から戻す
+
+## 追加機能 ADD_02（地図の全画面表示）
+
+- 仕様は `docs/ADD_02.md`（v1.3.0 で実装済み）。Leaflet のインスタンスは再生成せず、`#mapWrap` のクラス切り替えと `invalidateSize()` で広げる
+- iPhone Safari は全画面 API が使えないため擬似全画面（`position: fixed` ＋ `100dvh`）。使える環境では `requestFullscreen` も併用する
+- 閉じる操作（×・Esc・`fullscreenchange`・`popstate`）は 1 つの関数（`mapFullClose`）に集約する

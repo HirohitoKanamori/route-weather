@@ -143,10 +143,10 @@
   details.fold[open]>summary::before{content:"▾"}
   details.fold[open]>summary{margin-bottom:4px}
   .ribbon svg{display:block;width:100%;height:auto;touch-action:pan-y}
-  .panelBar{display:flex;justify-content:flex-end;padding:0 2px 6px}
+  .panelBar{display:flex;justify-content:flex-end;gap:8px;padding:0 2px 6px}
   .btn.small{min-height:32px;font-size:12px;padding:0 10px}
-  .map .note .lg{display:inline-block;width:14px;height:4px;border-radius:2px;background:var(--c);vertical-align:middle;margin:0 2px 0 4px}
-  .map .note .lg.dash{background:none;border-top:2px dashed var(--na);height:0}
+  .map .lg{display:inline-block;width:14px;height:4px;border-radius:2px;background:var(--c);vertical-align:middle;margin:0 2px 0 4px}
+  .map .lg.dash{background:none;border-top:2px dashed var(--na);height:0}
   .lane-label{font-size:10px;fill:var(--ink-2)}
   .tick{font-size:10px;fill:var(--ink-2)}
   .tick.day{font-weight:700;fill:var(--ink)}
@@ -187,6 +187,23 @@
   .map .note{font-size:11px;color:var(--ink-2);margin:6px 4px 2px}
   /* Leaflet 本地図 */
   .map .leaflet{position:relative;border-radius:6px;overflow:hidden;background:var(--paper-2);z-index:0}
+  /* 地図の全画面表示（ADD_02）：Leaflet を作り直さず、入れ物を画面に固定して広げる */
+  .map .fsUi{display:none}
+  .map.fullscreen{position:fixed;inset:0;z-index:5000;margin:0;padding:0;border:0;border-radius:0;height:100vh;background:var(--paper-2)}
+  @supports (height:100dvh){ .map.fullscreen{height:100dvh} }
+  .map.fullscreen h2,.map.fullscreen .panelBar,.map.fullscreen .note{display:none}
+  .map.fullscreen #map,.map.fullscreen .leaflet,.map.fullscreen .osm{width:100%!important;height:100%!important;border-radius:0;margin:0}
+  .map.fullscreen .fsUi{display:block}
+  .map.fullscreen .leaflet-top{top:env(safe-area-inset-top,0px)} .map.fullscreen .leaflet-left{left:env(safe-area-inset-left,0px)}
+  .map.fullscreen .leaflet-bottom{bottom:env(safe-area-inset-bottom,0px)} .map.fullscreen .leaflet-right{right:env(safe-area-inset-right,0px)}
+  .fsUi .fsClose{position:absolute;z-index:2;top:calc(10px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));width:48px;height:48px;border-radius:50%;
+    border:3px solid var(--card);background:var(--ink);color:var(--paper);font-size:26px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+  .fsUi .fsBtns{position:absolute;z-index:2;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px}
+  .fsUi .fsBtns .btn{box-shadow:0 2px 8px rgba(0,0,0,.3);font-weight:600}
+  .fsUi .fsLegend{position:absolute;z-index:2;left:0;right:0;bottom:calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-wrap:wrap;justify-content:center;gap:2px 5px;
+    padding:5px calc(4px + env(safe-area-inset-left,0px)) 5px calc(4px + env(safe-area-inset-right,0px));font-size:10px;white-space:nowrap;line-height:1.4;color:var(--ink);background:var(--card);opacity:.92;pointer-events:none}
+  .fsUi .fsLegend .lg{margin:0 2px 0 0;width:11px} .fsUi .fsLegend .swatch{margin-right:2px;width:9px;height:9px}
+  html.noScroll,body.noScroll{overflow:hidden;height:100%}
   .leaflet-container{font-family:inherit;background:var(--paper-2)}
   .leaflet-tile-pane{filter:var(--map-filter)}
   .windIcon{background:none;border:0}
@@ -305,8 +322,14 @@
 
           <section class="panel map" id="mapWrap">
           <h2>地図と風向</h2>
-          <div class="panelBar"><button type="button" class="btn small" id="shareMap" title="コース全体の地図を正方形の画像にして共有・保存">地図を画像で共有</button></div>
+          <div class="panelBar"><button type="button" class="btn small" id="mapFull" title="地図を画面いっぱいに表示">全画面</button><button type="button" class="btn small" id="shareMap" title="コース全体の地図を正方形の画像にして共有・保存">地図を画像で共有</button></div>
           <div id="map"></div>
+          <div class="fsUi" aria-hidden="true">
+            <button type="button" class="fsClose" id="fsClose" aria-label="全画面を閉じる" title="閉じる">×</button>
+            <div class="fsBtns" id="fsBtns"><button type="button" class="btn small" id="fsFit">全体</button><button type="button" class="btn small hidden" id="fsHere">現在地</button></div>
+            <div class="fsLegend"><span><span class="lg" style="--c:var(--wx-rain)"></span>雨</span><span><span class="lg" style="--c:var(--wx-cloud)"></span>曇り</span><span><span class="lg" style="--c:var(--wx-sun)"></span>晴れ</span><span><span class="lg dash"></span>予報範囲外</span>
+              <span><i class="swatch" style="background:var(--head)"></i>向かい風</span><span><i class="swatch" style="background:var(--cross)"></i>横風</span><span><i class="swatch" style="background:var(--tail)"></i>追い風</span><span>»進行方向</span></div>
+          </div>
         </section>
         <details class="panel fold hidden" id="warnWrap">
           <summary>通過区域の注意報・警報 <span class="sumLine" id="warnSum"></span></summary>
@@ -348,7 +371,7 @@
   </div>
 
   <footer class="src">
-    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.2.0</b></span><br>
+    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.3.0</b></span><br>
     <span class="disclaimer">予報は参考情報です。実際の天候と異なる場合があり、本サイトの利用により生じた損害について当方は責任を負いません。</span><br>
     出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。<span id="modelInfo"></span><br>
     注意報・警報、アメダス実況：気象庁ホームページ。市区町村の判定：国土地理院 逆ジオコーダ。地図：© OpenStreetMap contributors（ODbL）。コースファイルは端末内で処理し、外部に送信しません。FIT の読み込みには Garmin FIT SDK を使用しています。
