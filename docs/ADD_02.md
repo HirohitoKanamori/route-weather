@@ -120,3 +120,4 @@
 ## 10. 変更履歴
 
 - v1.3.0（2026-09-18）：本仕様のとおり実装。`#mapWrap` に `fullscreen` クラスを付け外しし、Leaflet は `invalidateSize()` で広げる。閉じる操作（×・Esc・`fullscreenchange`・`popstate`）は `mapFullClose()` に集約し、利用者操作からは `history.back()` を経由して popstate 側で閉じる。全画面中は `scrollWheelZoom` を有効化。静的地図のときは入れ物の高さで描き直し、ズーム・「全体」「現在地」ボタンは出さない。凡例は下端の半透明帯（幅 390 px で 1 行。それより狭い画面では折り返す）。開いた直後の位置・ズームは通常表示のまま（「全体」で全体表示に戻せる）
+- 2026-09-18：iPhone・Android の実機で受け入れ条件を確認（利用者）。問題なし
