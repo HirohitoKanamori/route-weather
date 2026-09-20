@@ -8,16 +8,16 @@ Ride with GPS 公式 API v1 への転送だけを行う Cloudflare Worker。役�
 
 ## 初回の準備（利用者が行う。鍵は Claude に渡さない）
 
-1. Ride with GPS で API クライアントを作る：https://ridewithgps.com/api/api_clients → 名称を登録し、`api_key` を控える。同じページでそのクライアントの「認証トークン（auth token）」を作り、これも控える（運用者アカウントのトークン。Stage 1 では OAuth の redirect URI と client_secret は使わない）
+1. Ride with GPS で API クライアントを作る：https://ridewithgps.com/api/api_clients → 名称を登録し、`api_key` を控える。（「Create new Auth Token」ボタンは組織アカウント専用で、個人アカウントでは使えない。Stage 1 では OAuth の redirect URI と client_secret は使わない）
 2. Cloudflare のアカウントを作り、Node.js が入った手元で wrangler にログインする
    ```bash
    cd worker && npx wrangler login
    ```
-3. 鍵とトークンを秘密として登録する（対話で貼り付ける。ファイルには書かない）
+3. 鍵とトークンを秘密として登録する。個人アカウントの認証トークンは `POST /api/v1/auth_tokens.json`（メールアドレスとパスワード）で発行するため、発行→認証確認→登録をまとめたスクリプトを使う（値は画面に出ない。パスワードは RwGPS にしか送らない）
    ```bash
-   cd worker && npx wrangler secret put RWGPS_API_KEY
-   cd worker && npx wrangler secret put RWGPS_AUTH_TOKEN
+   cd worker && bash setup-secrets.sh
    ```
+   手で登録する場合は `npx wrangler secret put RWGPS_API_KEY`、`npx wrangler secret put RWGPS_AUTH_TOKEN`
 4. 配置する
    ```bash
    cd worker && npx wrangler deploy
