@@ -5,6 +5,15 @@
 const DEFAULT_UPSTREAM = 'https://ridewithgps.com';
 const DEFAULT_ORIGINS = 'https://route-weather.jp';
 
+// 上流への認証ヘッダー。運用者の OAuth アクセストークン（RWGPS_ACCESS_TOKEN、Bearer）があればそれを使い、
+// 無ければ api_key ＋ 認証トークン（RWGPS_API_KEY ＋ RWGPS_AUTH_TOKEN）。どちらも無ければ null（未設定）
+function authHeaders(env) {
+  const t = v => String(v || '').trim(); // 貼り付け時の改行・空白を除く
+  const access = t(env.RWGPS_ACCESS_TOKEN); if (access) return { authorization: 'Bearer ' + access };
+  const apiKey = t(env.RWGPS_API_KEY), authToken = t(env.RWGPS_AUTH_TOKEN);
+  if (apiKey && authToken) return { 'x-rwgps-api-key': apiKey, 'x-rwgps-auth-token': authToken, authorization: 'Basic ' + btoa(apiKey + ':' + authToken) };
+  return null;
+}
 function allowedOrigins(env) { return String(env.ALLOWED_ORIGINS || DEFAULT_ORIGINS).split(',').map(s => s.trim()).filter(Boolean); }
 function json(status, body, extra) {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...(extra || {}) } });
@@ -22,14 +31,20 @@ export default {
     const origin = req.headers.get('Origin') || '';
     const ok = allowedOrigins(env).includes(origin);
     if (url.pathname === '/health') return new Response('ok', { headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' } });
+    if (url.pathname === '/diag') { // 一時的な診断：秘密の形（長さ・余計な文字）と、上流の認証結果だけを返す（値は返さない）
+      const shape = v => { const x = String(v || ''); return { len: x.length, trimmedLen: x.trim().length, quotes: /["']/.test(x), nonWord: (x.trim().match(/[^A-Za-z0-9_-]/g) || []).length }; };
+      const out = { apiKey: shape(env.RWGPS_API_KEY), authToken: shape(env.RWGPS_AUTH_TOKEN), accessToken: shape(env.RWGPS_ACCESS_TOKEN), mode: authHeaders(env) ? (env.RWGPS_ACCESS_TOKEN ? 'bearer' : 'basic') : 'none' };
+      try { const r = await fetch(`${env.UPSTREAM || DEFAULT_UPSTREAM}/api/v1/users/current.json`, { headers: { accept: 'application/json', ...(authHeaders(env) || {}) } }); const b = await r.text(); out.usersCurrent = { status: r.status, body: r.status === 200 ? (JSON.parse(b).user || {}).id : b.slice(0, 80) }; } catch (e) { out.usersCurrent = { error: String(e) }; }
+      return json(200, out);
+    }
     const m = url.pathname.match(/^\/rwgps\/routes\/(\d{1,12})$/);
     if (!m) return json(404, { errors: ['not found'] });
     if (req.method === 'OPTIONS') return ok ? withCors(new Response(null, { status: 204 }), origin) : json(403, { errors: ['origin not allowed'] });
     if (req.method !== 'GET') return json(405, { errors: ['method not allowed'] });
     if (!ok) return json(403, { errors: ['origin not allowed'] }); // ブラウザ以外（Origin 無し）からの利用も受けない
     // 公式 API はルート取得でも api_key と auth_token（API クライアント管理ページで作る、運用者アカウントのトークン）の両方が要る
-    const apiKey = String(env.RWGPS_API_KEY || '').trim(), authToken = String(env.RWGPS_AUTH_TOKEN || '').trim(); // 貼り付け時の改行・空白を除く
-    if (!apiKey || !authToken) return withCors(json(503, { errors: ['relay not configured'] }), origin);
+    const auth = authHeaders(env);
+    if (!auth) return withCors(json(503, { errors: ['relay not configured'] }), origin);
     const up = new URL(`${env.UPSTREAM || DEFAULT_UPSTREAM}/api/v1/routes/${m[1]}.json`);
     const pc = url.searchParams.get('privacy_code'); if (pc && /^[A-Za-z0-9_-]{1,64}$/.test(pc)) up.searchParams.set('privacy_code', pc);
     // 同じルートの取り直しは 10 分キャッシュ（Cache API は独自ドメインでのみ有効。workers.dev では素通り）
@@ -38,7 +53,7 @@ export default {
     let res = cache ? await cache.match(cacheKey) : null;
     if (!res) {
       let r;
-      try { r = await fetch(up.toString(), { headers: { 'x-rwgps-api-key': apiKey, 'x-rwgps-auth-token': authToken, 'authorization': 'Basic ' + btoa(apiKey + ':' + authToken), 'accept': 'application/json', 'user-agent': 'route-weather.jp relay (+https://route-weather.jp/)' } }); }
+      try { r = await fetch(up.toString(), { headers: { ...auth, 'accept': 'application/json', 'user-agent': 'route-weather.jp relay (+https://route-weather.jp/)' } }); }
       catch (e) { return withCors(json(502, { errors: ['upstream unreachable'] }), origin); }
       const body = await r.text();
       res = new Response(body, { status: r.status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': r.ok ? 'public, max-age=600' : 'no-store' } });

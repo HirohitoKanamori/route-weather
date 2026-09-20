@@ -41,3 +41,10 @@ test('上流の 403／404 はそのまま、接続失敗は 502、鍵・トー�
   assert.equal((await call('/rwgps/routes/2', { headers: { Origin: ORIGIN } }, { ALLOWED_ORIGINS: ORIGIN })).status, 503);
   assert.equal((await call('/rwgps/routes/2', { headers: { Origin: ORIGIN } }, { ALLOWED_ORIGINS: ORIGIN, RWGPS_API_KEY: 'k' })).status, 503);
 });
+
+test('OAuth のアクセストークンがあれば Bearer だけで転送する', async () => {
+  let seen = null;
+  const r = await withUpstream(async (u, init) => { seen = init.headers; return new Response('{"route":{}}', { status: 200 }); },
+    () => call('/rwgps/routes/3', { headers: { Origin: ORIGIN } }, { ...env, RWGPS_ACCESS_TOKEN: ' at-1 ' }));
+  assert.equal(r.status, 200); assert.equal(seen.authorization, 'Bearer at-1'); assert.equal(seen['x-rwgps-api-key'], undefined);
+});

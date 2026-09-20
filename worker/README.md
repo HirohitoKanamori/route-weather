@@ -18,6 +18,11 @@ Ride with GPS 公式 API v1 への転送だけを行う Cloudflare Worker。役�
    cd worker && bash setup-secrets.sh
    ```
    手で登録する場合は `npx wrangler secret put RWGPS_API_KEY`、`npx wrangler secret put RWGPS_AUTH_TOKEN`
+   パスワード認証が通らないアカウント（2026-09-21 の運用者アカウントがこれに該当）では、代わりに OAuth で運用者のアクセストークンを発行して `RWGPS_ACCESS_TOKEN` に登録する。管理ページで OAuth を有効にし redirect URI に `https://route-weather.jp/` を登録してから：
+   ```bash
+   cd worker && bash setup-oauth.sh
+   ```
+   `RWGPS_ACCESS_TOKEN` があれば中継は Bearer で呼び、api_key ＋ 認証トークンは使わない
 4. 配置する
    ```bash
    cd worker && npx wrangler deploy
