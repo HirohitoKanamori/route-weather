@@ -11,6 +11,9 @@ import { RW } from './core.js';
   // Ride with GPS 連携（ADD_03、試験運用中）：公式 API v1 への転送だけを行う中継（Cloudflare Workers）の URL。
   // 未設定（空）なら機能を案内文だけにする。確認用に ?relay=http://localhost:8787 で差し替えられる
   const RWGPS_RELAY = 'https://route-weather-relay.route-weather.workers.dev';
+  // Stage 2 の検証（OAuth の往復だけ）：client_id は秘密ではない（authorize の URL に載る値）。redirect_uri は API クライアントに登録した値と一致させる
+  const RWGPS_CLIENT_ID = '';
+  const RWGPS_REDIRECT = 'https://route-weather.jp/';
   const state = { course: null, series: null, result: null, pinned: false, busy: false, offlineNote: '', collapsed: false, lastPos: null, forecastStale: '', posTarget: 'gpsMsg', startNote: '' };
 
   // localStorage は私的ブラウズ等で例外になるので必ず握りつぶす
@@ -180,6 +183,32 @@ import { RW } from './core.js';
       setCourse(course);
     } catch (err) { setStatus('読み込みに失敗しました：' + err.message, 'err'); }
     finally { btn.disabled = false; }
+  }
+  // ===== ADD_03 Stage 2 の検証：Ride with GPS のログイン画面へ行って戻れるか（PWA・Safari・Android）を確かめる。トークン交換はまだ行わない =====
+  const isStandalone = () => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } };
+  function rwgpsAuthStart() {
+    if (!RWGPS_CLIENT_ID) { setStatus('Ride with GPS との連携は準備中です（client_id 未設定）', 'err'); return; }
+    const st = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    store.set('rw:oauthState', { st, at: Date.now(), standalone: isStandalone() });
+    const u = new URL('https://ridewithgps.com/oauth/authorize');
+    u.searchParams.set('client_id', RWGPS_CLIENT_ID); u.searchParams.set('redirect_uri', RWGPS_REDIRECT); u.searchParams.set('response_type', 'code'); u.searchParams.set('state', st);
+    location.assign(u.toString());
+  }
+  // 戻り先（?code=…）で呼ぶ。結果を画面に出し、URL から code を消す。code は使わずに捨てる（検証段階）
+  function rwgpsAuthReturn() {
+    let q; try { q = new URLSearchParams(location.search); } catch (e) { return; }
+    const code = q.get('code'), err = q.get('error'); if (!code && !err) return;
+    const saved = store.get('rw:oauthState'); store.del('rw:oauthState');
+    const st = q.get('state');
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* noop */ }
+    const rows = [];
+    if (err) rows.push(`Ride with GPS から拒否されました：${esc(err)}${q.get('error_description') ? '（' + esc(q.get('error_description')) + '）' : ''}`);
+    else rows.push(`認可コードを受け取りました（${code.length} 文字。この段階では使わずに破棄します）`);
+    rows.push(`state：${st ? (saved && saved.st === st ? '一致（同じ画面に戻れました）' : '不一致または開始記録なし（別のブラウザで開かれた可能性）') : '返却なし'}`);
+    rows.push(`開始時：${saved ? (saved.standalone ? 'ホーム画面（PWA）' : 'ブラウザ') : '不明'} → 戻り先：${isStandalone() ? 'ホーム画面（PWA）' : 'ブラウザ'}`);
+    const el = $('rwgpsAuthMsg'); el.className = 'posMsg' + (err ? ' err' : ''); el.innerHTML = rows.join('<br>');
+    const d = document.querySelector('details.settings'); if (d) d.open = true;
+    setTimeout(() => { try { el.scrollIntoView({ block: 'center' }); } catch (e) { /* noop */ } }, 300);
   }
   function setCourse(course) {
     state.course = course; state.series = null; state.result = null; state.offlineNote = '';
@@ -1230,6 +1259,7 @@ import { RW } from './core.js';
   renderTheme();
   if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('./sw.js').catch(() => { /* 未対応・失敗時は通常動作 */ }); }
   $('rwgpsGo').addEventListener('click', () => loadRwgps($('rwgpsUrl').value));
+  $('rwgpsAuth').addEventListener('click', rwgpsAuthStart);
   $('rwgpsUrl').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); loadRwgps(e.target.value); } });
   $('file').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) loadFile(f); });
   const lb = $('loadBtn'); // PC 向けの補助：ドラッグ＆ドロップ
@@ -1296,6 +1326,7 @@ import { RW } from './core.js';
     const rl = q.get('relay'); if (rl && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(rl)) state.relay = rl; // 中継のローカル確認用（localhost のみ）
   } catch (e) { /* noop */ }
   loadParams(); renderRecent();
+  rwgpsAuthReturn(); // OAuth の戻り先なら結果を表示（検証段階）
   const last = store.get('rw:last');
   const savedCourse = (last && last.course) || store.get('rw:course');
   if (savedCourse && savedCourse.pts && savedCourse.pts.length > 1) {
