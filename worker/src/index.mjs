@@ -31,12 +31,6 @@ export default {
     const origin = req.headers.get('Origin') || '';
     const ok = allowedOrigins(env).includes(origin);
     if (url.pathname === '/health') return new Response('ok', { headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' } });
-    if (url.pathname === '/diag') { // 一時的な診断：秘密の形（長さ・余計な文字）と、上流の認証結果だけを返す（値は返さない）
-      const shape = v => { const x = String(v || ''); return { len: x.length, trimmedLen: x.trim().length, quotes: /["']/.test(x), nonWord: (x.trim().match(/[^A-Za-z0-9_-]/g) || []).length }; };
-      const out = { apiKey: shape(env.RWGPS_API_KEY), authToken: shape(env.RWGPS_AUTH_TOKEN), accessToken: shape(env.RWGPS_ACCESS_TOKEN), mode: authHeaders(env) ? (env.RWGPS_ACCESS_TOKEN ? 'bearer' : 'basic') : 'none' };
-      try { const r = await fetch(`${env.UPSTREAM || DEFAULT_UPSTREAM}/api/v1/users/current.json`, { headers: { accept: 'application/json', ...(authHeaders(env) || {}) } }); const b = await r.text(); out.usersCurrent = { status: r.status, body: r.status === 200 ? (JSON.parse(b).user || {}).id : b.slice(0, 80) }; } catch (e) { out.usersCurrent = { error: String(e) }; }
-      return json(200, out);
-    }
     const m = url.pathname.match(/^\/rwgps\/routes\/(\d{1,12})$/);
     if (!m) return json(404, { errors: ['not found'] });
     if (req.method === 'OPTIONS') return ok ? withCors(new Response(null, { status: 204 }), origin) : json(403, { errors: ['origin not allowed'] });

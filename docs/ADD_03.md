@@ -28,7 +28,7 @@
 |---|---|
 | R-1 | 読み込み手順の下に「Ride with GPS のルート URL から読み込む（試験運用中）」の入力欄と「読み込む」ボタンを置く。Enter でも実行 |
 | R-2 | 貼り付け文から `ridewithgps.com/routes/(\d+)` と、その後ろの `privacy_code` を取り出す（`RW.rwgps.parseUrl`）。見つからなければ例を添えて案内 |
-| R-3 | 中継の `GET /rwgps/routes/:id?privacy_code=` を呼ぶ。中継は Origin を許可リストで限定し、`x-rwgps-api-key` と `x-rwgps-auth-token`（運用者アカウントのトークン。公式 API は公開ルートでも両方が必須。2026-09-21 に実配置で確認）を付けて公式 API へ転送、本文と状態をそのまま返す。内容は保存・記録しない |
+| R-3 | 中継の `GET /rwgps/routes/:id?privacy_code=` を呼ぶ。中継は Origin を許可リストで限定し、運用者アカウントの OAuth アクセストークン（`RWGPS_ACCESS_TOKEN`、`Authorization: Bearer`）を付けて公式 API へ転送、本文と状態をそのまま返す。内容は保存・記録しない。公式 API は公開ルートでも利用者認証が必須（api_key 単体では 401。2026-09-21 に実配置で確認） |
 | R-4 | 応答の `route.track_points`（x=経度、y=緯度、e=標高）を既存の `fromPoints` でコースにする（`RW.rwgps.toCourse`）。コース名は `route.name`。`course.source` に番号と URL を残し、コース欄に「Ride with GPS #番号」を出す |
 | R-5 | 文言：403＝非公開（公開にするか共有リンクを貼る）、404＝番号を確認、401＝中継の設定不備、503＝中継未設定、通信失敗＝圏外の案内。読み込めたら従来どおり最近のコースに保存して予報取得へ |
 | R-6 | 中継 URL は `js/app.js` の `RWGPS_RELAY`。空なら「準備中」と案内。`?relay=http://localhost:…` で確認用に差し替え可（localhost のみ） |
@@ -42,4 +42,5 @@
 
 ## 5. 変更履歴
 
+- v1.4.0（2026-09-21）：配置時の知見。公式 API は公開ルートの取得にも api_key に加えて利用者の認証が要る。個人アカウントの認証トークン発行（`POST /api/v1/auth_tokens.json`、メール＋パスワード）は運用者アカウントで「Failed to authenticate the user」となり通らなかったため、OAuth（authorize → `POST /oauth/token.json`）で運用者のアクセストークンを 1 回発行し、中継の秘密 `RWGPS_ACCESS_TOKEN` に登録する方式にした（`worker/setup-oauth.sh`）。トークンの有効期限は文書化されておらず、失効したら同じ手順で発行し直す
 - v1.4.0（2026-09-21）：Stage 1 を実装。`js/core.js` に `rwgps.parseUrl`／`rwgps.toCourse`、`worker/`（`src/index.mjs`、`wrangler.toml`、README）、`test/rwgps.test.mjs`・`test/relay.test.mjs` を追加
