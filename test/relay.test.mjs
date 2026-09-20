@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import worker from '../worker/src/index.mjs';
 
 const ORIGIN = 'https://route-weather.jp';
-const env = { RWGPS_API_KEY: 'k-test', RWGPS_AUTH_TOKEN: 't-test', ALLOWED_ORIGINS: ORIGIN + ',http://localhost:8766' };
+const env = { RWGPS_API_KEY: 'k-test\n', RWGPS_AUTH_TOKEN: ' t-test ', ALLOWED_ORIGINS: ORIGIN + ',http://localhost:8766' };
 const call = (path, init = {}, e = env) => worker.fetch(new Request('https://relay.example' + path, init), e, { waitUntil() {} });
 const withUpstream = async (handler, fn) => { const orig = globalThis.fetch; globalThis.fetch = handler; try { return await fn(); } finally { globalThis.fetch = orig; } };
 
@@ -28,7 +28,7 @@ test('鍵を付けて公式 API に転送し、privacy_code を引き継ぎ、�
   const r = await withUpstream(async (u, init) => { seen = { u: String(u), h: init.headers }; return new Response('{"route":{"id":1,"track_points":[]}}', { status: 200 }); },
     () => call('/rwgps/routes/1?privacy_code=Ab-9_x&junk=1', { headers: { Origin: 'http://localhost:8766' } }));
   assert.equal(seen.u, 'https://ridewithgps.com/api/v1/routes/1.json?privacy_code=Ab-9_x');
-  assert.equal(seen.h['x-rwgps-api-key'], 'k-test'); assert.equal(seen.h['x-rwgps-auth-token'], 't-test');
+  assert.equal(seen.h['x-rwgps-api-key'], 'k-test'); assert.equal(seen.h['x-rwgps-auth-token'], 't-test'); assert.equal(seen.h['authorization'], 'Basic ' + Buffer.from('k-test:t-test').toString('base64'));
   assert.equal(r.status, 200); assert.equal(r.headers.get('access-control-allow-origin'), 'http://localhost:8766');
   assert.deepEqual(await r.json(), { route: { id: 1, track_points: [] } });
 });

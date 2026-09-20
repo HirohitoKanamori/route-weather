@@ -28,7 +28,8 @@ export default {
     if (req.method !== 'GET') return json(405, { errors: ['method not allowed'] });
     if (!ok) return json(403, { errors: ['origin not allowed'] }); // ブラウザ以外（Origin 無し）からの利用も受けない
     // 公式 API はルート取得でも api_key と auth_token（API クライアント管理ページで作る、運用者アカウントのトークン）の両方が要る
-    if (!env.RWGPS_API_KEY || !env.RWGPS_AUTH_TOKEN) return withCors(json(503, { errors: ['relay not configured'] }), origin);
+    const apiKey = String(env.RWGPS_API_KEY || '').trim(), authToken = String(env.RWGPS_AUTH_TOKEN || '').trim(); // 貼り付け時の改行・空白を除く
+    if (!apiKey || !authToken) return withCors(json(503, { errors: ['relay not configured'] }), origin);
     const up = new URL(`${env.UPSTREAM || DEFAULT_UPSTREAM}/api/v1/routes/${m[1]}.json`);
     const pc = url.searchParams.get('privacy_code'); if (pc && /^[A-Za-z0-9_-]{1,64}$/.test(pc)) up.searchParams.set('privacy_code', pc);
     // 同じルートの取り直しは 10 分キャッシュ（Cache API は独自ドメインでのみ有効。workers.dev では素通り）
@@ -37,7 +38,7 @@ export default {
     let res = cache ? await cache.match(cacheKey) : null;
     if (!res) {
       let r;
-      try { r = await fetch(up.toString(), { headers: { 'x-rwgps-api-key': env.RWGPS_API_KEY, 'x-rwgps-auth-token': env.RWGPS_AUTH_TOKEN, 'accept': 'application/json', 'user-agent': 'route-weather.jp relay (+https://route-weather.jp/)' } }); }
+      try { r = await fetch(up.toString(), { headers: { 'x-rwgps-api-key': apiKey, 'x-rwgps-auth-token': authToken, 'authorization': 'Basic ' + btoa(apiKey + ':' + authToken), 'accept': 'application/json', 'user-agent': 'route-weather.jp relay (+https://route-weather.jp/)' } }); }
       catch (e) { return withCors(json(502, { errors: ['upstream unreachable'] }), origin); }
       const body = await r.text();
       res = new Response(body, { status: r.status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': r.ok ? 'public, max-age=600' : 'no-store' } });
