@@ -12,8 +12,8 @@ V-6 本地図は Leaflet で実装済み（2026-09-05 に利用者が許可）�
 
 ## 守ること
 
-- 静的サイト。ビルド手順・サーバ側処理を作らない。構成は `index.html`（HTML/CSS）＋ `js/core.js`（純粋関数、ES Module）＋ `js/app.js`（画面・取得層）＋ PWA 用の `sw.js`・`manifest.webmanifest`・`icons/`。`vendor/` を更新したら `sw.js` の VERSION を上げる
-- コースファイルは端末内で処理する。外部に送らない
+- 静的サイト。ビルド手順を作らない。サーバ側処理は `worker/` の中継 1 本（Ride with GPS 公式 API への転送のみ。ADD_03）に限り、それ以外は作らない。構成は `index.html`（HTML/CSS）＋ `js/core.js`（純粋関数、ES Module）＋ `js/app.js`（画面・取得層）＋ PWA 用の `sw.js`・`manifest.webmanifest`・`icons/`。`vendor/` を更新したら `sw.js` の VERSION を上げる
+- ファイルから読み込んだコースは端末内で処理し、外部に送らない。Ride with GPS 連携ではルート番号と privacy_code だけを中継経由で送り、中継はルートの内容を保存・記録しない（フッターの文言と一致させる）
 - 予報は気象庁モデルのみ。Open-Meteo `/v1/jma` で、4 日先まで `jma_msm`、5〜11 日先は `jma_gsm`。気象庁以外のモデル（`/v1/forecast` 等）は使わない。11 日より先は「予報範囲外」。4 日より先は「傾向モード」として粒度を落として表示する（RDD_06 F-8／F-9／V-11）
 - 気象庁ホームページ（`www.jma.go.jp/bosai/`）への直接アクセスは注意報・警報（`warning/data/r8/`、2026 年改正後の形式。旧 `warning/data/warning/` は更新停止）・アメダス・区域表に限る。市区町村の判定は国土地理院の逆ジオコーダを使い、結果は端末内に保持して同じ地点を再送しない
 - 地図は OpenStreetMap 標準タイル（モノクロ表示）。利用ポリシーに従い、表示範囲外の一括取得はしない。出典表示を常時見せる
@@ -50,3 +50,10 @@ V-6 本地図は Leaflet で実装済み（2026-09-05 に利用者が許可）�
 - 仕様は `docs/ADD_02.md`（v1.3.0 で実装済み）。Leaflet のインスタンスは再生成せず、`#mapWrap` のクラス切り替えと `invalidateSize()` で広げる
 - iPhone Safari は全画面 API が使えないため擬似全画面（`position: fixed` ＋ `100dvh`）。使える環境では `requestFullscreen` も併用する
 - 閉じる操作（×・Esc・`fullscreenchange`・`popstate`）は 1 つの関数（`mapFullClose`）に集約する
+
+## 追加機能 ADD_03（Ride with GPS 連携）
+
+- 仕様と調査結果は `docs/ADD_03.md`。Stage 1（公開ルートの URL 貼り付け、C-5）は v1.4.0 で実装。Stage 2（OAuth、C-6）は未着手
+- RwGPS は公式 API v1（`/api/v1/routes/{id}.json`、`x-rwgps-api-key`）だけを使う。鍵なしで取れる旧 `/routes/{id}.json` は非公式なので使わない
+- 中継は `worker/src/index.mjs`（Cloudflare Workers、workers.dev、手元から `npx wrangler deploy`）。Origin を許可リストで限定し、秘密（`RWGPS_API_KEY`）は `wrangler secret` で登録する。秘密を repo や会話に置かない
+- 中継の URL は `js/app.js` の `RWGPS_RELAY`。ローカル確認は `?relay=http://localhost:8787`（localhost のみ受け付ける）

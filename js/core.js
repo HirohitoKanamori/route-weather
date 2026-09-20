@@ -453,8 +453,29 @@ export const RW = (function () {
     return 'cloud';
   }
 
+  // ===== Ride with GPS 連携（ADD_03）：共有 URL の解析と API JSON → コース =====
+  // 貼り付けられた文（URL 単体でも、アプリの共有文でも）からルート番号と privacy_code を取り出す
+  function parseRwgpsUrl(text) {
+    const s = String(text || '');
+    const m = s.match(/ridewithgps\.com\/routes\/(\d+)/i);
+    if (!m) return null;
+    const pc = s.slice(m.index).match(/[?&]privacy_code=([A-Za-z0-9_-]+)/);
+    return { id: m[1], privacyCode: pc ? pc[1] : null };
+  }
+  // 公式 API v1 の routes/{id}.json（{ route: { name, track_points: [{x,y,e,d}] } }）を既存のコース構造に変換する
+  function rwgpsToCourse(json) {
+    const r = json && (json.route || json);
+    const tp = r && Array.isArray(r.track_points) ? r.track_points : null;
+    if (!tp || tp.length < 2) throw new Error('ルートに点列（track_points）がありません');
+    const raw = tp.map(p => ({ lat: +p.y, lon: +p.x, ele: p.e == null || !Number.isFinite(+p.e) ? null : +p.e }));
+    const course = fromPoints(raw, r.name ? String(r.name) : 'Ride with GPS のルート');
+    if (r.id != null) course.source = { kind: 'rwgps', id: String(r.id), url: 'https://ridewithgps.com/routes/' + r.id };
+    return course;
+  }
+
   return {
     const: { RAIN_MM, TAIL_DEG, HEAD_DEG, MAX_PTS, HOURLY, MODELS, START_BACK_DAYS },
+    rwgps: { parseUrl: parseRwgpsUrl, toCourse: rwgpsToCourse },
     fmt: { jstParts, fmtH, fmtT, fmtDT, dateKey, ymd, nextStart, minStart },
     course: { hav, bearing, fromPoints, elevationGain, interp, headingAt, reverseCourse, hashCourse },
     plan: { normSleeps, normSegments, rideHours, sleepHours, elapsedH, timeAt, distAtTime, sampleStep, samplePoints, timeNodes, hourTicks },

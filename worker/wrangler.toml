@@ -1,0 +1,12 @@
+# Route-Weather.jp 中継（ADD_03）。配置は手元から：cd worker && npx wrangler deploy
+name = "route-weather-relay"
+main = "src/index.mjs"
+compatibility_date = "2025-06-01"
+workers_dev = true
+
+[vars]
+# 許可する呼び出し元（カンマ区切り）。ローカル確認時は http://localhost:8766 を足す
+ALLOWED_ORIGINS = "https://route-weather.jp,https://hirohitokanamori.github.io"
+
+# 秘密は wrangler secret put で登録する（このファイルには書かない）
+#   npx wrangler secret put RWGPS_API_KEY

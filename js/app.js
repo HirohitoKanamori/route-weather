@@ -8,6 +8,9 @@ import { RW } from './core.js';
   const COL = { head: 'var(--head)', tail: 'var(--tail)', cross: 'var(--cross)' };
   const CACHE_MS = 30 * 60e3;
   const PAST_DAYS_MAX = RW.const.START_BACK_DAYS + 1; // 予報取得の過去日数。出走日時の下限（4 日前）を覆う
+  // Ride with GPS 連携（ADD_03、試験運用中）：公式 API v1 への転送だけを行う中継（Cloudflare Workers）の URL。
+  // 未設定（空）なら機能を案内文だけにする。確認用に ?relay=http://localhost:8787 で差し替えられる
+  const RWGPS_RELAY = '';
   const state = { course: null, series: null, result: null, pinned: false, busy: false, offlineNote: '', collapsed: false, lastPos: null, forecastStale: '', posTarget: 'gpsMsg', startNote: '' };
 
   // localStorage は私的ブラウズ等で例外になるので必ず握りつぶす
@@ -98,7 +101,7 @@ import { RW } from './core.js';
     const c = state.course;
     if (!c) return;
     $('cName').textContent = c.name;
-    $('cMeta').textContent = `${n1(c.total)} km ・ 獲得標高 ${c.hasEle ? c.gain.toLocaleString() + ' m' : '不明'} ・ 地点数 ${c.n.toLocaleString()}`;
+    $('cMeta').textContent = `${n1(c.total)} km ・ 獲得標高 ${c.hasEle ? c.gain.toLocaleString() + ' m' : '不明'} ・ 地点数 ${c.n.toLocaleString()}${c.source && c.source.kind === 'rwgps' ? ' ・ Ride with GPS #' + c.source.id : ''}`;
   }
   // 出走日時は 4 日前の 0:00（JST）より過去にできない（1200 km・90 時間の走行中でも実際の出走時刻を入れられる）。下限より前なら次の 06:00 に戻して知らせる
   function enforceStart() {
@@ -154,6 +157,29 @@ import { RW } from './core.js';
       const course = isFit ? await parseFIT(await f.arrayBuffer(), base) : parseGPX(await f.text(), base);
       setCourse(course);
     } catch (err) { setStatus('読み込みに失敗しました：' + err.message, 'err'); }
+  }
+  // ADD_03：貼り付けられた URL からルート番号を取り、中継経由で公式 API の JSON を受け取ってコースにする
+  const RWGPS_MSG = {
+    403: 'このルートは非公開のため取得できません。Ride with GPS でルートを「公開」にするか、共有リンク（privacy_code 付きの URL）を貼ってください',
+    404: 'ルートが見つかりません。URL のルート番号を確認してください',
+    401: '中継サーバーの認証設定に問題があります（管理者に連絡してください）',
+    503: '中継サーバーが未設定のため、いまは使えません',
+  };
+  async function loadRwgps(text) {
+    const relay = state.relay || RWGPS_RELAY;
+    if (!relay) { setStatus('Ride with GPS 連携は準備中です（中継サーバーが未設定）。当面はファイルから読み込んでください', 'err'); return; }
+    const ref = RW.rwgps.parseUrl(text);
+    if (!ref) { setStatus('Ride with GPS のルート URL が見つかりません（例：https://ridewithgps.com/routes/12345678）', 'err'); $('rwgpsUrl').focus(); return; }
+    const btn = $('rwgpsGo'); btn.disabled = true; setStatus('Ride with GPS からルートを取得中…');
+    try {
+      const u = new URL(relay.replace(/\/$/, '') + '/rwgps/routes/' + ref.id); if (ref.privacyCode) u.searchParams.set('privacy_code', ref.privacyCode);
+      let r; try { r = await fetch(u.toString(), { cache: 'no-store' }); } catch (e) { throw new Error('取得できませんでした。通信状態を確認してください（圏外では使えません）'); }
+      if (!r.ok) throw new Error(RWGPS_MSG[r.status] || `取得に失敗しました（HTTP ${r.status}）`);
+      const course = RW.rwgps.toCourse(await r.json());
+      $('rwgpsUrl').value = '';
+      setCourse(course);
+    } catch (err) { setStatus('読み込みに失敗しました：' + err.message, 'err'); }
+    finally { btn.disabled = false; }
   }
   function setCourse(course) {
     state.course = course; state.series = null; state.result = null; state.offlineNote = '';
@@ -1203,6 +1229,8 @@ import { RW } from './core.js';
   function renderTheme() { const cur = document.documentElement.dataset.theme || 'auto'; $('theme').textContent = '表示：' + ({ auto: '自動', dark: 'ダーク', light: 'ライト' })[cur]; }
   renderTheme();
   if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('./sw.js').catch(() => { /* 未対応・失敗時は通常動作 */ }); }
+  $('rwgpsGo').addEventListener('click', () => loadRwgps($('rwgpsUrl').value));
+  $('rwgpsUrl').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); loadRwgps(e.target.value); } });
   $('file').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) loadFile(f); });
   const lb = $('loadBtn'); // PC 向けの補助：ドラッグ＆ドロップ
   ['dragenter', 'dragover'].forEach(ev => lb.addEventListener(ev, e => { e.preventDefault(); lb.classList.add('on'); }));
@@ -1265,6 +1293,7 @@ import { RW } from './core.js';
     const q = new URLSearchParams(location.search);
     const th = q.get('theme'); if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th;
     if (q.get('sample') === '1') setTimeout(() => { const l = $('sampleLink'); if (l && !state.course) l.click(); }, 50);
+    const rl = q.get('relay'); if (rl && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(rl)) state.relay = rl; // 中継のローカル確認用（localhost のみ）
   } catch (e) { /* noop */ }
   loadParams(); renderRecent();
   const last = store.get('rw:last');
