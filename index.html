@@ -296,7 +296,7 @@
       <div id="results" class="hidden">
         <section class="summary" id="summary" aria-label="要点"></section>
         <section class="gpsWrap" id="gpsWrap">
-          <button type="button" class="primary gps" id="gps"><span class="lbl">現在位置から予報を再取得</span><small class="trial">（試験運用中）</small></button>
+          <button type="button" class="primary gps" id="gps"><span class="lbl">現在位置から予報を再取得</span></button>
           <div class="posMsg hidden" id="gpsMsg" aria-live="polite"></div>
           <div class="howto gpsNote">位置情報は端末内でコース上の距離に変換するためだけに使い、外部に送信しません。予報の取得に使う座標はコースのサンプル点で、現在地そのものではありません。</div>
         </section>
@@ -381,7 +381,7 @@
   </div>
 
   <footer class="src">
-    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.4.0</b></span><br>
+    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.4.1</b></span><br>
     <span class="disclaimer">予報は参考情報です。実際の天候と異なる場合があり、本サイトの利用により生じた損害について当方は責任を負いません。</span><br>
     出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。<span id="modelInfo"></span><br>
     注意報・警報、アメダス実況：気象庁ホームページ。市区町村の判定：国土地理院 逆ジオコーダ。地図：© OpenStreetMap contributors（ODbL）。ファイルから読み込んだコースは端末内で処理し、外部に送信しません。Ride with GPS 連携（試験運用中）では、ルート番号と共有コードを中継サーバー（Cloudflare Workers）経由で Ride with GPS に送ります。ルートの内容は中継を通過しますが、中継は内容を保存・記録しません。FIT の読み込みには Garmin FIT SDK を使用しています。
