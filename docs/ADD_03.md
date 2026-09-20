@@ -9,7 +9,7 @@
 
 ## 1. 調査結果（2026-09-20）
 
-- 公式 API v1（`/api/v1/routes/{id}.json`、`x-rwgps-api-key` ヘッダー）は CORS を許可しており、route-weather.jp のブラウザから直接呼べる（プリフライトが通り 401 が返ることで確認）
+- 公式 API v1（`/api/v1/routes/{id}.json`、`x-rwgps-api-key`＋`x-rwgps-auth-token` ヘッダー）は CORS を許可しており、route-weather.jp のブラウザから直接呼べる（プリフライトが通り 401 が返ることで確認）
 - API 利用に審査・承認は不要。商用可、表記義務なし。固定のレート制限は無く監視のみ（API 利用規約 `/api/v1/doc/terms`）
 - 鍵なしで取れる旧 `/routes/{id}.json` は非公式のため使わない
 - OAuth は authorization code 方式で `client_secret` が必要（`POST /oauth/token.json`）。トークンの有効期限・更新は文書化されていない
@@ -28,7 +28,7 @@
 |---|---|
 | R-1 | 読み込み手順の下に「Ride with GPS のルート URL から読み込む（試験運用中）」の入力欄と「読み込む」ボタンを置く。Enter でも実行 |
 | R-2 | 貼り付け文から `ridewithgps.com/routes/(\d+)` と、その後ろの `privacy_code` を取り出す（`RW.rwgps.parseUrl`）。見つからなければ例を添えて案内 |
-| R-3 | 中継の `GET /rwgps/routes/:id?privacy_code=` を呼ぶ。中継は Origin を許可リストで限定し、`x-rwgps-api-key` を付けて公式 API へ転送、本文と状態をそのまま返す。内容は保存・記録しない |
+| R-3 | 中継の `GET /rwgps/routes/:id?privacy_code=` を呼ぶ。中継は Origin を許可リストで限定し、`x-rwgps-api-key` と `x-rwgps-auth-token`（運用者アカウントのトークン。公式 API は公開ルートでも両方が必須。2026-09-21 に実配置で確認）を付けて公式 API へ転送、本文と状態をそのまま返す。内容は保存・記録しない |
 | R-4 | 応答の `route.track_points`（x=経度、y=緯度、e=標高）を既存の `fromPoints` でコースにする（`RW.rwgps.toCourse`）。コース名は `route.name`。`course.source` に番号と URL を残し、コース欄に「Ride with GPS #番号」を出す |
 | R-5 | 文言：403＝非公開（公開にするか共有リンクを貼る）、404＝番号を確認、401＝中継の設定不備、503＝中継未設定、通信失敗＝圏外の案内。読み込めたら従来どおり最近のコースに保存して予報取得へ |
 | R-6 | 中継 URL は `js/app.js` の `RWGPS_RELAY`。空なら「準備中」と案内。`?relay=http://localhost:…` で確認用に差し替え可（localhost のみ） |

@@ -2,20 +2,21 @@
 
 Ride with GPS 公式 API v1 への転送だけを行う Cloudflare Worker。役割は API 鍵を端末に置かないことだけで、ルートの内容は保存・記録しない。
 
-- `GET /rwgps/routes/:id[?privacy_code=…]` → `https://ridewithgps.com/api/v1/routes/:id.json`（`x-rwgps-api-key` を付与）
+- `GET /rwgps/routes/:id[?privacy_code=…]` → `https://ridewithgps.com/api/v1/routes/:id.json`（`x-rwgps-api-key` と `x-rwgps-auth-token` を付与。公式 API は公開ルートの取得でも両方が必須）
 - `GET /health` → `ok`
 - 呼び出し元は `ALLOWED_ORIGINS`（`wrangler.toml`）に限定。Origin の無い呼び出し（curl 等）は 403
 
 ## 初回の準備（利用者が行う。鍵は Claude に渡さない）
 
-1. Ride with GPS で API クライアントを作る：https://ridewithgps.com/api/api_clients → 名称を登録し、`api_key` を控える（Stage 1 では OAuth の redirect URI と client_secret は使わない）
+1. Ride with GPS で API クライアントを作る：https://ridewithgps.com/api/api_clients → 名称を登録し、`api_key` を控える。同じページでそのクライアントの「認証トークン（auth token）」を作り、これも控える（運用者アカウントのトークン。Stage 1 では OAuth の redirect URI と client_secret は使わない）
 2. Cloudflare のアカウントを作り、Node.js が入った手元で wrangler にログインする
    ```bash
    cd worker && npx wrangler login
    ```
-3. 鍵を秘密として登録する（対話で貼り付ける。ファイルには書かない）
+3. 鍵とトークンを秘密として登録する（対話で貼り付ける。ファイルには書かない）
    ```bash
    cd worker && npx wrangler secret put RWGPS_API_KEY
+   cd worker && npx wrangler secret put RWGPS_AUTH_TOKEN
    ```
 4. 配置する
    ```bash

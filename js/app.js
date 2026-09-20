@@ -10,7 +10,7 @@ import { RW } from './core.js';
   const PAST_DAYS_MAX = RW.const.START_BACK_DAYS + 1; // 予報取得の過去日数。出走日時の下限（4 日前）を覆う
   // Ride with GPS 連携（ADD_03、試験運用中）：公式 API v1 への転送だけを行う中継（Cloudflare Workers）の URL。
   // 未設定（空）なら機能を案内文だけにする。確認用に ?relay=http://localhost:8787 で差し替えられる
-  const RWGPS_RELAY = '';
+  const RWGPS_RELAY = 'https://route-weather-relay.route-weather.workers.dev';
   const state = { course: null, series: null, result: null, pinned: false, busy: false, offlineNote: '', collapsed: false, lastPos: null, forecastStale: '', posTarget: 'gpsMsg', startNote: '' };
 
   // localStorage は私的ブラウズ等で例外になるので必ず握りつぶす

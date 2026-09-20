@@ -10,3 +10,4 @@ ALLOWED_ORIGINS = "https://route-weather.jp,https://hirohitokanamori.github.io"
 
 # 秘密は wrangler secret put で登録する（このファイルには書かない）
 #   npx wrangler secret put RWGPS_API_KEY
+#   npx wrangler secret put RWGPS_AUTH_TOKEN

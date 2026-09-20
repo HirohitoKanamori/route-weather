@@ -55,5 +55,5 @@ V-6 本地図は Leaflet で実装済み（2026-09-05 に利用者が許可）�
 
 - 仕様と調査結果は `docs/ADD_03.md`。Stage 1（公開ルートの URL 貼り付け、C-5）は v1.4.0 で実装。Stage 2（OAuth、C-6）は未着手
 - RwGPS は公式 API v1（`/api/v1/routes/{id}.json`、`x-rwgps-api-key`）だけを使う。鍵なしで取れる旧 `/routes/{id}.json` は非公式なので使わない
-- 中継は `worker/src/index.mjs`（Cloudflare Workers、workers.dev、手元から `npx wrangler deploy`）。Origin を許可リストで限定し、秘密（`RWGPS_API_KEY`）は `wrangler secret` で登録する。秘密を repo や会話に置かない
+- 中継は `worker/src/index.mjs`（Cloudflare Workers、workers.dev、手元から `npx wrangler deploy`）。Origin を許可リストで限定し、秘密（`RWGPS_API_KEY`・`RWGPS_AUTH_TOKEN`）は `wrangler secret` で登録する。秘密を repo や会話に置かない
 - 中継の URL は `js/app.js` の `RWGPS_RELAY`。ローカル確認は `?relay=http://localhost:8787`（localhost のみ受け付ける）
