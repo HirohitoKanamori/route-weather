@@ -1,6 +1,6 @@
 # Route-Weather.jp（route-weather）
 
-公開版 v1.5.0（2026-09-22、Beta）。バージョンは `index.html` フッターの `#appVersion` を更新し、`git tag vX.Y.Z` を打つ。
+公開版 v1.5.1（2026-09-22、Beta）。バージョンは `index.html` フッターの `#appVersion` を更新し、`git tag vX.Y.Z` を打つ。
 
 旧称「ルート天気」。
 
@@ -36,6 +36,7 @@ Ride with GPS の公開ルートは、アプリの「共有」で得た URL を�
 
 ## 変更履歴（主なもの）
 
+- v1.5.1（2026-09-22）: 「Ride with GPS と連携」を URL 貼り付け欄の上に移動（順序を入れ替え）
 - v1.5.0（2026-09-22）: Ride with GPS 連携 Stage 2。OAuth で連携すると自分のルート一覧（非公開含む）から選んで読み込める（試験運用中）。トークンは端末内にのみ保持。中継に認可コードの交換（`POST /oauth/exchange`）を追加
 - v1.4.1（2026-09-21）: 「現在位置から予報を再取得」の「（試験運用中）」の注記を外した（実機での運用確認が済んだため）
 - v1.4.0（2026-09-21）: Ride with GPS 連携 Stage 1（`docs/ADD_03.md`）。公開ルート・共有リンクの URL を貼るだけでコースを読み込める（試験運用中）。公式 API v1 への転送だけを行う中継 Worker を `worker/` に追加（手元から `npx wrangler deploy`、運用者の OAuth トークンは `worker/setup-oauth.sh` で登録）。フッターの送信に関する文言を分けて記載
