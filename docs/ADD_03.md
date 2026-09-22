@@ -4,7 +4,7 @@
 |---|---|
 | 文書番号 | ADD_03（RDD_06 フェーズ3。C-5 公開ルート URL 取得、C-6 OAuth） |
 | 作成日 | 2026-09-21 |
-| 状態 | Stage 1（C-5）実装済み v1.4.0。Stage 2（C-6）未着手 |
+| 状態 | Stage 1（C-5）実装済み v1.4.0。Stage 2（C-6）往復の実機検証済み、本実装は仕様確認待ち |
 | 対象画面 | 「コースと走行計画」の読み込み欄 |
 
 ## 1. 調査結果（2026-09-20）
@@ -34,11 +34,32 @@
 | R-6 | 中継 URL は `js/app.js` の `RWGPS_RELAY`。空なら「準備中」と案内。`?relay=http://localhost:…` で確認用に差し替え可（localhost のみ） |
 | R-7 | フッター・README・CLAUDE.md の送信に関する文言を判断 4 のとおり分ける |
 
-## 4. Stage 2 の見通し（C-6、未着手）
+## 4. Stage 2（C-6：OAuth で自分のルート一覧）
 
-- 中継に `POST /oauth/exchange`（code ＋ client_secret → token）を足し、トークンは端末内にのみ保持
-- 「Ride with GPS と連携」→ `/oauth/authorize` → `?code=` で戻る → 交換 → `/api/v1/routes.json` で一覧 → 選択して R-4 へ
-- 最大の不確定要素は iPhone のホーム画面 PWA から OAuth の往復が戻れるか。Stage 2 の最初に実機で確かめる
+### 4.1 往復の検証結果（2026-09-22、利用者の実機）
+
+「Ride with GPS と連携（検証中）」ボタン（`rwgpsAuthStart`／`rwgpsAuthReturn`、トークン交換なし）で確認。
+
+| 環境 | 結果 |
+|---|---|
+| iPhone Safari | 戻れる。認可コード 43 文字、state 一致、開始・戻り先ともブラウザ |
+| iPhone ホーム画面（PWA） | 戻れる。state 一致、開始・戻り先とも PWA |
+| Android Chrome | 戻れる。state 一致 |
+
+結論：当初の設計（redirect_uri＝`https://route-weather.jp/`、`state` を端末内に保持して照合）のままで進める。
+
+### 4.2 仕様（案）
+
+| ID | 要件 |
+|---|---|
+| R-8 | 中継に `POST /oauth/exchange`（body：`{ code }`）を足す。中継は `client_id`・`client_secret`（秘密）・`redirect_uri` を添えて `POST /oauth/token.json` へ送り、返った `access_token`・`user_id` を端末へ返すだけで保存しない。Origin 制限は R-3 と同じ |
+| R-9 | 端末は受け取ったトークンを `rw:rwgps`（localStorage）に保持する。保持するのは `access_token`・`user_id`・取得日時のみ。外部に出すのは Ride with GPS への API 呼び出しだけ |
+| R-10 | 連携後は「連携」ボタンを「自分のルートを選ぶ」と「連携を解除」に置き換える。解除はトークンを消すだけ（RwGPS 側の取り消しは利用者が RwGPS の設定で行う旨を添える）。「コース削除」でもトークンを消す |
+| R-11 | 一覧は端末から直接 `GET /api/v1/routes.json?page=1&page_size=50`（`Authorization: Bearer`）を呼ぶ。名前・距離・獲得標高・更新日を新しい順に表示し、名前での絞り込みと「さらに読み込む」を付ける。中継は通さない（トークンは端末にあるため） |
+| R-12 | 選んだルートは端末から直接 `GET /api/v1/routes/{id}.json`（Bearer）を取り、R-4 の変換へ。非公開ルートも本人のものは読める |
+| R-13 | 401 が返ったらトークンを捨てて「連携が切れました。もう一度連携してください」と案内（有効期限が文書化されていないため） |
+| R-14 | 中継経由の URL 貼り付け（Stage 1）は連携の有無に関わらず残す |
+| R-15 | フッターと README に「連携時のトークンは端末内にのみ保持し、Ride with GPS 以外には送らない」を追記。v1.5.0 として公開し、「（試験運用中）」は Stage 1 と同じ扱い |
 
 ## 5. 変更履歴
 
