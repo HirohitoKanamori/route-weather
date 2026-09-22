@@ -12,7 +12,7 @@ import { RW } from './core.js';
   // 未設定（空）なら機能を案内文だけにする。確認用に ?relay=http://localhost:8787 で差し替えられる
   const RWGPS_RELAY = 'https://route-weather-relay.route-weather.workers.dev';
   // Stage 2 の検証（OAuth の往復だけ）：client_id は秘密ではない（authorize の URL に載る値）。redirect_uri は API クライアントに登録した値と一致させる
-  const RWGPS_CLIENT_ID = '';
+  const RWGPS_CLIENT_ID = 'utYdUEU0XPHVePXnKqqhDc7Aw_yxD4AK4hoif9SQTgA';
   const RWGPS_REDIRECT = 'https://route-weather.jp/';
   const state = { course: null, series: null, result: null, pinned: false, busy: false, offlineNote: '', collapsed: false, lastPos: null, forecastStale: '', posTarget: 'gpsMsg', startNote: '' };
 
