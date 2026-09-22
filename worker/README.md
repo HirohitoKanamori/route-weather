@@ -3,6 +3,7 @@
 Ride with GPS 公式 API v1 への転送だけを行う Cloudflare Worker。役割は API 鍵を端末に置かないことだけで、ルートの内容は保存・記録しない。
 
 - `GET /rwgps/routes/:id[?privacy_code=…]` → `https://ridewithgps.com/api/v1/routes/:id.json`（`x-rwgps-api-key` と `x-rwgps-auth-token` を付与。公式 API は公開ルートの取得でも両方が必須）
+- `POST /oauth/exchange`（body `{ "code": … }`）→ `https://ridewithgps.com/oauth/token.json`（`client_id`・`client_secret`・`redirect_uri` を添える。Stage 2）。返すのは `access_token`・`user_id`・`created_at` だけで保存しない
 - `GET /health` → `ok`
 - 呼び出し元は `ALLOWED_ORIGINS`（`wrangler.toml`）に限定。Origin の無い呼び出し（curl 等）は 403
 
@@ -33,6 +34,15 @@ Ride with GPS 公式 API v1 への転送だけを行う Cloudflare Worker。役�
    curl -s https://route-weather-relay.<アカウント名>.workers.dev/health
    ```
    `ok` が返れば配置できている。ルート取得はブラウザ（route-weather.jp）からのみ受け付ける
+
+## Stage 2（OAuth）の追加設定
+
+1. API クライアント管理ページで OAuth を有効にし、redirect URI に `https://route-weather.jp/` を登録する。`client_id` は公開値なので `wrangler.toml` の `RWGPS_CLIENT_ID` に書く
+2. `client_secret` は秘密として登録する（対話で貼り付ける）
+   ```bash
+   cd worker && npx wrangler secret put RWGPS_CLIENT_SECRET
+   ```
+3. `npx wrangler deploy`（secret の登録だけなら不要）
 
 ## ローカル確認
 

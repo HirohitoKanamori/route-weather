@@ -48,3 +48,26 @@ test('OAuth のアクセストークンがあれば Bearer だけで転送する
     () => call('/rwgps/routes/3', { headers: { Origin: ORIGIN } }, { ...env, RWGPS_ACCESS_TOKEN: ' at-1 ' }));
   assert.equal(r.status, 200); assert.equal(seen.authorization, 'Bearer at-1'); assert.equal(seen['x-rwgps-api-key'], undefined);
 });
+
+const envX = { ...env, RWGPS_CLIENT_ID: 'cid', RWGPS_CLIENT_SECRET: 'csec', OAUTH_REDIRECT_URI: 'https://route-weather.jp/' };
+const post = (body, e = envX, origin = ORIGIN) => call('/oauth/exchange', { method: 'POST', headers: { Origin: origin, 'content-type': 'application/json' }, body: JSON.stringify(body) }, e);
+
+test('oauth/exchange：code に client_secret と redirect_uri を添えて token.json へ送り、トークンと利用者 ID だけ返す', async () => {
+  let seen = null;
+  const r = await withUpstream(async (u, init) => { seen = { u: String(u), body: JSON.parse(init.body), method: init.method }; return new Response(JSON.stringify({ access_token: 'AT', token_type: 'Bearer', scope: 'user', created_at: 1, user_id: 42 }), { status: 200 }); },
+    () => post({ code: ' abc-123 ' }));
+  assert.equal(seen.u, 'https://ridewithgps.com/oauth/token.json'); assert.equal(seen.method, 'POST');
+  assert.deepEqual(seen.body, { grant_type: 'authorization_code', code: 'abc-123', client_id: 'cid', client_secret: 'csec', redirect_uri: 'https://route-weather.jp/' });
+  assert.equal(r.status, 200); assert.equal(r.headers.get('access-control-allow-origin'), ORIGIN);
+  assert.deepEqual(await r.json(), { access_token: 'AT', user_id: 42, created_at: 1 });
+});
+
+test('oauth/exchange：上流の失敗はその状態と文言で返し、不正な code は 400、secret 未設定は 503、Origin 外は 403', async () => {
+  const bad = await withUpstream(async () => new Response(JSON.stringify({ error: 'invalid_grant', error_description: 'expired' }), { status: 401 }), () => post({ code: 'abcd' }));
+  assert.equal(bad.status, 401); assert.deepEqual(await bad.json(), { errors: ['expired'] });
+  assert.equal((await post({ code: 'a b' })).status, 400); assert.equal((await post({})).status, 400);
+  assert.equal((await post({ code: 'abcd' }, { ...env, RWGPS_CLIENT_ID: 'cid' })).status, 503);
+  assert.equal((await post({ code: 'abcd' }, envX, 'https://evil.example')).status, 403);
+  const pre = await call('/oauth/exchange', { method: 'OPTIONS', headers: { Origin: ORIGIN } }, envX);
+  assert.equal(pre.status, 204); assert.match(pre.headers.get('access-control-allow-headers'), /content-type/);
+});

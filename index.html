@@ -91,7 +91,12 @@
   .rwgps{display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--line);padding-top:12px}
   .rwgps .lbl{font-size:13px;font-weight:600} .rwgps .trial{font-weight:400;font-size:11px;color:var(--ink-3)}
   .rwgps .row{display:grid;grid-template-columns:1fr auto;gap:6px}
-  .rwgps .row.auth{grid-template-columns:1fr;margin-top:4px}
+  .rwgps .row.auth{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px} .rwgps .row.auth #rwgpsAuth,.rwgps .row.auth #rwgpsPick{flex:1 1 200px}
+  .rwList{display:flex;flex-direction:column;gap:6px;background:var(--paper);border-radius:8px;padding:8px}
+  .rwList .items{display:flex;flex-direction:column;gap:4px;max-height:50vh;overflow-y:auto}
+  .rwList .item{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:8px 10px;min-height:44px;cursor:pointer}
+  .rwList .item .nm{font-weight:600;font-size:14px} .rwList .item .sub{font-size:11px;color:var(--ink-3)}
+  .rwList .row.more{display:flex;gap:6px;justify-content:flex-end}
   .rwgps input{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px}
   .rwgps input:focus{outline:2px solid var(--ink);outline-offset:1px}
   .course{background:var(--paper);border-radius:8px;padding:8px 10px;font-size:13px}
@@ -258,9 +263,18 @@
             <label class="lbl" for="rwgpsUrl">Ride with GPS のルート URL から読み込む <small class="trial">（試験運用中）</small></label>
             <div class="row"><input type="url" id="rwgpsUrl" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://ridewithgps.com/routes/…"><button type="button" class="btn" id="rwgpsGo">読み込む</button></div>
             <div class="howto">公開ルート、または共有リンク（privacy_code 付き）が対象です。アプリの「共有」で出る文をそのまま貼っても構いません。ルート番号と共有コードを中継サーバー経由で Ride with GPS に送ります（内容は保存しません）。</div>
-            <div class="row auth"><button type="button" class="btn" id="rwgpsAuth">Ride with GPS と連携 <small class="trial">（検証中）</small></button></div>
+            <div class="row auth">
+              <button type="button" class="btn" id="rwgpsAuth">Ride with GPS と連携 <small class="trial">（試験運用中）</small></button>
+              <button type="button" class="btn hidden" id="rwgpsPick">自分のルートを選ぶ</button>
+              <button type="button" class="btn small hidden" id="rwgpsUnlink">連携を解除</button>
+            </div>
             <div class="posMsg hidden" id="rwgpsAuthMsg" aria-live="polite"></div>
-            <div class="howto">連携は準備段階です。いまは Ride with GPS のログイン画面へ移動し、この画面に戻って来られるかを確かめるだけで、ルート一覧はまだ表示しません。</div>
+            <div class="rwList hidden" id="rwgpsList">
+              <div class="row"><input type="search" id="rwgpsFilter" placeholder="ルート名で絞り込み" autocomplete="off" aria-label="ルート名で絞り込み"><button type="button" class="btn" id="rwgpsFilterGo">検索</button></div>
+              <div class="items" id="rwgpsItems"></div>
+              <div class="row more"><button type="button" class="btn small" id="rwgpsMore">さらに読み込む</button><button type="button" class="btn small" id="rwgpsClose">閉じる</button></div>
+            </div>
+            <div class="howto">連携すると、自分のルート一覧から選んで読み込めます（非公開のルートも本人のものは可）。連携のトークンは端末内にのみ保持し、Ride with GPS 以外には送りません。</div>
           </div>
           <div class="course" id="courseBox">
             <div class="name" id="cName">コース未読み込み</div>
@@ -385,10 +399,10 @@
   </div>
 
   <footer class="src">
-    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.4.1</b></span><br>
+    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.5.0</b></span><br>
     <span class="disclaimer">予報は参考情報です。実際の天候と異なる場合があり、本サイトの利用により生じた損害について当方は責任を負いません。</span><br>
     出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。<span id="modelInfo"></span><br>
-    注意報・警報、アメダス実況：気象庁ホームページ。市区町村の判定：国土地理院 逆ジオコーダ。地図：© OpenStreetMap contributors（ODbL）。ファイルから読み込んだコースは端末内で処理し、外部に送信しません。Ride with GPS 連携（試験運用中）では、ルート番号と共有コードを中継サーバー（Cloudflare Workers）経由で Ride with GPS に送ります。ルートの内容は中継を通過しますが、中継は内容を保存・記録しません。FIT の読み込みには Garmin FIT SDK を使用しています。
+    注意報・警報、アメダス実況：気象庁ホームページ。市区町村の判定：国土地理院 逆ジオコーダ。地図：© OpenStreetMap contributors（ODbL）。ファイルから読み込んだコースは端末内で処理し、外部に送信しません。Ride with GPS 連携（試験運用中）では、ルート番号と共有コードを中継サーバー（Cloudflare Workers）経由で Ride with GPS に送ります。ルートの内容は中継を通過しますが、中継は内容を保存・記録しません。連携（OAuth）のトークンは端末内にのみ保持し、Ride with GPS 以外には送りません。FIT の読み込みには Garmin FIT SDK を使用しています。
   </footer>
 </div>
 

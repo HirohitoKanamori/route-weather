@@ -7,7 +7,11 @@ workers_dev = true
 [vars]
 # 許可する呼び出し元（カンマ区切り）。ローカル確認時は http://localhost:8766 を足す
 ALLOWED_ORIGINS = "https://route-weather.jp,https://hirohitokanamori.github.io"
+# OAuth（Stage 2）。client_id は公開値、redirect_uri は API クライアントに登録した値と一致させる
+RWGPS_CLIENT_ID = "utYdUEU0XPHVePXnKqqhDc7Aw_yxD4AK4hoif9SQTgA"
+OAUTH_REDIRECT_URI = "https://route-weather.jp/"
 
 # 秘密は wrangler secret put で登録する（このファイルには書かない）
 #   npx wrangler secret put RWGPS_API_KEY
 #   npx wrangler secret put RWGPS_AUTH_TOKEN
+#   npx wrangler secret put RWGPS_CLIENT_SECRET   （Stage 2 のトークン交換用）

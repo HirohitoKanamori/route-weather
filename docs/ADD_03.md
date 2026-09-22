@@ -4,7 +4,7 @@
 |---|---|
 | 文書番号 | ADD_03（RDD_06 フェーズ3。C-5 公開ルート URL 取得、C-6 OAuth） |
 | 作成日 | 2026-09-21 |
-| 状態 | Stage 1（C-5）実装済み v1.4.0。Stage 2（C-6）往復の実機検証済み、本実装は仕様確認待ち |
+| 状態 | Stage 1（C-5）実装済み v1.4.0。Stage 2（C-6）実装済み v1.5.0（2026-09-22） |
 | 対象画面 | 「コースと走行計画」の読み込み欄 |
 
 ## 1. 調査結果（2026-09-20）
@@ -48,7 +48,7 @@
 
 結論：当初の設計（redirect_uri＝`https://route-weather.jp/`、`state` を端末内に保持して照合）のままで進める。
 
-### 4.2 仕様（案）
+### 4.2 仕様（2026-09-22 に利用者が承認、v1.5.0 で実装）
 
 | ID | 要件 |
 |---|---|
@@ -65,3 +65,4 @@
 
 - v1.4.0（2026-09-21）：配置時の知見。公式 API は公開ルートの取得にも api_key に加えて利用者の認証が要る。個人アカウントの認証トークン発行（`POST /api/v1/auth_tokens.json`、メール＋パスワード）は運用者アカウントで「Failed to authenticate the user」となり通らなかったため、OAuth（authorize → `POST /oauth/token.json`）で運用者のアクセストークンを 1 回発行し、中継の秘密 `RWGPS_ACCESS_TOKEN` に登録する方式にした（`worker/setup-oauth.sh`）。トークンの有効期限は文書化されておらず、失効したら同じ手順で発行し直す
 - v1.4.0（2026-09-21）：Stage 1 を実装。`js/core.js` に `rwgps.parseUrl`／`rwgps.toCourse`、`worker/`（`src/index.mjs`、`wrangler.toml`、README）、`test/rwgps.test.mjs`・`test/relay.test.mjs` を追加
+- v1.5.0（2026-09-22）：Stage 2 を実装。中継に `POST /oauth/exchange`、画面に「Ride with GPS と連携」「自分のルートを選ぶ」「連携を解除」とルート一覧（50 件ずつ、名前で絞り込み、更新日の新しい順、非公開は表示）。トークンは `rw:rwgps` に保持し 401 で破棄。確認用の `?rwgpsapi=http://localhost:…` を追加。テスト 2 件追加

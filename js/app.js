@@ -11,9 +11,11 @@ import { RW } from './core.js';
   // Ride with GPS 連携（ADD_03、試験運用中）：公式 API v1 への転送だけを行う中継（Cloudflare Workers）の URL。
   // 未設定（空）なら機能を案内文だけにする。確認用に ?relay=http://localhost:8787 で差し替えられる
   const RWGPS_RELAY = 'https://route-weather-relay.route-weather.workers.dev';
-  // Stage 2 の検証（OAuth の往復だけ）：client_id は秘密ではない（authorize の URL に載る値）。redirect_uri は API クライアントに登録した値と一致させる
+  // Stage 2（OAuth）：client_id は秘密ではない（authorize の URL に載る値）。redirect_uri は API クライアントに登録した値と一致させる。
+  // トークンは端末内（rw:rwgps）にのみ保持し、Ride with GPS の API 呼び出し以外には送らない
   const RWGPS_CLIENT_ID = 'utYdUEU0XPHVePXnKqqhDc7Aw_yxD4AK4hoif9SQTgA';
   const RWGPS_REDIRECT = 'https://route-weather.jp/';
+  const RWGPS_API = 'https://ridewithgps.com';
   const state = { course: null, series: null, result: null, pinned: false, busy: false, offlineNote: '', collapsed: false, lastPos: null, forecastStale: '', posTarget: 'gpsMsg', startNote: '' };
 
   // localStorage は私的ブラウズ等で例外になるので必ず握りつぶす
@@ -184,31 +186,97 @@ import { RW } from './core.js';
     } catch (err) { setStatus('読み込みに失敗しました：' + err.message, 'err'); }
     finally { btn.disabled = false; }
   }
-  // ===== ADD_03 Stage 2 の検証：Ride with GPS のログイン画面へ行って戻れるか（PWA・Safari・Android）を確かめる。トークン交換はまだ行わない =====
+  // ===== ADD_03 Stage 2：OAuth で連携し、自分のルート一覧から選ぶ =====
   const isStandalone = () => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } };
+  const rwgpsAuth = () => { const a = store.get('rw:rwgps'); return a && a.token ? a : null; };
+  const rwgpsMsg = (html, cls) => { const el = $('rwgpsAuthMsg'); if (!html) { el.className = 'posMsg hidden'; el.innerHTML = ''; return; } el.className = 'posMsg' + (cls ? ' ' + cls : ''); el.innerHTML = html; };
   function rwgpsAuthStart() {
     if (!RWGPS_CLIENT_ID) { setStatus('Ride with GPS との連携は準備中です（client_id 未設定）', 'err'); return; }
     const st = Math.random().toString(36).slice(2) + Date.now().toString(36);
     store.set('rw:oauthState', { st, at: Date.now(), standalone: isStandalone() });
-    const u = new URL('https://ridewithgps.com/oauth/authorize');
+    const u = new URL(RWGPS_API + '/oauth/authorize');
     u.searchParams.set('client_id', RWGPS_CLIENT_ID); u.searchParams.set('redirect_uri', RWGPS_REDIRECT); u.searchParams.set('response_type', 'code'); u.searchParams.set('state', st);
     location.assign(u.toString());
   }
-  // 戻り先（?code=…）で呼ぶ。結果を画面に出し、URL から code を消す。code は使わずに捨てる（検証段階）
-  function rwgpsAuthReturn() {
+  // 戻り先（?code=…）で呼ぶ。state を照合し、中継でトークンに交換して端末内に保持する。URL から code は消す
+  async function rwgpsAuthReturn() {
     let q; try { q = new URLSearchParams(location.search); } catch (e) { return; }
     const code = q.get('code'), err = q.get('error'); if (!code && !err) return;
     const saved = store.get('rw:oauthState'); store.del('rw:oauthState');
     const st = q.get('state');
     try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* noop */ }
-    const rows = [];
-    if (err) rows.push(`Ride with GPS から拒否されました：${esc(err)}${q.get('error_description') ? '（' + esc(q.get('error_description')) + '）' : ''}`);
-    else rows.push(`認可コードを受け取りました（${code.length} 文字。この段階では使わずに破棄します）`);
-    rows.push(`state：${st ? (saved && saved.st === st ? '一致（同じ画面に戻れました）' : '不一致または開始記録なし（別のブラウザで開かれた可能性）') : '返却なし'}`);
-    rows.push(`開始時：${saved ? (saved.standalone ? 'ホーム画面（PWA）' : 'ブラウザ') : '不明'} → 戻り先：${isStandalone() ? 'ホーム画面（PWA）' : 'ブラウザ'}`);
-    const el = $('rwgpsAuthMsg'); el.className = 'posMsg' + (err ? ' err' : ''); el.innerHTML = rows.join('<br>');
     const d = document.querySelector('details.settings'); if (d) d.open = true;
-    setTimeout(() => { try { el.scrollIntoView({ block: 'center' }); } catch (e) { /* noop */ } }, 300);
+    setTimeout(() => { try { $('rwgpsAuthMsg').scrollIntoView({ block: 'center' }); } catch (e) { /* noop */ } }, 300);
+    if (err) { rwgpsMsg(`Ride with GPS で連携が許可されませんでした（${esc(err)}${q.get('error_description') ? '：' + esc(q.get('error_description')) : ''}）`, 'err'); return; }
+    if (!st || !saved || saved.st !== st) { rwgpsMsg('連携の照合（state）が合わないため中止しました。もう一度「Ride with GPS と連携」から始めてください', 'err'); return; }
+    rwgpsMsg('Ride with GPS と連携しています…');
+    const relay = state.relay || RWGPS_RELAY;
+    try {
+      if (!relay) throw new Error('中継サーバーが未設定です');
+      let r; try { r = await fetch(relay.replace(/\/$/, '') + '/oauth/exchange', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }), cache: 'no-store' }); }
+      catch (e) { throw new Error('中継サーバーに接続できませんでした。通信状態を確認してください'); }
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.access_token) throw new Error(r.status === 503 ? '中継サーバーが未設定のため、いまは連携できません' : (j.errors && j.errors[0]) || `HTTP ${r.status}`);
+      store.set('rw:rwgps', { token: j.access_token, userId: j.user_id, at: Date.now() });
+      rwgpsMsg('Ride with GPS と連携しました。トークンは端末内にのみ保持します');
+      renderRwgpsAuth(); rwgpsList(true);
+    } catch (e) { rwgpsMsg('連携に失敗しました：' + esc(e.message), 'err'); }
+  }
+  function renderRwgpsAuth() {
+    const on = !!rwgpsAuth();
+    $('rwgpsAuth').classList.toggle('hidden', on); $('rwgpsPick').classList.toggle('hidden', !on); $('rwgpsUnlink').classList.toggle('hidden', !on);
+    if (!on) $('rwgpsList').classList.add('hidden');
+  }
+  function rwgpsUnlink(silent) {
+    store.del('rw:rwgps'); rwgpsState.items = []; rwgpsState.page = 0; $('rwgpsItems').innerHTML = '';
+    renderRwgpsAuth();
+    if (!silent) rwgpsMsg('連携を解除しました（端末内のトークンを削除）。Ride with GPS 側の許可の取り消しは、Ride with GPS のアカウント設定から行えます');
+  }
+  // Bearer 付きで RwGPS を直接呼ぶ。401 なら連携切れとしてトークンを捨てる
+  async function rwgpsFetch(path) {
+    const a = rwgpsAuth(); if (!a) throw new Error('Ride with GPS と連携していません');
+    let r; try { r = await fetch((state.rwgpsApi || RWGPS_API) + path, { headers: { authorization: 'Bearer ' + a.token, accept: 'application/json' }, cache: 'no-store' }); }
+    catch (e) { throw new Error('Ride with GPS に接続できませんでした。通信状態を確認してください'); }
+    if (r.status === 401) { rwgpsUnlink(true); throw new Error('連携が切れました。もう一度「Ride with GPS と連携」を行ってください'); }
+    if (!r.ok) throw new Error(`Ride with GPS から取得できませんでした（HTTP ${r.status}）`);
+    return r.json();
+  }
+  const rwgpsState = { page: 0, items: [], last: false, q: '', busy: false };
+  const RWGPS_PAGE = 50;
+  async function rwgpsList(reset) {
+    if (rwgpsState.busy) return;
+    const box = $('rwgpsList'); box.classList.remove('hidden');
+    if (reset) { rwgpsState.page = 0; rwgpsState.items = []; rwgpsState.last = false; rwgpsState.q = $('rwgpsFilter').value.trim(); $('rwgpsItems').innerHTML = ''; }
+    if (rwgpsState.last) return;
+    rwgpsState.busy = true; const more = $('rwgpsMore'); more.disabled = true; more.textContent = '読み込み中…';
+    try {
+      const page = rwgpsState.page + 1;
+      const qs = new URLSearchParams({ page: String(page), page_size: String(RWGPS_PAGE) }); if (rwgpsState.q) qs.set('name', rwgpsState.q);
+      const j = await rwgpsFetch('/api/v1/routes.json?' + qs.toString());
+      const routes = Array.isArray(j.routes) ? j.routes : [];
+      const pg = (j.meta && (j.meta.pagination || j.meta)) || {};
+      rwgpsState.page = page; rwgpsState.items = rwgpsState.items.concat(routes);
+      rwgpsState.last = routes.length < RWGPS_PAGE || pg.next_page_url === null || (pg.page_count != null && page >= pg.page_count);
+      renderRwgpsItems();
+      if ($('rwgpsAuthMsg').classList.contains('err')) rwgpsMsg(''); // 連携完了の案内は残す
+    } catch (e) { rwgpsMsg(esc(e.message), 'err'); }
+    finally { rwgpsState.busy = false; more.disabled = false; more.textContent = 'さらに読み込む'; more.classList.toggle('hidden', rwgpsState.last); }
+  }
+  function renderRwgpsItems() {
+    const items = rwgpsState.items.slice().sort((a, b) => Date.parse(b.updated_at || 0) - Date.parse(a.updated_at || 0));
+    const host = $('rwgpsItems');
+    if (!items.length) { host.innerHTML = '<div class="howto">ルートがありません' + (rwgpsState.q ? '（絞り込み：' + esc(rwgpsState.q) + '）' : '') + '</div>'; return; }
+    host.innerHTML = items.map(r => `<button type="button" class="item" data-id="${esc(r.id)}"><span class="nm">${esc(r.name || '（名称なし）')}</span><span class="sub">${n1((r.distance || 0) / 1000)} km ・ 獲得標高 ${Math.round(r.elevation_gain || 0).toLocaleString()} m ・ 更新 ${r.updated_at ? F.dateKey(Date.parse(r.updated_at)) : '—'}${r.visibility ? ' ・ 非公開' : ''}</span></button>`).join('');
+    host.querySelectorAll('button.item').forEach(b => b.addEventListener('click', () => rwgpsPick(b.dataset.id, b)));
+  }
+  async function rwgpsPick(id, btn) {
+    if (btn) btn.disabled = true; setStatus('Ride with GPS からルートを取得中…');
+    try {
+      const course = RW.rwgps.toCourse(await rwgpsFetch(`/api/v1/routes/${encodeURIComponent(id)}.json`));
+      $('rwgpsList').classList.add('hidden'); rwgpsMsg('');
+      setCourse(course);
+    } catch (e) { setStatus('読み込みに失敗しました：' + e.message, 'err'); }
+    finally { if (btn) btn.disabled = false; }
   }
   function setCourse(course) {
     state.course = course; state.series = null; state.result = null; state.offlineNote = '';
@@ -1260,6 +1328,12 @@ import { RW } from './core.js';
   if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('./sw.js').catch(() => { /* 未対応・失敗時は通常動作 */ }); }
   $('rwgpsGo').addEventListener('click', () => loadRwgps($('rwgpsUrl').value));
   $('rwgpsAuth').addEventListener('click', rwgpsAuthStart);
+  $('rwgpsPick').addEventListener('click', () => { const box = $('rwgpsList'); if (box.classList.contains('hidden') || !rwgpsState.items.length) rwgpsList(true); else box.classList.add('hidden'); });
+  $('rwgpsUnlink').addEventListener('click', () => rwgpsUnlink(false));
+  $('rwgpsMore').addEventListener('click', () => rwgpsList(false));
+  $('rwgpsClose').addEventListener('click', () => $('rwgpsList').classList.add('hidden'));
+  $('rwgpsFilterGo').addEventListener('click', () => rwgpsList(true));
+  $('rwgpsFilter').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); rwgpsList(true); } });
   $('rwgpsUrl').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); loadRwgps(e.target.value); } });
   $('file').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) loadFile(f); });
   const lb = $('loadBtn'); // PC 向けの補助：ドラッグ＆ドロップ
@@ -1276,11 +1350,11 @@ import { RW } from './core.js';
   // コース削除：読み込んだコース・最近のコース・予報キャッシュ・注意報／アメダスの保持分を端末から消す（設定値は残す）
   $('clearData').addEventListener('click', () => {
     if (!confirm('読み込んだコースと予報のキャッシュを端末から削除します。よろしいですか？\n（出走日時・速度などの設定は残ります）')) return;
-    ['rw:course', 'rw:last', 'rw:courses'].forEach(k => store.del(k));
+    ['rw:course', 'rw:last', 'rw:courses', 'rw:rwgps', 'rw:oauthState'].forEach(k => store.del(k));
     try { Object.keys(localStorage).filter(k => k.startsWith('rw:fc')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* noop */ }
     state.course = null; state.series = null; state.result = null; state.warnings = null; state.amedas = null; state.offlineNote = ''; state.collapsed = false;
     if (lmap) { lmap.remove(); lmap = null; lmapHash = null; lmapLayers = null; }
-    $('map').innerHTML = '';
+    $('map').innerHTML = ''; renderRwgpsAuth(); rwgpsMsg('');
     $('results').classList.add('hidden'); $('notice').className = 'notice hidden'; $('notice').innerHTML = '';
     $('layout').classList.remove('has-results');
     $('cName').textContent = 'コース未読み込み'; $('cMeta').innerHTML = C_META_DEFAULT; $('sumLine').textContent = '';
@@ -1324,9 +1398,10 @@ import { RW } from './core.js';
     const th = q.get('theme'); if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th;
     if (q.get('sample') === '1') setTimeout(() => { const l = $('sampleLink'); if (l && !state.course) l.click(); }, 50);
     const rl = q.get('relay'); if (rl && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(rl)) state.relay = rl; // 中継のローカル確認用（localhost のみ）
+    const ra = q.get('rwgpsapi'); if (ra && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(ra)) state.rwgpsApi = ra; // RwGPS API のモック（localhost のみ）
   } catch (e) { /* noop */ }
   loadParams(); renderRecent();
-  rwgpsAuthReturn(); // OAuth の戻り先なら結果を表示（検証段階）
+  renderRwgpsAuth(); rwgpsAuthReturn(); // OAuth の戻り先ならトークンに交換して連携状態にする
   const last = store.get('rw:last');
   const savedCourse = (last && last.course) || store.get('rw:course');
   if (savedCourse && savedCourse.pts && savedCourse.pts.length > 1) {
