@@ -27,6 +27,7 @@
     --sleep-row:#F0ECF5; --best-row:#EAF3EE; --map-filter:grayscale(1) brightness(1.08) contrast(.85);
     --lv4:#7E3FA8; --lv5:#1E2A32; --lv5-edge:transparent;
     --night-row:#EDEEEF; /* 区間表の夜間行：無彩色のグレー */
+    --ele-op:.42; /* 標高断面の相対風の塗りの濃さ */
     --wx-rain:#6E9AD6; --wx-cloud:#A6AEB3; --wx-sun:#F0B36B; /* 地図の経路色：雨／曇り／晴れ（矢印より淡く） */
     color-scheme:light;
   }
@@ -36,14 +37,14 @@
     --info-bg:#22344A; --info-ink:#C9DAF0; --warn-bg:#4A3A15; --warn-ink:#F1DDA8; --err-bg:#4A241C; --err-ink:#F3C4BA;
     --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85);
     --lv4:#9A5FC4; --lv5:#0B0D0F; --lv5-edge:#8A969C;
-    --night-row:#2B3035;
+    --night-row:#2B3035; --ele-op:.6;
     --wx-rain:#6F9FE0; --wx-cloud:#8E979C; --wx-sun:#E8A857; color-scheme:dark; }
   @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --paper:#1B1F23; --paper-2:#2B3237; --card:#23292E; --ink:#E9ECEB; --ink-2:#B9C1C5; --ink-3:#8A969C; --line:#3B444A;
     --head:#E5694E; --tail:#4FB086; --cross:#DDB553; --rain:#6A9DE0; --night:#AEB9D6; --sleep:#B39FD9; --na:#9AA4A9;
     --info-bg:#22344A; --info-ink:#C9DAF0; --warn-bg:#4A3A15; --warn-ink:#F1DDA8; --err-bg:#4A241C; --err-ink:#F3C4BA;
     --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85);
     --lv4:#9A5FC4; --lv5:#0B0D0F; --lv5-edge:#8A969C;
-    --night-row:#2B3035;
+    --night-row:#2B3035; --ele-op:.6;
     --wx-rain:#6F9FE0; --wx-cloud:#8E979C; --wx-sun:#E8A857; color-scheme:dark; } 
   }
   *{box-sizing:border-box}
@@ -334,7 +335,7 @@
             <span><i class="swatch" style="background:var(--night);opacity:.25"></i>夜間</span>
             <span><i class="swatch" style="background:var(--sleep);opacity:.45"></i>仮眠</span>
             <span><i class="swatch" style="background:var(--na);opacity:.5"></i>予報範囲外</span>
-            <span>矢印は進行方向基準（上＝追い風、下＝向かい風）。タップで固定表示</span>
+            <span>矢印は進行方向基準（上＝追い風、下＝向かい風）。標高の塗りは相対風の色。タップで固定表示</span>
           </div>
         </section>
 
@@ -400,7 +401,7 @@
   </div>
 
   <footer class="src">
-    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.5.1</b></span><br>
+    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.5.2</b></span><br>
     <span class="disclaimer">予報は参考情報です。実際の天候と異なる場合があり、本サイトの利用により生じた損害について当方は責任を負いません。</span><br>
     出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。<span id="modelInfo"></span><br>
     注意報・警報、アメダス実況：気象庁ホームページ。市区町村の判定：国土地理院 逆ジオコーダ。地図：© OpenStreetMap contributors（ODbL）。ファイルから読み込んだコースは端末内で処理し、外部に送信しません。Ride with GPS 連携（試験運用中）では、ルート番号と共有コードを中継サーバー（Cloudflare Workers）経由で Ride with GPS に送ります。ルートの内容は中継を通過しますが、中継は内容を保存・記録しません。連携（OAuth）のトークンは端末内にのみ保持し、Ride with GPS 以外には送りません。FIT の読み込みには Garmin FIT SDK を使用しています。

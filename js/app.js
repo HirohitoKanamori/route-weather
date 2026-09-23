@@ -565,7 +565,34 @@ import { RW } from './core.js';
     if (course.hasEle) {
       const eles = course.pts.map(q => q.ele ?? 0); const emax = Math.max(...eles), emin = Math.min(...eles);
       const ey = v => lanes.ele.y + lanes.ele.h - ((v ?? emin) - emin) / ((emax - emin) * 1.05 || 1) * lanes.ele.h;
-      s += `<path d="M${xOf(0).toFixed(1)},${lanes.ele.y + lanes.ele.h} ${course.pts.map(q => 'L' + xOf(q.d).toFixed(1) + ',' + ey(q.ele).toFixed(1)).join(' ')} L${xOf(course.total).toFixed(1)},${lanes.ele.y + lanes.ele.h} Z" fill="var(--paper-2)" stroke="var(--ink-3)" stroke-width="1"/>`;
+      const base = lanes.ele.y + lanes.ele.h;
+      s += `<path d="M${xOf(0).toFixed(1)},${base} ${course.pts.map(q => 'L' + xOf(q.d).toFixed(1) + ',' + ey(q.ele).toFixed(1)).join(' ')} L${xOf(course.total).toFixed(1)},${base} Z" fill="var(--paper-2)" stroke="none"/>`;
+      // 相対風で塗り分け（向かい風＝赤系、横風＝黄系、追い風＝緑系）。各サンプルの受け持ちは前後のサンプルとの中点まで。
+      // 同じ分類が続く区間は 1 つの面にまとめ、仮眠地点で区切る（仮眠帯の上に面を渡さない）。傾向モード・欠測・予報範囲外は無彩色のまま
+      if (!trend) {
+        const runs = [];
+        S.forEach((pt, i) => {
+          const a = i ? (S[i - 1].d + pt.d) / 2 : 0, b = i < S.length - 1 ? (pt.d + S[i + 1].d) / 2 : course.total;
+          const cls = !pt.na && pt.cls ? pt.cls : null;
+          const lastRun = runs[runs.length - 1];
+          if (lastRun && lastRun.cls === cls) lastRun.b = b; else runs.push({ a, b, cls });
+        });
+        const cuts = p.sleeps.map(x => x.d).filter(d => d > 0 && d < course.total);
+        const eleAt = d => RW.course.interp(course, d).ele;
+        for (const r of runs) {
+          if (!r.cls) continue;
+          const edges = [r.a, ...cuts.filter(d => d > r.a && d < r.b), r.b];
+          for (let k = 0; k < edges.length - 1; k++) {
+            const a = edges[k], b = edges[k + 1]; if (b - a <= 0) continue;
+            const inner = course.pts.filter(q => q.d > a && q.d < b);
+            const xa = xOf(a, true), xb = xOf(b);
+            const pts = [[xa, ey(eleAt(a))], ...inner.map(q => [xOf(q.d), ey(q.ele)]), [xb, ey(eleAt(b))]];
+            s += `<path d="M${xa.toFixed(1)},${base} ${pts.map(q => 'L' + q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' ')} L${xb.toFixed(1)},${base} Z" fill="${COL[r.cls]}" style="opacity:var(--ele-op)" stroke="none"/>`;
+          }
+        }
+      }
+      s += `<path d="M${course.pts.map(q => xOf(q.d).toFixed(1) + ',' + ey(q.ele).toFixed(1)).join(' L')}" fill="none" stroke="var(--ink-3)" stroke-width="1"/>`;
+      s += line(L, base, L + innerW, base, 'var(--line)');
       s += text(L + innerW - 2, lanes.ele.y + 9, `最高 ${Math.round(emax)} m`, 'tick', 'end');
     } else s += text(L + 4, lanes.ele.y + lanes.ele.h / 2 + 4, '標高データなし', 'tick');
     // 通過済み区間（現在地より手前）を薄く（ADD_01）
