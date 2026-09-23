@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=1.5.3'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=1.5.3-2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -545,13 +545,13 @@ import { RW } from './core.js?v=1.5.3'; // 版を付けて、公開直後に新�
       });
     }
     // 雨レーン：降水量の棒（降水確率は気象庁モデルでは提供されないため非表示）
-    { const ry = lanes.rain.y, rh = lanes.rain.h; const sr = RW.forecast.sleepRain(p, state.series, S);
+    { const ry = lanes.rain.y, rh = lanes.rain.h; const sr = RW.forecast.sleepRain(p, state.series, S, step);
       const mmMax = Math.max(3, ...ok.map(x => x.mm || 0), ...sr.map(x => x.mm || 0)); const bw = Math.max(1.5, px * 0.7); const st = stride(22);
       // 仮眠中（距離は進まないので仮眠帯の中に時刻の位置で出す）
       for (const r of sr) {
         if (!(r.mm > 0)) continue;
         const x = axis.xOfSleep({ d: r.d, t: r.t }); const h = Math.max(1, r.mm / mmMax * (rh - 12));
-        const w = Math.max(1.5, Math.min(bw, axis.pxPerH * 0.7));
+        const w = bw; // 走行中の棒と同じ幅（刻みも同じ時間間隔）
         s += rect(x - w / 2, ry + rh - h, w, h, 'var(--rain)', r.mm >= RAIN_MM ? 1 : .45);
         if (r.mm >= 1) s += text(x, ry + rh - h - 3, r.mm.toFixed(r.mm >= 10 ? 0 : 1), 'tick', 'middle', 'var(--rain)');
       }

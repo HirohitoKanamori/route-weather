@@ -129,7 +129,7 @@ test('wxClass：雨は降水 0.5 mm/h 以上のみ。雨系コードでも 0.5 m
   assert.equal(w(null), null);
 });
 
-test('sleepRain：仮眠地点に近いサンプルの予報を、到着〜出発の間で 1 時間刻みに返す', () => {
+test('sleepRain：仮眠地点に近いサンプルの予報を、走行中と同じ時間間隔で到着〜出発の間に返す', () => {
   const course = straightCourse(21, 10); // 200 km
   const start = new Date(JST(2026, 9, 24, 6));
   const p = { start, spd: 20, sleeps: RW.plan.normSleeps([{ d: 100, m: 150 }], course.total), segments: [] };
@@ -137,16 +137,21 @@ test('sleepRain：仮眠地点に近いサンプルの予報を、到着〜出�
   const from = JST(2026, 9, 24, 0);
   // 地点ごとに降水量を変え、どの地点の値を使ったか分かるようにする（サンプル番号 ×0.1 mm）
   const msm = syntheticSeries(S.length, from, 48, (pi, h) => ({ temp: 20, mm: pi * 0.1 + (h >= 12 ? 5 : 0), ws: 3, wd: 0 }));
-  const out = RW.forecast.sleepRain(p, { msm, gsm: [] }, S);
-  assert.equal(out.length, 3); // 150 分 → 3 刻み
+  const out = RW.forecast.sleepRain(p, { msm, gsm: [] }, S, step);
+  const every = step / 20 * 60; // 走行中の棒の間隔（分）
+  assert.equal(out.length, Math.round(150 / every)); // 150 分を走行中と同じ間隔で刻む
   const idx = S.reduce((b, x, i) => Math.abs(x.d - 100) < Math.abs(S[b].d - 100) ? i : b, 0);
   const arrive = +RW.plan.timeAt(100, p, true);
-  assert.equal(Math.round((out[0].t - arrive) / 60e3), 25); // 50 分刻みの中央
+  assert.ok(Math.abs((out[0].t - arrive) / 60e3 - 150 / out.length / 2) < 1e-6); // 最初の刻みの中央
+  // 区間別速度があれば、その地点の速度で間隔が変わる（10 km/h なら 2 倍の間隔）
+  const pSlow = { ...p, segments: RW.plan.normSegments([{ from: 90, to: 110, spd: 10 }], course.total) };
+  const S2 = RW.plan.samplePoints(course, pSlow, step);
+  assert.equal(RW.forecast.sleepRain(pSlow, { msm, gsm: [] }, S2, step).length, Math.round(150 / (step / 10 * 60)));
   assert.ok(out.every(r => r.d === 100 && r.model === 'msm'));
   for (const r of out) { // 仮眠地点に最も近いサンプル（idx）の値を使っている：地点ごとの差分 idx×0.1 が残り、時刻分は 0 か 5
     const rest = Math.round((r.mm - idx * 0.1) * 1000) / 1000; assert.ok(rest === 0 || rest === 5, 'mm=' + r.mm + ' idx=' + idx);
     assert.equal(r.mm, RW.forecast.pick({ msm, gsm: [] }, idx, r.t).v.mm);
   }
-  assert.deepEqual(RW.forecast.sleepRain({ ...p, sleeps: [] }, { msm, gsm: [] }, S), []);
-  assert.deepEqual(RW.forecast.sleepRain(p, { msm: [], gsm: [] }, S), []); // 予報範囲外は含めない
+  assert.deepEqual(RW.forecast.sleepRain({ ...p, sleeps: [] }, { msm, gsm: [] }, S, step), []);
+  assert.deepEqual(RW.forecast.sleepRain(p, { msm: [], gsm: [] }, S, step), []); // 予報範囲外は含めない
 });
