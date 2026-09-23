@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js';
+import { RW } from './core.js?v=1.5.3'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -511,7 +511,7 @@ import { RW } from './core.js';
     const naFirst = S.find(pt => pt.na);
     if (naFirst) { const a = Math.max(0, naFirst.d - step / 2); band(a, course.total, 'var(--na)', .5); s += text(xOf(a) + 4, top + 22, '予報範囲外', 'lane-label'); }
     // 仮眠帯（仮眠時間に比例した幅。横軸は距離だが、仮眠の分だけ時間軸の帯を挟む）
-    for (const sl of p.sleeps) { const x = xOf(sl.d); const w = Math.max(4, axis.gapW(sl)); s += rect(x, top, w, bottom - top, 'var(--sleep)', .35); s += text(x + w + 3, top + 10, `仮眠 ${sl.m}分`, 'lane-label', 'start', 'var(--sleep)'); }
+    for (const sl of p.sleeps) { const x = xOf(sl.d); const w = Math.max(4, axis.gapW(sl)); s += rect(x, top, w, bottom - top, 'var(--sleep)', .35); const lb = `仮眠 ${sl.m}分`; const rightRoom = L + innerW - (x + w + 3); s += rightRoom >= lb.length * 10 ? text(x + w + 3, top + 10, lb, 'lane-label', 'start', 'var(--sleep)') : text(x - 3, top + 10, lb, 'lane-label', 'end', 'var(--sleep)'); } // 右に収まらなければ帯の左に出す
     // 時刻目盛（正時。日付境界を強調。仮眠中の正時は仮眠帯の中に置く）
     const pxPerH = axis.pxPerH;
     const hStep = [1, 2, 3, 6, 12].find(n => n * pxPerH >= 34) || 24;
@@ -545,7 +545,16 @@ import { RW } from './core.js';
       });
     }
     // 雨レーン：降水量の棒（降水確率は気象庁モデルでは提供されないため非表示）
-    { const ry = lanes.rain.y, rh = lanes.rain.h; const mmMax = Math.max(3, ...ok.map(x => x.mm || 0)); const bw = Math.max(1.5, px * 0.7); const st = stride(22);
+    { const ry = lanes.rain.y, rh = lanes.rain.h; const sr = RW.forecast.sleepRain(p, state.series, S);
+      const mmMax = Math.max(3, ...ok.map(x => x.mm || 0), ...sr.map(x => x.mm || 0)); const bw = Math.max(1.5, px * 0.7); const st = stride(22);
+      // 仮眠中（距離は進まないので仮眠帯の中に時刻の位置で出す）
+      for (const r of sr) {
+        if (!(r.mm > 0)) continue;
+        const x = axis.xOfSleep({ d: r.d, t: r.t }); const h = Math.max(1, r.mm / mmMax * (rh - 12));
+        const w = Math.max(1.5, Math.min(bw, axis.pxPerH * 0.7));
+        s += rect(x - w / 2, ry + rh - h, w, h, 'var(--rain)', r.mm >= RAIN_MM ? 1 : .45);
+        if (r.mm >= 1) s += text(x, ry + rh - h - 3, r.mm.toFixed(r.mm >= 10 ? 0 : 1), 'tick', 'middle', 'var(--rain)');
+      }
       S.forEach((pt, i) => {
         if (pt.na || !(pt.mm > 0)) return;
         const x = xOf(pt.d); const h = Math.max(1, pt.mm / mmMax * (rh - 12));

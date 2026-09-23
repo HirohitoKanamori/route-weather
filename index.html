@@ -401,7 +401,7 @@
   </div>
 
   <footer class="src">
-    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.5.2</b></span><br>
+    <span class="ver">Route-Weather.jp Beta <b id="appVersion">v1.5.3</b></span><br>
     <span class="disclaimer">予報は参考情報です。実際の天候と異なる場合があり、本サイトの利用により生じた損害について当方は責任を負いません。</span><br>
     出典：気象庁 数値予報（MSM／GSM）— <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）。<span id="modelInfo"></span><br>
     注意報・警報、アメダス実況：気象庁ホームページ。市区町村の判定：国土地理院 逆ジオコーダ。地図：© OpenStreetMap contributors（ODbL）。ファイルから読み込んだコースは端末内で処理し、外部に送信しません。Ride with GPS 連携（試験運用中）では、ルート番号と共有コードを中継サーバー（Cloudflare Workers）経由で Ride with GPS に送ります。ルートの内容は中継を通過しますが、中継は内容を保存・記録しません。連携（OAuth）のトークンは端末内にのみ保持し、Ride with GPS 以外には送りません。FIT の読み込みには Garmin FIT SDK を使用しています。
@@ -412,6 +412,6 @@
 // 表示モードを最初に適用（自動＝OS 設定に従う）
 try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式（生文字列）はそのまま */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
 </script>
-<script type="module" src="js/app.js"></script>
+<script type="module" src="js/app.js?v=1.5.3"></script>
 </body>
 </html>

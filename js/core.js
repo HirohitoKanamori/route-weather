@@ -366,6 +366,25 @@ export const RW = (function () {
     }
     return null;
   }
+  // 仮眠中の降水：仮眠地点に最も近いサンプル地点の予報を、到着〜出発の間で最長 1 時間刻みに取る（リボンの仮眠帯に棒を出すため）
+  // 返り値：[{ d, t, mm, model }]（t は各刻みの中央。予報範囲外の刻みは含めない）
+  function sleepRain(p, series, S) {
+    const out = [];
+    if (!S || !S.length) return out;
+    for (const sl of p.sleeps) {
+      if (!(sl.m > 0)) continue;
+      let idx = 0, best = Infinity; S.forEach((x, i) => { const dd = Math.abs(x.d - sl.d); if (dd < best) { best = dd; idx = i; } });
+      const a = +timeAt(sl.d, p, true), span = sl.m * 60e3;
+      const n = Math.max(1, Math.ceil(sl.m / 60)), step = span / n;
+      for (let k = 0; k < n; k++) {
+        const t = a + (k + 0.5) * step;
+        const pk = pick(series, idx, t);
+        if (!pk || pk.v.mm == null) continue;
+        out.push({ d: sl.d, t, mm: pk.v.mm, model: pk.model });
+      }
+    }
+    return out;
+  }
   function computeRide(course, p, series) {
     const step = sampleStep(course.total);
     const S = samplePoints(course, p, step);
@@ -482,6 +501,6 @@ export const RW = (function () {
     locate: { locateOnCourse, chooseCandidate },
     wind: { relative, dir16 },
     sun: { sunTimes, isNight },
-    forecast: { buildUrl, parseSeries, horizon, at, pick, computeRide, summarize, trendAggregate, startComparison, wmoText, wxClass }
+    forecast: { buildUrl, parseSeries, horizon, at, pick, computeRide, sleepRain, summarize, trendAggregate, startComparison, wmoText, wxClass }
   };
 })();

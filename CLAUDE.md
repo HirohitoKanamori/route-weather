@@ -36,6 +36,7 @@ V-6 本地図は Leaflet で実装済み（2026-09-05 に利用者が許可）�
 - テストは `node --test "test/*.test.mjs"`（GitHub Actions でも公開前に実行される）
 - 描画は iPhone 実機（幅 375–430 px）で確認してから公開する
 - 公開は `main` への push → GitHub Pages
+- 版を上げるときは、フッターの `#appVersion` に加えて `index.html` の `js/app.js?v=` と `js/app.js` 先頭の `./core.js?v=` も同じ版にする（GitHub Pages の 10 分キャッシュで新旧の app.js／core.js が混ざるのを防ぐ。v1.5.3 から）
 
 ## 追加機能 ADD_01（現在位置から予報を再取得）
 

@@ -128,3 +128,25 @@ test('wxClass：雨は降水 0.5 mm/h 以上のみ。雨系コードでも 0.5 m
   assert.equal(w({ na: true }), null);
   assert.equal(w(null), null);
 });
+
+test('sleepRain：仮眠地点に近いサンプルの予報を、到着〜出発の間で 1 時間刻みに返す', () => {
+  const course = straightCourse(21, 10); // 200 km
+  const start = new Date(JST(2026, 9, 24, 6));
+  const p = { start, spd: 20, sleeps: RW.plan.normSleeps([{ d: 100, m: 150 }], course.total), segments: [] };
+  const step = RW.plan.sampleStep(course.total); const S = RW.plan.samplePoints(course, p, step);
+  const from = JST(2026, 9, 24, 0);
+  // 地点ごとに降水量を変え、どの地点の値を使ったか分かるようにする（サンプル番号 ×0.1 mm）
+  const msm = syntheticSeries(S.length, from, 48, (pi, h) => ({ temp: 20, mm: pi * 0.1 + (h >= 12 ? 5 : 0), ws: 3, wd: 0 }));
+  const out = RW.forecast.sleepRain(p, { msm, gsm: [] }, S);
+  assert.equal(out.length, 3); // 150 分 → 3 刻み
+  const idx = S.reduce((b, x, i) => Math.abs(x.d - 100) < Math.abs(S[b].d - 100) ? i : b, 0);
+  const arrive = +RW.plan.timeAt(100, p, true);
+  assert.equal(Math.round((out[0].t - arrive) / 60e3), 25); // 50 分刻みの中央
+  assert.ok(out.every(r => r.d === 100 && r.model === 'msm'));
+  for (const r of out) { // 仮眠地点に最も近いサンプル（idx）の値を使っている：地点ごとの差分 idx×0.1 が残り、時刻分は 0 か 5
+    const rest = Math.round((r.mm - idx * 0.1) * 1000) / 1000; assert.ok(rest === 0 || rest === 5, 'mm=' + r.mm + ' idx=' + idx);
+    assert.equal(r.mm, RW.forecast.pick({ msm, gsm: [] }, idx, r.t).v.mm);
+  }
+  assert.deepEqual(RW.forecast.sleepRain({ ...p, sleeps: [] }, { msm, gsm: [] }, S), []);
+  assert.deepEqual(RW.forecast.sleepRain(p, { msm: [], gsm: [] }, S), []); // 予報範囲外は含めない
+});
