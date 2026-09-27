@@ -292,7 +292,7 @@
     /* 結果が出るまでは設定欄だけを中央に置き、結果が出たら 2 カラムにする */
     .layout{max-width:600px;margin:0 auto}
     .layout.has-results{max-width:none;display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start}
-    .layout.has-results>aside{position:sticky;top:8px}
+    .layout.has-results>aside{position:sticky;top:8px;z-index:10} /* sticky は重なりの階層を作るので、左欄の中の「変更」シートが右欄のパネルの下に潜らないよう左欄ごと上に */
   }
 </style>
 </head>
@@ -480,7 +480,7 @@
   <footer class="src">
     <div>予報は参考情報です（<a href="about.html#disclaimer">免責事項</a>）。出典：気象庁 数値予報（<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由）、注意報・アメダス：気象庁、地図：© OpenStreetMap</div>
     <div class="model" id="modelInfo"></div>
-    <div class="links"><a href="about.html">このサイトについて</a><span class="ver">Route-Weather.jp <b id="appVersion">v2.0.0</b></span></div>
+    <div class="links"><a href="about.html">このサイトについて</a><span class="ver">Route-Weather.jp <b id="appVersion">v2.0.1</b></span></div>
   </footer>
 </div>
 
@@ -488,6 +488,6 @@
 // 表示モードを最初に適用（自動＝OS 設定に従う）
 try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式（生文字列）はそのまま */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
 </script>
-<script type="module" src="js/app.js?v=2.0.0"></script>
+<script type="module" src="js/app.js?v=2.0.1"></script>
 </body>
 </html>

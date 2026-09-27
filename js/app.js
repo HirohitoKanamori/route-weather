@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=2.0.0'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=2.0.1'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
