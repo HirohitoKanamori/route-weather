@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=2.0.1'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=2.0.1-2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -779,19 +779,52 @@ import { RW } from './core.js?v=2.0.1'; // 版を付けて、公開直後に新�
     }
     return segs;
   }
+  // 地図タイルを端末内でモノクロ（ダークでは反転）に描き直す。CSS の filter で見せるだけだと、iPhone Safari の
+  // フルページのスクリーンショット（PDF として描き直す）でカラーに戻るため。見た目は従来の --map-filter と同じ計算
+  const isDarkNow = () => { const t = document.documentElement.dataset.theme; if (t) return t === 'dark'; try { return matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) { return false; } };
+  function paintMono(canvas, img, dark) {
+    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const im = ctx.getImageData(0, 0, canvas.width, canvas.height), d = im.data; // CORS が通らないとここで例外（呼び出し側で CSS の filter に戻す）
+    const bri = dark ? 0.85 : 1.08, con = 0.85;
+    for (let i = 0; i < d.length; i += 4) {
+      let l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]; // grayscale(1)
+      if (dark) l = 255 - l;                                         // invert(1)
+      l = (l * bri - 127.5) * con + 127.5;                           // brightness → contrast
+      d[i] = d[i + 1] = d[i + 2] = l < 0 ? 0 : l > 255 ? 255 : l;
+    }
+    ctx.putImageData(im, 0, 0);
+  }
+  function monoTile(url, canvas, dark, done) {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => { try { paintMono(canvas, img, dark); } catch (e) { const c = canvas.getContext('2d'); c.drawImage(img, 0, 0, canvas.width, canvas.height); canvas.classList.add('rawTile'); } done(null); };
+    img.onerror = e => done(e || new Error('tile'));
+    img.src = url;
+  }
+  const OSM_ATTR = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
+  let MonoTileLayer = null;
+  function monoTileLayer(dark) {
+    if (!MonoTileLayer) MonoTileLayer = L.GridLayer.extend({
+      createTile(coords, done) {
+        const c = document.createElement('canvas'); c.width = c.height = 256;
+        monoTile(`https://tile.openstreetmap.org/${coords.z}/${coords.x}/${coords.y}.png`, c, this.options.dark, err => done(err, c));
+        return c;
+      }
+    });
+    return new MonoTileLayer({ maxZoom: 19, attribution: OSM_ATTR, dark });
+  }
   function renderMap() {
     const host = $('map');
     if (typeof L === 'undefined') { renderMapStatic(); return; }
     if (!host.clientWidth) { setTimeout(() => { if (state.result) renderMap(); }, 80); return; } // レイアウト前なら少し待って描く（非表示タブでも動くよう rAF は使わない）
     const P = state.course.pts; const hash = RW.course.hashCourse(state.course);
-    const theme = document.documentElement.dataset.theme || 'auto';
+    const theme = isDarkNow() ? 'dark' : 'light'; // 実際の見え方で持つ（自動のまま OS の設定が変わったときも描き直す）
     const W = Math.max(260, Math.floor(host.clientWidth || 300)); const H = Math.round(Math.min(W * 0.85, 420));
     if (!lmap || lmapHash !== hash || lmapTheme !== theme) {
       if (lmap) { lmap.remove(); lmap = null; }
       host.innerHTML = '<div class="leaflet" id="leaflet"></div>' + MAP_NOTE;
       const el = $('leaflet'); el.style.height = H + 'px';
       lmap = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true });
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors' }).addTo(lmap);
+      monoTileLayer(theme === 'dark').addTo(lmap);
       const latlngs = P.map(q => [q.lat, q.lon]);
       lmap.createPane('chev'); lmap.getPane('chev').style.zIndex = 450; // 経路線（400）の上、風矢印など通常マーカー（600）の下
       lmapLayers = { route: L.layerGroup().addTo(lmap), chev: L.layerGroup().addTo(lmap), arrows: L.layerGroup().addTo(lmap), marks: L.layerGroup().addTo(lmap) };
@@ -884,6 +917,11 @@ import { RW } from './core.js?v=2.0.1'; // 版を付けて、公開直後に新�
     s += `<circle cx="${g[0].toFixed(1)}" cy="${g[1].toFixed(1)}" r="8" fill="var(--card)" stroke="var(--ink)" stroke-width="3"/>`;
     s += `<text x="${(s0[0] + 8).toFixed(1)}" y="${(s0[1] + 4).toFixed(1)}" class="tick" fill="var(--ink)" stroke="var(--card)" stroke-width="3" paint-order="stroke">スタート</text></svg>`;
     host.innerHTML = `<div class="osm" style="width:${W}px;height:${H}px">${tiles}${s}<div class="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div></div>` + MAP_NOTE;
+    const dark = isDarkNow();
+    host.querySelectorAll('.osm img').forEach(im => {
+      const c = document.createElement('canvas'); c.width = c.height = 256; c.className = 'tile'; c.style.cssText = im.style.cssText;
+      monoTile(im.src, c, dark, err => { if (!err && !c.classList.contains('rawTile')) im.replaceWith(c); });
+    });
   }
   function renderStarts() {
     const { p } = state.result; const tb = $('starts').querySelector('tbody');
@@ -1416,6 +1454,7 @@ import { RW } from './core.js?v=2.0.1'; // 版を付けて、公開直後に新�
   }));
   function renderTheme() { const cur = document.documentElement.dataset.theme || 'auto'; menu.querySelectorAll('[data-theme-set]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themeSet === cur))); }
   renderTheme();
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (state.result && !document.documentElement.dataset.theme) renderMap(); }); } catch (e) { /* 古い Safari は無視 */ }
   $('menuGps').addEventListener('click', () => { setMenu(false); state.gpsShown = true; renderGpsPlace(); $('gpsWrap').scrollIntoView({ block: 'center', behavior: 'smooth' }); gpsRefresh(); });
   $('changeCourse').addEventListener('click', openLoad);
   $('loadClose').addEventListener('click', closeLoad);

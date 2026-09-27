@@ -243,6 +243,7 @@
   small.sub{font-size:11px;color:var(--ink-3);font-weight:400}
   .tag{display:inline-block;font-size:11px;border:1px solid var(--ink-3);color:var(--ink-2);border-radius:3px;padding:0 4px;margin-left:4px;line-height:15px;vertical-align:1px}
   .map .osm{position:relative;overflow:hidden;border-radius:6px;background:var(--paper-2);margin:0 auto}
+  .map .osm canvas.tile{position:absolute;display:block;width:256px;height:256px;pointer-events:none}
   .map .osm img{position:absolute;display:block;width:256px;height:256px;pointer-events:none;user-select:none;
     filter:var(--map-filter)} /* 地図はモノクロ・淡めにして風矢印の色を目立たせる（ダークでは反転） */
   .map .osm svg{position:absolute;left:0;top:0;display:block}
@@ -269,7 +270,7 @@
   .fsUi .fsLegend .lg{margin:0 2px 0 0;width:11px} .fsUi .fsLegend .swatch{margin-right:2px;width:9px;height:9px}
   html.noScroll,body.noScroll{overflow:hidden;height:100%}
   .leaflet-container{font-family:inherit;background:var(--paper-2)}
-  .leaflet-tile-pane{filter:var(--map-filter)}
+  .leaflet-tile-pane .rawTile{filter:var(--map-filter)} /* タイルは端末内でモノクロに描き直す。CORS が通らなかったタイルだけ従来の CSS フィルター */
   .windIcon{background:none;border:0}
   .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--ink);color:var(--paper);box-shadow:0 2px 8px rgba(0,0,0,.3)}
   .leaflet-popup-content{font-size:13px;line-height:1.45;margin:8px 10px}
@@ -488,6 +489,6 @@
 // 表示モードを最初に適用（自動＝OS 設定に従う）
 try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式（生文字列）はそのまま */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
 </script>
-<script type="module" src="js/app.js?v=2.0.1"></script>
+<script type="module" src="js/app.js?v=2.0.1-2"></script>
 </body>
 </html>

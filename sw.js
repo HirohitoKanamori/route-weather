@@ -3,7 +3,7 @@
 // - 予報 API（Open-Meteo・気象庁）はキャッシュしない（アプリ側が localStorage で保持する）
 // - 地図タイルはキャッシュ優先（OSM の利用ポリシーに沿った端末内キャッシュ）。上限を超えたら古いものから消す
 // vendor/ を更新したら VERSION を上げること
-const VERSION = 'rw-v9';
+const VERSION = 'rw-v10';
 const SHELL = 'shell-' + VERSION, TILES = 'tiles-' + VERSION;
 const SHELL_FILES = ['./', './index.html', './about.html', './js/core.js', './js/app.js', './vendor/leaflet/leaflet.js', './vendor/leaflet/leaflet.css', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-512-maskable.png', './icons/apple-touch-icon.png', './icons/favicon.svg', './icons/favicon-32.png', './icons/favicon-16.png', './icons/favicon.ico', './logo/logo-light.png', './logo/logo-dark.png'];
 const TILE_MAX = 300;
@@ -32,7 +32,8 @@ async function networkFirst(req, cacheName) {
 }
 async function cacheFirst(req, cacheName, max) {
   const cache = await caches.open(cacheName);
-  const hit = await cache.match(req); if (hit) return hit;
+  const hit = await cache.match(req);
+  if (hit && !(hit.type === 'opaque' && req.mode === 'cors')) return hit; // 以前 img で読んだ不透明な応答は、CORS で読むタイル（モノクロ化）には使えないので取り直す
   const res = await fetch(req);
   if (res && res.ok) { cache.put(req, res.clone()); if (max) trim(cache, max); }
   return res;
