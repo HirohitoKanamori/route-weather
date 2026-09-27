@@ -67,3 +67,4 @@
 - v1.4.0（2026-09-21）：Stage 1 を実装。`js/core.js` に `rwgps.parseUrl`／`rwgps.toCourse`、`worker/`（`src/index.mjs`、`wrangler.toml`、README）、`test/rwgps.test.mjs`・`test/relay.test.mjs` を追加
 - v1.5.0（2026-09-22）：Stage 2 を実装。中継に `POST /oauth/exchange`、画面に「Ride with GPS と連携」「自分のルートを選ぶ」「連携を解除」とルート一覧（50 件ずつ、名前で絞り込み、更新日の新しい順、非公開は表示）。トークンは `rw:rwgps` に保持し 401 で破棄。確認用の `?rwgpsapi=http://localhost:…` を追加。テスト 2 件追加
 - v1.5.4（2026-09-27）：中継を独自ドメイン `https://api.route-weather.jp` に移行。route-weather.jp の DNS をお名前.com レンタルサーバーの DNS（ns-rs1/2.gmoserver.jp）から Cloudflare 無料プラン（buck／donna.ns.cloudflare.com）へ移管し、既存 9 件（GitHub Pages の A ×4・www の CNAME・mail の A・MX・SPF・DKIM）を「DNS のみ」で写した。Worker には `routes`（`custom_domain = true`）で付与。旧 workers.dev の住所は古い版のアプリ向けに当面残す。独自ドメインでは Cloudflare の Cache API が効く（公式文書）
+- 2026-09-27：iPhone 実機で、独自ドメインの中継経由の URL 貼り付けと OAuth 連携（一覧→選択）を確認（利用者）。https://www.route-weather.jp は移管前から GitHub Pages の証明書が www を含まないため証明書エラー（http の www は転送される）。対応は別途検討
