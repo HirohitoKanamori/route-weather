@@ -461,7 +461,7 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
   function summaryCards() {
     const { sm, step, p } = state.result;
     const A = !!p.anchor; const rest = A ? Math.max(0, state.course.total - p.anchor.d) : state.course.total; const L = A ? '残りの' : '';
-    const cards = [{ cls: '', k: 'ゴール予定', v: F.fmtDT(sm.goal), s: A ? `現在地 ${Math.round(p.anchor.d)} km（${F.fmtH(p.anchor.t)}）から残り ${n1(rest)} km・${n1(Math.max(0, (+sm.goal - +p.anchor.t) / 3600e3))} h` : `経過 ${n1(sm.totalH)} h（仮眠 ${p.sleeps.reduce((a, s) => a + s.m, 0)} 分を含む）` }];
+    const cards = [{ cls: '', k: 'ゴール予定', v: F.fmtDT(sm.goal), s: A ? `現在地 ${Math.round(p.anchor.d)} km（${F.fmtH(p.anchor.t)}）から残り ${n1(rest)} km・${n1(Math.max(0, (+sm.goal - +p.anchor.t) / 3600e3))} h` : `経過 ${n1(sm.totalH)} h${p.sleeps.length ? '・うち仮眠 ' + p.sleeps.reduce((a, s) => a + s.m, 0) + ' 分' : ''}` }];
     if (sm.nOk === 0) return cards;
     cards.push({ cls: 'head', k: L + '向かい風区間', v: `${sm.headKm} km`, s: `${rest > 0 ? Math.round(sm.headKm / rest * 100) : 0}% ／ 最大風速 ${sm.wsMax ? n1(sm.wsMax.ws) + ' m/s（' + Math.round(sm.wsMax.d) + ' km）' : '—'}` });
     cards.push({ cls: 'rain', k: L + '雨中走行', v: `${sm.rainKm} km`, s: sm.rainFirst ? `${Math.round(sm.rainFirst.d)} km（${F.fmtDT(sm.rainFirst.t)}）〜 ${Math.round(Math.min(sm.rainLast.d + step, state.course.total))} km` : `${RAIN_MM} mm/h 以上の降水なし` });
@@ -692,7 +692,9 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
   // ===== 本地図（V-6）：Leaflet + OSM タイル。Leaflet が読めない場合は静的な略地図にフォールバック =====
   const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   let lmap = null, lmapHash = null, lmapLayers = null, lmapTheme = null;
-  const MAP_NOTE = '<div class="note"><span class="lg" style="--c:var(--wx-rain)"></span>雨（降水 0.5 mm/h 以上） <span class="lg" style="--c:var(--wx-cloud)"></span>曇り <span class="lg" style="--c:var(--wx-sun)"></span>晴れ <span class="lg dash"></span>予報範囲外（線の色＝通過時刻の予報）。»＝進行方向。矢印＝風の吹いていく向き（実方位）、色は相対風。矢印をタップすると詳細。●スタート ○ゴール</div>';
+  // 地図の凡例は色の札だけ。読み方は ⓘ の中（v2 段階 2）
+  const MAP_NOTE = '<div class="note"><span class="lg" style="--c:var(--wx-rain)"></span>雨 <span class="lg" style="--c:var(--wx-cloud)"></span>曇り <span class="lg" style="--c:var(--wx-sun)"></span>晴れ <span class="lg dash"></span>範囲外 <button type="button" class="info" aria-expanded="false" aria-controls="helpMap">読み方</button></div>'
+    + '<div class="help" id="helpMap" hidden>線の色は通過時刻の予報です（雨は降水 0.5 mm/h 以上）。矢印は風の吹いていく向き（実際の方位）で、色は相対風。矢印をタップすると詳細が出ます。»は進行方向、●はスタート、○はゴール。<a href="about.html#map">詳しく</a></div>';
   const WXVAR = { rain: '--wx-rain', cloud: '--wx-cloud', sun: '--wx-sun' };
   // 進行方向の記号（>>）を置く位置：経路に沿って画素間隔 spacing ごと。px(lat, lon) → [x, y]
   function chevronSpots(P, px, spacing, max = 250) {
@@ -852,7 +854,7 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
     if (ser.msm) parts.push('MSM 初期時刻 ' + (ser.runs.msm ? F.fmtDT(ser.runs.msm) : '取得中'));
     if (ser.gsm) parts.push('GSM 初期時刻 ' + (ser.runs.gsm ? F.fmtDT(ser.runs.gsm) : '取得中'));
     parts.push('予報取得 ' + F.fmtDT(ser.fetchedAt));
-    $('modelInfo').textContent = '　' + parts.join(' ／ ') + '（JST）';
+    $('modelInfo').textContent = parts.join(' ／ ') + '（JST）';
   }
 
   // ===== 注意報・警報（V-7）とアメダス実況：気象庁ホームページの JSON を直接取得 =====
@@ -1362,6 +1364,13 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
   function renderTheme() { const cur = document.documentElement.dataset.theme || 'auto'; $('theme').textContent = '表示：' + ({ auto: '自動', dark: 'ダーク', light: 'ライト' })[cur]; }
   renderTheme();
   if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('./sw.js').catch(() => { /* 未対応・失敗時は通常動作 */ }); }
+  // ⓘ：aria-controls の説明を開閉する（v2 段階 2）
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button.info'); if (!b) return;
+    e.preventDefault(); // ラベル内に置いたときに入力欄へフォーカスが移らないよう
+    const el = document.getElementById(b.getAttribute('aria-controls')); if (!el) return;
+    el.hidden = !el.hidden; b.setAttribute('aria-expanded', String(!el.hidden));
+  });
   $('rwgpsGo').addEventListener('click', () => loadRwgps($('rwgpsUrl').value));
   $('rwgpsAuth').addEventListener('click', rwgpsAuthStart);
   $('rwgpsPick').addEventListener('click', () => { const box = $('rwgpsList'); if (box.classList.contains('hidden') || !rwgpsState.items.length) rwgpsList(true); else box.classList.add('hidden'); });
