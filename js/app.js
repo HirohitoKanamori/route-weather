@@ -1140,14 +1140,14 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
     for (let i = 0; i < d.length; i += 4) { let l = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]); l = ((l - 128) * 0.85 + 128) * 1.08; l = l < 0 ? 0 : l > 255 ? 255 : l; d[i] = d[i + 1] = d[i + 2] = l; }
     ctx.putImageData(img, 0, 0);
     // 経路（白縁取り＋天気で色分け）
-    const cs = getComputedStyle(document.documentElement); const light = { '--wx-rain': '#6E9AD6', '--wx-cloud': '#A6AEB3', '--wx-sun': '#F0B36B', '--na': '#6F7A80', '--ink': '#1E2A32', '--head': '#C8462B', '--tail': '#2E7D5B', '--cross': '#C79A2F' };
+    const cs = getComputedStyle(document.documentElement); const light = { '--wx-rain': '#6E9AD6', '--wx-cloud': '#A6AEB3', '--wx-sun': '#F0B36B', '--na': '#6F7A80', '--ink': '#102A1E', '--head': '#C8462B', '--tail': '#2E7D5B', '--cross': '#C79A2F' };
     const v = name => light[name] || cs.getPropertyValue(name).trim();
     const line = (pts, color, w, dash) => { ctx.beginPath(); pts.forEach((q, i) => { const a = px(q.lat, q.lon); if (i) ctx.lineTo(a[0], a[1]); else ctx.moveTo(a[0], a[1]); }); ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]); };
     line(P, '#FFFFFF', 14);
     for (const sg of routeSegments(state.course, S)) { if (sg.cls) line(sg.pts, v(WXVAR[sg.cls]), 7); else line(sg.pts, v('--na'), 3, [8, 10]); }
     // 進行方向の記号（>>）：風矢印の下に描く
     const chevC = (c, color, w, k) => { ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.ang * Math.PI / 180); ctx.scale(k, k); ctx.strokeStyle = color; ctx.lineWidth = w / k; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(-6, -5); ctx.lineTo(-1, 0); ctx.lineTo(-6, 5); ctx.moveTo(0, -5); ctx.lineTo(5, 0); ctx.lineTo(0, 5); ctx.stroke(); ctx.restore(); };
-    for (const c of chevronSpots(P, px, 110)) { chevC(c, '#FFFFFF', 8, 2); chevC(c, '#4B5A63', 3.5, 2); }
+    for (const c of chevronSpots(P, px, 110)) { chevC(c, '#FFFFFF', 8, 2); chevC(c, '#4A5B50', 3.5, 2); }
     // 風矢印（実方位。40px 以上離れた地点だけ）
     const arrowC = (x, y, angDeg, len, color, w) => { ctx.save(); ctx.translate(x, y); ctx.rotate(angDeg * Math.PI / 180); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-len / 2, 0); ctx.lineTo(len / 2, 0); ctx.stroke(); ctx.beginPath(); ctx.moveTo(len / 2 + 3, 0); ctx.lineTo(len / 2 - 14, -9); ctx.lineTo(len / 2 - 14, 9); ctx.closePath(); ctx.fill(); ctx.restore(); };
     let last = null;
@@ -1169,11 +1169,11 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
     ctx.font = 'bold 34px ' + FONT; const bw = Math.min(size - 24, Math.max(ctx.measureText(t1).width, t2w) + 40);
     box(12, 12, bw, 96);
     ctx.fillStyle = v('--ink'); ctx.fillText(t1, 32, 54);
-    ctx.fillStyle = '#4B5A63'; ctx.font = '22px ' + FONT; ctx.fillText(t2, 32, 90);
+    ctx.fillStyle = '#4A5B50'; ctx.font = '22px ' + FONT; ctx.fillText(t2, 32, 90);
     // 凡例（左下、小さく）
     ctx.font = '20px ' + FONT;
     const items1 = [['line', v('--wx-rain'), '雨（降水 0.5 mm/h 以上）'], ['line', v('--wx-cloud'), '曇り'], ['line', v('--wx-sun'), '晴れ'], ['dash', v('--na'), '予報範囲外']];
-    const items2 = [['arrow', v('--head'), '向かい風'], ['arrow', v('--cross'), '横風'], ['arrow', v('--tail'), '追い風'], ['text', '#4B5A63', '矢印＝風の吹いていく向き　»＝進行方向　●スタート ○ゴール']];
+    const items2 = [['arrow', v('--head'), '向かい風'], ['arrow', v('--cross'), '横風'], ['arrow', v('--tail'), '追い風'], ['text', '#4A5B50', '矢印＝風の吹いていく向き　»＝進行方向　●スタート ○ゴール']];
     const rowW = items => items.reduce((a, it) => a + (it[0] === 'text' ? 0 : 34) + ctx.measureText(it[2]).width + 18, 0);
     const lw = Math.max(rowW(items1), rowW(items2)) + 14, lh = 76, ly = size - 40 - 12 - lh;
     box(12, ly, lw, lh);
@@ -1182,14 +1182,14 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
       for (const [kind, color, label] of items) {
         if (kind === 'line' || kind === 'dash') { ctx.strokeStyle = color; ctx.lineWidth = kind === 'dash' ? 3 : 7; ctx.lineCap = 'round'; ctx.setLineDash(kind === 'dash' ? [6, 7] : []); ctx.beginPath(); ctx.moveTo(x, y - 7); ctx.lineTo(x + 26, y - 7); ctx.stroke(); ctx.setLineDash([]); x += 34; }
         else if (kind === 'arrow') { arrowC(x + 13, y - 7, 0, 24, '#FFFFFF', 8); arrowC(x + 13, y - 7, 0, 24, color, 3.5); x += 34; }
-        ctx.fillStyle = color === '#4B5A63' ? color : '#1E2A32'; ctx.fillText(label, x, y); x += ctx.measureText(label).width + 18;
+        ctx.fillStyle = color === '#4A5B50' ? color : '#102A1E'; ctx.fillText(label, x, y); x += ctx.measureText(label).width + 18;
       }
     };
     drawRow(items1, ly + 32); drawRow(items2, ly + 62);
     // 出典（OSM の利用条件）
     ctx.font = '22px ' + FONT; const attr = '© OpenStreetMap contributors'; const tw = ctx.measureText(attr).width;
     ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(size - tw - 24, size - 40, tw + 24, 40);
-    ctx.fillStyle = '#4B5A63'; ctx.fillText(attr, size - tw - 12, size - 13);
+    ctx.fillStyle = '#4A5B50'; ctx.fillText(attr, size - tw - 12, size - 13);
     await deliverPng(canvas, `route-weather-map-${F.ymd(p.start)}.png`);
   }
 

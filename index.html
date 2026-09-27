@@ -8,8 +8,8 @@
 <meta name="apple-mobile-web-app-title" content="Route-Weather.jp">
 <meta name="description" content="日本国内専用・自転車向けコース天気予報。コースと出走時刻から、通過時点の風・雨・気温を見る">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#F6EEEC" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1B1F23" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F3F5F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111713" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=3">
 <link rel="icon" type="image/svg+xml" href="icons/favicon.svg?v=3">
@@ -21,7 +21,9 @@
 <title>Route-Weather.jp (Beta) — 日本国内専用・自転車向けコース天気予報</title>
 <style>
   :root{
-    --card:#fff; --paper:#F6EEEC; --paper-2:#EADEDA; --ink:#1E2A32; --ink-2:#4B5A63; --ink-3:#8A969C; --line:#C9CEC5;
+    /* v2 の色（案 A：森と生成り。ロゴ文字 #022914・森 #11532C から。風・雨などの意味色は下で別に持つ） */
+    --card:#fff; --paper:#F3F5F0; --paper-2:#E5EAE2; --ink:#102A1E; --ink-2:#4A5B50; --ink-3:#85918A; --line:#D2DACF;
+    --brand:#11532C; --brand-ink:#F3F5F0; /* 主ボタン */
     --head:#C8462B; --tail:#2E7D5B; --cross:#C79A2F; --rain:#3B6FB6; --night:#2A3448; --sleep:#6E5A8E; --na:#6F7A80;
     --info-bg:#E4ECF5; --info-ink:#25405E; --warn-bg:#FBF1DC; --warn-ink:#6B4E12; --err-bg:#F8E3DF; --err-ink:#7A2A1C;
     --sleep-row:#F0ECF5; --best-row:#EAF3EE; --map-filter:grayscale(1) brightness(1.08) contrast(.85);
@@ -32,14 +34,14 @@
     color-scheme:light;
   }
   /* ダークモード：OS 設定に従う（自動）か、ヘッダーの切り替えで固定 */
-  :root[data-theme="dark"]{ --paper:#1B1F23; --paper-2:#2B3237; --card:#23292E; --ink:#E9ECEB; --ink-2:#B9C1C5; --ink-3:#8A969C; --line:#3B444A;
+  :root[data-theme="dark"]{ --paper:#111713; --paper-2:#1F2A23; --card:#18201B; --ink:#E6ECE7; --ink-2:#B2BDB5; --ink-3:#7F8A82; --line:#2F3B33; --brand:#2F7A4E; --brand-ink:#F2F7F3;
     --head:#E5694E; --tail:#4FB086; --cross:#DDB553; --rain:#6A9DE0; --night:#AEB9D6; --sleep:#B39FD9; --na:#9AA4A9;
     --info-bg:#22344A; --info-ink:#C9DAF0; --warn-bg:#4A3A15; --warn-ink:#F1DDA8; --err-bg:#4A241C; --err-ink:#F3C4BA;
     --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85);
     --lv4:#9A5FC4; --lv5:#0B0D0F; --lv5-edge:#8A969C;
     --night-row:#2B3035; --ele-op:.6;
     --wx-rain:#6F9FE0; --wx-cloud:#8E979C; --wx-sun:#E8A857; color-scheme:dark; }
-  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --paper:#1B1F23; --paper-2:#2B3237; --card:#23292E; --ink:#E9ECEB; --ink-2:#B9C1C5; --ink-3:#8A969C; --line:#3B444A;
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --paper:#111713; --paper-2:#1F2A23; --card:#18201B; --ink:#E6ECE7; --ink-2:#B2BDB5; --ink-3:#7F8A82; --line:#2F3B33; --brand:#2F7A4E; --brand-ink:#F2F7F3;
     --head:#E5694E; --tail:#4FB086; --cross:#DDB553; --rain:#6A9DE0; --night:#AEB9D6; --sleep:#B39FD9; --na:#9AA4A9;
     --info-bg:#22344A; --info-ink:#C9DAF0; --warn-bg:#4A3A15; --warn-ink:#F1DDA8; --err-bg:#4A241C; --err-ink:#F3C4BA;
     --sleep-row:rgba(179,159,217,.22); --best-row:rgba(79,176,134,.22); --map-filter:grayscale(1) invert(1) brightness(.85) contrast(.85);
@@ -50,22 +52,22 @@
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--paper);color:var(--ink);
     font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI",system-ui,sans-serif;
-    font-size:14px;line-height:1.5;font-feature-settings:"palt","tnum";-webkit-text-size-adjust:100%}
+    font-size:15px;line-height:1.5;font-feature-settings:"palt","tnum";-webkit-text-size-adjust:100%}
   button,input,select{font:inherit;color:inherit}
-  h1{font-size:16px;font-weight:700;margin:0;letter-spacing:.02em}
+  h1{font-size:17px;font-weight:700;margin:0;letter-spacing:.02em}
   h1{display:flex;align-items:center;gap:8px}
   h1 .logo{height:30px;width:auto;display:block}
   h1 .logo-dark{display:none}
   :root[data-theme="dark"] h1 .logo-light{display:none} :root[data-theme="dark"] h1 .logo-dark{display:block}
   @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) h1 .logo-light{display:none} :root:not([data-theme="light"]) h1 .logo-dark{display:block} }
-  h1 .beta{font-size:12px;font-weight:600;color:var(--ink-2)}
-  @media (max-width:480px){ h1 .logo{height:24px} }
+  h1 .beta{font-size:13px;font-weight:600;color:var(--ink-2)}
+  @media (max-width:480px){ h1 .logo{height:22px} h1 .beta{font-size:11px} .bar{gap:6px} .bar .theme{padding:0 8px} } /* 文字が 1 段大きくなってもヘッダーを 1 行に収める（段階 3 でメニュー化するまでの措置） */
   h2{font-size:13px;font-weight:600;margin:0 0 6px;color:var(--ink-2)}
   a{color:inherit}
   .app{max-width:1180px;margin:0 auto;padding:8px 10px 48px;
     padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
-  .bar{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:6px 0 8px}
-  .bar .sub{color:var(--ink-2);font-size:12px}
+  .bar{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;border-bottom:1px solid var(--line);padding:6px 0 8px}
+  .bar .sub{color:var(--ink-2);font-size:13px}
   .hidden{display:none!important}
 
   /* お知らせ帯 */
@@ -81,14 +83,14 @@
   details.settings>summary::-webkit-details-marker{display:none}
   details.settings>summary::before{content:"▸";color:var(--ink-3);flex:none}
   details.settings[open]>summary::before{content:"▾"}
-  .sumLine{font-weight:400;color:var(--ink-2);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .sumLine{font-weight:400;color:var(--ink-2);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   .ctl{padding:0 14px 14px;display:flex;flex-direction:column;gap:12px}
   .loadBtn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;border:1.5px solid var(--ink);border-radius:8px;
     background:var(--card);font-weight:600;cursor:pointer;position:relative;overflow:hidden}
   .loadBtn input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;font-size:0}
   .loadBtn.on{background:var(--paper);border-style:dashed}
   .loadBtn:focus-within{outline:2px solid var(--ink);outline-offset:1px}
-  .howto{font-size:12px;color:var(--ink-3);line-height:1.5}
+  .howto{font-size:13px;color:var(--ink-3);line-height:1.5}
   .rwgps{display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--line);padding-top:12px}
   .rwgps .lbl{font-size:13px;font-weight:600} .rwgps .trial{font-weight:400;font-size:11px;color:var(--ink-3)}
   .rwgps .row{display:grid;grid-template-columns:1fr auto;gap:6px}
@@ -97,17 +99,17 @@
   .rwList{display:flex;flex-direction:column;gap:6px;background:var(--paper);border-radius:8px;padding:8px}
   .rwList .items{display:flex;flex-direction:column;gap:4px;max-height:50vh;overflow-y:auto}
   .rwList .item{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:8px 10px;min-height:44px;cursor:pointer}
-  .rwList .item .nm{font-weight:600;font-size:14px} .rwList .item .sub{font-size:11px;color:var(--ink-3)}
+  .rwList .item .nm{font-weight:600;font-size:15px} .rwList .item .sub{font-size:11px;color:var(--ink-3)}
   .rwList .row.more{display:flex;gap:6px;justify-content:flex-end}
   .rwgps input{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px}
   .rwgps input:focus{outline:2px solid var(--ink);outline-offset:1px}
   .course{background:var(--paper);border-radius:8px;padding:8px 10px;font-size:13px}
   .course .name{font-weight:600;word-break:break-all}
-  .course .meta{color:var(--ink-2);font-size:12px}
+  .course .meta{color:var(--ink-2);font-size:13px}
   .courseBtns{display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:8px}
   .courseBtns select{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px}
   .field{display:flex;flex-direction:column;gap:4px}
-  .field label,.field .lbl{font-size:12px;color:var(--ink-2)}
+  .field label,.field .lbl{font-size:13px;color:var(--ink-2)}
   .field input,.sleeps .sleep input{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:0 10px;min-height:44px;width:100%;font-size:16px}
   .field input:focus,.sleeps .sleep input:focus,button:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -121,27 +123,27 @@
   .gpsNote{margin:6px 2px 0}
   .gpsNote a{color:var(--ink-2)}
   tr.past td{opacity:.45}
-  .posMsg{font-size:12px;line-height:1.5;margin-top:6px;padding:8px 10px;border-radius:6px;background:var(--info-bg);color:var(--info-ink)}
+  .posMsg{font-size:13px;line-height:1.5;margin-top:6px;padding:8px 10px;border-radius:6px;background:var(--info-bg);color:var(--info-ink)}
   .posMsg.err{background:var(--err-bg);color:var(--err-ink)} .posMsg.warn{background:var(--warn-bg);color:var(--warn-ink)}
   .posMsg .choices{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
   .posMsg .manual{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;margin-top:8px}
-  .posMsg .manual .lbl{grid-column:1 / -1;font-size:12px}
+  .posMsg .manual .lbl{grid-column:1 / -1;font-size:13px}
   .posMsg .manual input{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px;color:var(--ink)}
   .posMsg .manual button{min-height:44px}
   .posMsg a{color:inherit}
   .sleeps .seg input,.anchor input{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:0 10px;min-height:44px;width:100%;min-width:0;font-size:16px}
   .sleeps .seg input:focus,.anchor input:focus{outline:2px solid var(--ink);outline-offset:1px}
   .btn{border:1px solid var(--line);background:var(--card);border-radius:6px;min-height:44px;min-width:44px;padding:0 12px;cursor:pointer}
-  .primary{border:0;background:var(--ink);color:var(--paper);border-radius:8px;min-height:48px;padding:0 14px;cursor:pointer;font-weight:600}
+  .primary{border:0;background:var(--brand);color:var(--brand-ink);border-radius:8px;min-height:48px;padding:0 14px;cursor:pointer;font-weight:600}
   .primary[disabled]{opacity:.5;cursor:default}
-  .status{font-size:12px;color:var(--ink-2);min-height:1.2em}
+  .status{font-size:13px;color:var(--ink-2);min-height:1.2em}
   .status.err{color:var(--err-ink)}
 
   /* 要点 */
   .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:44px}
   .card .k{font-size:11px;color:var(--ink-2)}
-  .card .v{font-size:16px;font-weight:600;line-height:1.3}
+  .card .v{font-size:17px;font-weight:600;line-height:1.3}
   .card .s{font-size:11px;color:var(--ink-3)}
   .card.head .v{color:var(--head)}
   .card.rain .v{color:var(--rain)}
@@ -157,13 +159,13 @@
   details.fold[open]>summary{margin-bottom:4px}
   .ribbon svg{display:block;width:100%;height:auto;touch-action:pan-y}
   .panelBar{display:flex;justify-content:flex-end;gap:8px;padding:0 2px 6px}
-  .btn.small{min-height:32px;font-size:12px;padding:0 10px}
+  .btn.small{min-height:32px;font-size:13px;padding:0 10px}
   .map .lg{display:inline-block;width:14px;height:4px;border-radius:2px;background:var(--c);vertical-align:middle;margin:0 2px 0 4px}
   .map .lg.dash{background:none;border-top:2px dashed var(--na);height:0}
   .lane-label{font-size:10px;fill:var(--ink-2)}
   .tick{font-size:10px;fill:var(--ink-2)}
   .tick.day{font-weight:700;fill:var(--ink)}
-  .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font-size:12px;line-height:1.45;padding:8px 10px;border-radius:6px;
+  .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font-size:13px;line-height:1.45;padding:8px 10px;border-radius:6px;
     display:none;z-index:2;max-width:min(320px,calc(100% - 12px))}
   .tip b{font-weight:600}
   .tip.pinned{pointer-events:auto;box-shadow:0 2px 8px rgba(0,0,0,.25)}
@@ -175,7 +177,7 @@
   table{width:100%;border-collapse:collapse;font-size:13px}
   th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}
   th{font-weight:600;color:var(--ink-2);font-size:11px}
-  .bar .theme{margin-left:auto;font-size:12px;min-height:32px;padding:0 10px}
+  .bar .theme{margin-left:auto;font-size:13px;min-height:32px;padding:0 10px;white-space:nowrap;flex:none} .bar .theme+.theme{margin-left:0}
   .bar .theme.clear{margin-left:0}
   td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
   tr.night td{background:var(--night-row)}
@@ -190,7 +192,7 @@
   td.wrap{white-space:normal;min-width:180px}
   .rel.head{background:var(--head)} .rel.tail{background:var(--tail)} .rel.cross{background:var(--cross)}
   small.sub{font-size:11px;color:var(--ink-3);font-weight:400}
-  .tag{display:inline-block;font-size:10px;border:1px solid var(--ink-3);color:var(--ink-2);border-radius:3px;padding:0 4px;margin-left:4px;line-height:15px;vertical-align:1px}
+  .tag{display:inline-block;font-size:11px;border:1px solid var(--ink-3);color:var(--ink-2);border-radius:3px;padding:0 4px;margin-left:4px;line-height:15px;vertical-align:1px}
   .map .osm{position:relative;overflow:hidden;border-radius:6px;background:var(--paper-2);margin:0 auto}
   .map .osm img{position:absolute;display:block;width:256px;height:256px;pointer-events:none;user-select:none;
     filter:var(--map-filter)} /* 地図はモノクロ・淡めにして風矢印の色を目立たせる（ダークでは反転） */
@@ -214,14 +216,14 @@
   .fsUi .fsBtns{position:absolute;z-index:2;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px}
   .fsUi .fsBtns .btn{box-shadow:0 2px 8px rgba(0,0,0,.3);font-weight:600}
   .fsUi .fsLegend{position:absolute;z-index:2;left:0;right:0;bottom:calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-wrap:wrap;justify-content:center;gap:2px 5px;
-    padding:5px calc(4px + env(safe-area-inset-left,0px)) 5px calc(4px + env(safe-area-inset-right,0px));font-size:10px;white-space:nowrap;line-height:1.4;color:var(--ink);background:var(--card);opacity:.92;pointer-events:none}
+    padding:5px calc(4px + env(safe-area-inset-left,0px)) 5px calc(4px + env(safe-area-inset-right,0px));font-size:11px;white-space:nowrap;line-height:1.4;color:var(--ink);background:var(--card);opacity:.92;pointer-events:none}
   .fsUi .fsLegend .lg{margin:0 2px 0 0;width:11px} .fsUi .fsLegend .swatch{margin-right:2px;width:9px;height:9px}
   html.noScroll,body.noScroll{overflow:hidden;height:100%}
   .leaflet-container{font-family:inherit;background:var(--paper-2)}
   .leaflet-tile-pane{filter:var(--map-filter)}
   .windIcon{background:none;border:0}
   .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--ink);color:var(--paper);box-shadow:0 2px 8px rgba(0,0,0,.3)}
-  .leaflet-popup-content{font-size:12px;line-height:1.45;margin:8px 10px}
+  .leaflet-popup-content{font-size:13px;line-height:1.45;margin:8px 10px}
   .leaflet-popup-content b{font-weight:600}
   .leaflet-container a.leaflet-popup-close-button{color:var(--paper)}
   /* Leaflet 側の .leaflet-container .leaflet-control-attribution（白 80%）より優先させるため、同じ深さのセレクタで上書きする */
