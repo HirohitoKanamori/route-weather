@@ -1,13 +1,13 @@
 {
-  "name": "Route-Weather.jp (Beta)",
+  "name": "Route-Weather.jp",
   "short_name": "Route-Weather",
   "description": "日本国内専用・自転車向けコース天気予報。コースと出走時刻から、通過時点の風・雨・気温を見る",
   "lang": "ja",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#F6EEEC",
-  "theme_color": "#1E2A32",
+  "background_color": "#F3F5F0",
+  "theme_color": "#11532C",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },

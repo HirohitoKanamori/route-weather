@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Route-Weather.jp の使い方、データの扱い、出典とライセンス、免責事項">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F3F5F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111713" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/svg+xml" href="icons/favicon.svg?v=3">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=3">
+<title>このサイトについて — Route-Weather.jp</title>
+<style>
+  /* index.html と同じ色の土台（v2 案 A：森と生成り） */
+  :root{ --card:#fff; --paper:#F3F5F0; --paper-2:#E5EAE2; --ink:#102A1E; --ink-2:#4A5B50; --ink-3:#85918A; --line:#D2DACF; --brand:#11532C;
+    --head:#C8462B; --tail:#2E7D5B; --cross:#C79A2F; --rain:#3B6FB6; color-scheme:light; }
+  :root[data-theme="dark"]{ --paper:#111713; --paper-2:#1F2A23; --card:#18201B; --ink:#E6ECE7; --ink-2:#B2BDB5; --ink-3:#7F8A82; --line:#2F3B33; --brand:#6FBF8E;
+    --head:#E5694E; --tail:#4FB086; --cross:#DDB553; --rain:#6A9DE0; color-scheme:dark; }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --paper:#111713; --paper-2:#1F2A23; --card:#18201B; --ink:#E6ECE7; --ink-2:#B2BDB5; --ink-3:#7F8A82; --line:#2F3B33; --brand:#6FBF8E;
+    --head:#E5694E; --tail:#4FB086; --cross:#DDB553; --rain:#6A9DE0; color-scheme:dark; } }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--paper);color:var(--ink);font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI",system-ui,sans-serif;
+    font-size:15px;line-height:1.75;font-feature-settings:"palt";-webkit-text-size-adjust:100%}
+  a{color:var(--brand)}
+  .wrap{max-width:720px;margin:0 auto;padding:12px 16px 56px;padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0 10px;border-bottom:1px solid var(--line)}
+  header img{height:24px;width:auto;display:block}
+  .logo-dark{display:none}
+  :root[data-theme="dark"] .logo-light{display:none} :root[data-theme="dark"] .logo-dark{display:block}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .logo-light{display:none} :root:not([data-theme="light"]) .logo-dark{display:block} }
+  .back{font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap}
+  h1{font-size:20px;margin:22px 0 4px}
+  .lede{color:var(--ink-2);margin:0 0 8px}
+  nav.toc{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;margin:10px 0 0}
+  h2{font-size:17px;margin:34px 0 6px;padding-top:10px;border-top:2px solid var(--ink)}
+  h3{font-size:15px;margin:18px 0 2px}
+  p{margin:6px 0}
+  ul{margin:6px 0;padding-left:1.3em} li{margin:3px 0}
+  .muted{color:var(--ink-2);font-size:13px}
+  dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:8px 0}
+  dt{font-weight:700} dd{margin:0}
+  @media (max-width:420px){ dl{grid-template-columns:1fr} dd{margin:0 0 6px} }
+  .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+  footer{margin-top:40px;font-size:13px;color:var(--ink-3);border-top:1px solid var(--line);padding-top:10px}
+</style>
+<script>
+try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式 */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
+</script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a href="./" aria-label="Route-Weather.jp に戻る"><img class="logo-light" src="logo/logo-light.png?v=3" alt="Route-Weather.jp" width="738" height="120"><img class="logo-dark" src="logo/logo-dark.png?v=2" alt="Route-Weather.jp" width="738" height="120"></a>
+    <a class="back" href="./">← 予報に戻る</a>
+  </header>
+
+  <h1>このサイトについて</h1>
+  <p class="lede">日本国内専用・自転車向けのコース天気予報です。コースと出走時刻から、通過する時点の風・雨・気温を気象庁の数値予報で表示します。</p>
+  <nav class="toc" aria-label="目次"><a href="#use">使い方</a><a href="#read">図の読み方</a><a href="#data">データとプライバシー</a><a href="#source">出典とライセンス</a><a href="#disclaimer">免責事項</a></nav>
+
+  <h2 id="use">使い方</h2>
+  <h3 id="load">コースの読み込み</h3>
+  <ul>
+    <li><b>ファイルから</b>：GPX または FIT を選びます。スマホでは、Ride with GPS アプリでルートを開き、右上「⋯」→ Export GPX →「"ファイル"に保存」してから選びます。GPX 内の POI（ウェイポイント）は使いません。</li>
+    <li><b>Ride with GPS と連携</b>：Ride with GPS にログインして許可すると、自分のルート一覧から選べます。非公開のルートも本人のものは読めます。</li>
+    <li><b>ルート URL から</b>：公開ルート、または共有リンク（<code>privacy_code</code> 付き）の URL を貼ります。アプリの「共有」で出る文をそのまま貼っても構いません。</li>
+    <li>最近読み込んだコースは 5 件まで端末に残り、「最近のコース」から選び直せます。「反転」で逆回りにできます。</li>
+  </ul>
+  <h3 id="plan">走行計画</h3>
+  <dl>
+    <dt>出走日時</dt><dd>4 日前の 0:00 以降を指定できます（1200 km 級の走行中でも実際の出走時刻を入れられるように）。初期値は次の 6:00 です。</dd>
+    <dt id="speed">移動速度</dt><dd>PC（チェックポイント）や食事などの短い停止を含めた平均の速度です。長い休憩は「仮眠」で入れます。</dd>
+    <dt id="sleep">仮眠</dt><dd>スタートからの距離（km）と時間（分）の組です。複数入れられ、以降の通過時刻がその分だけ後ろにずれます。</dd>
+    <dt id="segment">区間ごとの速度</dt><dd>開始 km・終了 km・速度の組です。山岳区間だけ遅くする、などに使います。指定のない区間は移動速度で計算します。</dd>
+  </dl>
+  <h3>予報の範囲</h3>
+  <ul>
+    <li>4 日先までは気象庁 MSM（1 時間ごと・約 5 km 格子）、5〜11 日先は気象庁 GSM を使います。GSM の期間は「傾向モード」として、50 km ごと・通過日ごとにまとめて表示します。</li>
+    <li>11 日より先は予報範囲外です。</li>
+    <li>予報は 30 分間端末に保存し、その間の再表示では取り直しません。</li>
+  </ul>
+  <h3 id="gps">現在位置から予報を再取得</h3>
+  <p>走行中に押すと、端末の位置と時刻からコース上の現在地（km）を求め、それより先の通過時刻と予報を計算し直します。往復コースなどで候補が複数ある場合は選択を求めます。位置を取れないときは、現在の km を手入力できます。</p>
+
+  <h2 id="read">図の読み方</h2>
+  <h3 id="ribbon">タイムライン概要</h3>
+  <ul>
+    <li><b>風の矢印</b>は進行方向が基準です（上＝追い風、下＝向かい風）。色は <span class="sw" style="background:var(--head)"></span>向かい風、<span class="sw" style="background:var(--cross)"></span>横風、<span class="sw" style="background:var(--tail)"></span>追い風。</li>
+    <li><b>雨</b>は 1 時間あたりの降水量（mm）の棒です。0.5 mm/h 以上は濃く、その区間の背景を淡い青にしています。</li>
+    <li><b>標高</b>の塗りは、その地点の相対風の色です。</li>
+    <li>紫の帯は仮眠、灰色の帯は夜間（日没〜日の出）と予報範囲外です。</li>
+    <li>図をタップするとその地点の詳細が出ます。もう一度タップで閉じます。</li>
+  </ul>
+  <h3 id="map">地図と風向</h3>
+  <ul>
+    <li><b>線の色</b>は通過時刻の予報です：<span class="sw" style="background:#6E9AD6"></span>雨（降水 0.5 mm/h 以上）、<span class="sw" style="background:#A6AEB3"></span>曇り、<span class="sw" style="background:#F0B36B"></span>晴れ。点線は予報範囲外。</li>
+    <li><b>矢印</b>は風の吹いていく向き（実際の方位）で、色は相対風です。矢印をタップすると詳細が出ます。</li>
+    <li>「»」は進行方向、● はスタート、○ はゴールです。</li>
+  </ul>
+
+  <h2 id="data">データとプライバシー</h2>
+  <ul>
+    <li id="file"><b>コースファイル</b>：端末内で処理し、ファイルそのものは外部に送りません。</li>
+    <li id="coords"><b>予報の取得</b>：コース上の間引いた地点（数 km ごと）の座標を、予報のために Open-Meteo へ、注意報・警報の市区町村判定のために国土地理院へ送ります。判定結果は端末内に保存し、同じ地点は送り直しません。</li>
+    <li id="location"><b>位置情報</b>：「現在位置から予報を再取得」を押したときだけ 1 回取得し、端末内でコース上の距離に変換するためだけに使います。外部には送りません。予報の取得に使う座標はコースの地点で、現在地そのものではありません。</li>
+    <li id="rwgps"><b>Ride with GPS 連携</b>：URL から読み込むときは、ルート番号と共有コードを中継サーバー（<code>api.route-weather.jp</code>、Cloudflare Workers）経由で Ride with GPS に送ります。ルートの内容は中継を通過しますが、中継は内容を保存・記録しません。連携（OAuth）のトークンは端末内にのみ保存し、Ride with GPS 以外には送りません。</li>
+    <li><b>端末内に保存するもの</b>：走行計画の設定、最近のコース（5 件まで）、予報（30 分間）、表示モード、連携のトークン。画面上部の「コース削除」で、コース・予報・連携のトークンを消せます。</li>
+    <li>アクセス解析や広告のための仕組みは使っていません。</li>
+  </ul>
+
+  <h2 id="source">出典とライセンス</h2>
+  <dl>
+    <dt>予報</dt><dd>気象庁 数値予報（MSM／GSM）。<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）</dd>
+    <dt>注意報・警報、アメダス</dt><dd>気象庁ホームページ</dd>
+    <dt>市区町村の判定</dt><dd>国土地理院 逆ジオコーダ</dd>
+    <dt>地図</dt><dd>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors（ODbL）</dd>
+    <dt>地図の表示</dt><dd>Leaflet 1.9.4（BSD 2-Clause License）</dd>
+    <dt>FIT の読み込み</dt><dd>Garmin FIT SDK（Flexible and Interoperable Data Transfer (FIT) Protocol License）</dd>
+  </dl>
+
+  <h2 id="disclaimer">免責事項</h2>
+  <p>予報は参考情報です。実際の天候と異なる場合があり、本サイトの利用により生じた損害について当方は責任を負いません。走行の判断は、最新の気象情報と現地の状況をもとにご自身で行ってください。</p>
+
+  <footer>Route-Weather.jp</footer>
+</div>
+</body>
+</html>
