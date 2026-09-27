@@ -97,14 +97,37 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
     $('ancT').value = (s.ancT && !ancOld) ? s.ancT : '';
   }
   function localDT(t) { const x = F.jstParts(t); const p2 = n => String(n).padStart(2, '0'); return x.y + '-' + p2(x.mo) + '-' + p2(x.d) + 'T' + p2(x.h) + ':' + p2(x.mi); }
+  // 走行計画の札（v2 段階 3）。押すと編集欄を開いてその項目へ
+  function renderPlanChips(p) {
+    const el = $('planChips'); if (!state.course || !p) { el.classList.add('hidden'); return; }
+    const sleepMin = p.sleeps.reduce((a, x) => a + x.m, 0);
+    const chips = [['date', `${F.fmtDT(p.start)} 出走`], ['spd', `${p.spd} km/h`], ['addSleep', p.sleeps.length ? `仮眠 ${p.sleeps.length} 回・${sleepMin} 分` : '仮眠なし']];
+    if (p.segments.length) chips.push(['addSeg', `区間速度 ${p.segments.length}`]);
+    el.innerHTML = chips.map(([f, t]) => `<button type="button" class="chip" data-focus="${f}">${esc(t)}</button>`).join('') + '<button type="button" class="chip more" data-focus="date">編集</button>';
+    el.classList.remove('hidden');
+  }
+  function openEditor(focusId) {
+    const d = $('settings'); d.open = true;
+    const el = focusId && $(focusId);
+    setTimeout(() => { try { (el || d).scrollIntoView({ block: 'center', behavior: 'smooth' }); if (el && el.tagName === 'INPUT') el.focus({ preventScroll: true }); } catch (e) { /* noop */ } }, 50);
+  }
+  // コースの読み込み：未読み込みなら画面に置き、読み込み後は「変更」で開くシートにする
+  function openLoad() { if (!state.course) return; $('loadBox').classList.add('open'); $('sheetBack').classList.remove('hidden'); document.documentElement.classList.add('noScroll'); document.body.classList.add('noScroll'); }
+  function closeLoad() { $('loadBox').classList.remove('open'); $('sheetBack').classList.add('hidden'); $('loadStatus').textContent = ''; if (!mapFS.open) { document.documentElement.classList.remove('noScroll'); document.body.classList.remove('noScroll'); } }
   function updateSumLine(p) {
+    renderPlanChips(p);
     const c = state.course;
     $('sumLine').textContent = c ? `${c.name} ・ ${F.fmtDT(p.start)} 出走 ・ ${p.spd} km/h${p.sleeps.length ? ' ・ 仮眠 ' + p.sleeps.length : ''}${p.segments.length ? ' ・ 区間速度 ' + p.segments.length : ''}${p.anchor ? ' ・ 現在 ' + Math.round(p.anchor.d) + ' km' : ''}` : '';
   }
-  function setStatus(msg, cls) { const el = $('status'); el.textContent = msg || ''; el.className = 'status' + (cls ? ' ' + cls : ''); }
+  function setStatus(msg, cls) {
+    for (const id of ['status', 'loadStatus']) { const el = $(id); el.textContent = id === 'loadStatus' && !$('loadBox').classList.contains('open') ? '' : (msg || ''); el.className = 'status' + (cls ? ' ' + cls : ''); }
+  }
   function renderCourse() {
     const c = state.course;
-    if (!c) return;
+    $('layout').classList.toggle('hasCourse', !!c); $('courseBar').classList.toggle('hidden', !c);
+    if (!c) { $('planChips').classList.add('hidden'); return; }
+    $('cbName').textContent = c.name;
+    $('cbMeta').textContent = `${n1(c.total)} km ・ 獲得標高 ${c.hasEle ? c.gain.toLocaleString() + ' m' : '不明'}${c.source && c.source.kind === 'rwgps' ? ' ・ Ride with GPS' : ''}`;
     $('cName').textContent = c.name;
     $('cMeta').textContent = `${n1(c.total)} km ・ 獲得標高 ${c.hasEle ? c.gain.toLocaleString() + ' m' : '不明'} ・ 地点数 ${c.n.toLocaleString()}${c.source && c.source.kind === 'rwgps' ? ' ・ Ride with GPS #' + c.source.id : ''}`;
   }
@@ -205,7 +228,7 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
     const saved = store.get('rw:oauthState'); store.del('rw:oauthState');
     const st = q.get('state');
     try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* noop */ }
-    const d = document.querySelector('details.settings'); if (d) d.open = true;
+    openLoad(); // コースがあればシートを開いて結果を見せる（無ければ画面の読み込み欄に出る）
     setTimeout(() => { try { $('rwgpsAuthMsg').scrollIntoView({ block: 'center' }); } catch (e) { /* noop */ } }, 300);
     if (err) { rwgpsMsg(`Ride with GPS で連携が許可されませんでした（${esc(err)}${q.get('error_description') ? '：' + esc(q.get('error_description')) : ''}）`, 'err'); return; }
     if (!st || !saved || saved.st !== st) { rwgpsMsg('連携の照合（state）が合わないため中止しました。もう一度「Ride with GPS と連携」から始めてください', 'err'); return; }
@@ -282,7 +305,7 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
     state.course = course; state.series = null; state.result = null; state.offlineNote = '';
     store.del('rw:posHist'); state.lastPos = null; state.forecastStale = ''; state.startNote = ''; if ($('posMsg')) { posMsg(''); posMsg('', '', 'gpsMsg'); }
     $('ancD').value = ''; $('ancT').value = ''; // 前のコースの現在地固定は持ち越さない
-    renderCourse(); store.set('rw:course', course); rememberCourse(course); setStatus('');
+    renderCourse(); store.set('rw:course', course); rememberCourse(course); closeLoad(); setStatus('');
     run();
   }
   // 最近のコース（C-8）：端末内に最大 5 件。同じコース（ハッシュ一致）は先頭に移す
@@ -425,9 +448,16 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
   }
   function renderAll() {
     $('results').classList.remove('hidden'); $('layout').classList.add('has-results');
-    renderNotice(); renderSummary(); renderRibbon(); renderTrend(); renderTable(); renderMap(); renderStarts(); renderModelInfo();
+    renderNotice(); renderSummary(); renderRibbon(); renderTrend(); renderTable(); renderMap(); renderStarts(); renderModelInfo(); renderGpsPlace();
     if (window.innerWidth < 900 && !state.collapsed) { $('settings').open = false; state.collapsed = true; }
     if (navigator.onLine !== false) { loadWarnings(); loadAmedas(); } else { renderWarnings(); renderAmedas(); }
+  }
+  // 「現在位置から予報を再取得」は走行中の可能性がある時間帯（出走 1 時間前〜ゴール 6 時間後）か、現在地を使っているときだけ画面に出す。それ以外はメニューから
+  function renderGpsPlace() {
+    const r = state.result; const now = Date.now();
+    const riding = !!(r && (r.p.anchor || (now >= +r.p.start - 3600e3 && now <= +r.sm.goal + 6 * 3600e3)));
+    $('gpsWrap').classList.toggle('hidden', !(riding || state.gpsShown));
+    $('menuGps').classList.toggle('hidden', !r || riding || !!state.gpsShown);
   }
   function staleNote() {
     const ser = state.series; if (!ser) return '';
@@ -457,20 +487,38 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
     el.className = 'notice ' + (msgs.some(m => m[0] === 'warn') ? 'warn' : 'info');
     el.innerHTML = msgs.map(m => '<div>' + esc(m[1]) + '</div>').join('');
   }
-  // 要点カードのデータ（画面と共有画像で共用）
+  // 要点のデータ（画面と共有画像で共用）。ゴール予定と 5 指標（向かい風・雨中・最高気温・最低気温・夜間）。v2 段階 3
   function summaryCards() {
     const { sm, step, p } = state.result;
-    const A = !!p.anchor; const rest = A ? Math.max(0, state.course.total - p.anchor.d) : state.course.total; const L = A ? '残りの' : '';
-    const cards = [{ cls: '', k: 'ゴール予定', v: F.fmtDT(sm.goal), s: A ? `現在地 ${Math.round(p.anchor.d)} km（${F.fmtH(p.anchor.t)}）から残り ${n1(rest)} km・${n1(Math.max(0, (+sm.goal - +p.anchor.t) / 3600e3))} h` : `経過 ${n1(sm.totalH)} h${p.sleeps.length ? '・うち仮眠 ' + p.sleeps.reduce((a, s) => a + s.m, 0) + ' 分' : ''}` }];
+    const A = !!p.anchor; const rest = A ? Math.max(0, state.course.total - p.anchor.d) : state.course.total;
+    const sleepMin = p.sleeps.reduce((a, x) => a + x.m, 0);
+    const cards = [{ id: 'goal', cls: '', k: 'ゴール予定', v: F.fmtDT(sm.goal), s: A ? `現在地 ${Math.round(p.anchor.d)} km（${F.fmtH(p.anchor.t)}）から残り ${n1(rest)} km・${n1(Math.max(0, (+sm.goal - +p.anchor.t) / 3600e3))} h` : `経過 ${n1(sm.totalH)} h${sleepMin ? '・うち仮眠 ' + sleepMin + ' 分' : ''}` }];
     if (sm.nOk === 0) return cards;
-    cards.push({ cls: 'head', k: L + '向かい風区間', v: `${sm.headKm} km`, s: `${rest > 0 ? Math.round(sm.headKm / rest * 100) : 0}% ／ 最大風速 ${sm.wsMax ? n1(sm.wsMax.ws) + ' m/s（' + Math.round(sm.wsMax.d) + ' km）' : '—'}` });
-    cards.push({ cls: 'rain', k: L + '雨中走行', v: `${sm.rainKm} km`, s: sm.rainFirst ? `${Math.round(sm.rainFirst.d)} km（${F.fmtDT(sm.rainFirst.t)}）〜 ${Math.round(Math.min(sm.rainLast.d + step, state.course.total))} km` : `${RAIN_MM} mm/h 以上の降水なし` });
-    cards.push({ cls: '', k: A ? '以降の最低気温' : '最低気温', v: `${n1(sm.tmin.temp)}℃`, vSub: sm.tmin.feel != null ? `（体感 ${n1(sm.tmin.feel)}℃）` : '', s: `${Math.round(sm.tmin.d)} km、${F.fmtDT(sm.tmin.t)}${sm.tmax ? ' ／ 最高 ' + n1(sm.tmax.temp) + '℃' : ''}` });
-    cards.push({ cls: '', k: L + '夜間走行', v: `${sm.nightKm} km`, s: '日没〜日の出の区間' });
+    const temp = x => x ? `${Math.round(x.d)} km・${F.fmtDT(x.t)}${x.feel != null ? '・体感 ' + n1(x.feel) + '℃' : ''}` : '—';
+    cards.push({ id: 'head', cls: 'head', k: '向かい風', num: `${Math.round(sm.headKm)}`, unit: 'km', s: `${A ? '残り' : '全体'}の ${rest > 0 ? Math.round(sm.headKm / rest * 100) : 0}%・最大風速 ${sm.wsMax ? n1(sm.wsMax.ws) + ' m/s（' + Math.round(sm.wsMax.d) + ' km）' : '—'}` });
+    cards.push({ id: 'rain', cls: 'rain', k: '雨中', num: `${Math.round(sm.rainKm)}`, unit: 'km', s: sm.rainFirst ? `${Math.round(sm.rainFirst.d)} km（${F.fmtDT(sm.rainFirst.t)}）〜 ${Math.round(Math.min(sm.rainLast.d + step, state.course.total))} km` : `降水 ${RAIN_MM} mm/h 以上の区間なし` });
+    cards.push({ id: 'tmax', cls: '', k: '最高気温', num: sm.tmax ? n1(sm.tmax.temp) : '—', unit: sm.tmax ? '℃' : '', s: temp(sm.tmax) });
+    cards.push({ id: 'tmin', cls: '', k: '最低気温', num: n1(sm.tmin.temp), unit: '℃', s: temp(sm.tmin) });
+    cards.push({ id: 'night', cls: '', k: '夜間', num: `${Math.round(sm.nightKm)}`, unit: 'km', s: '日没〜日の出の区間' });
+    const exact = { head: sm.headKm, rain: sm.rainKm, night: sm.nightKm };
+    for (const c of cards) if (c.num != null) c.v = (exact[c.id] != null ? exact[c.id] : c.num) + (c.unit ? (c.unit === '℃' ? '' : ' ') + c.unit : '');
+    if (A) cards.slice(1).forEach(c => { c.s = '現在地より先・' + c.s; });
     return cards;
   }
   function renderSummary() {
-    $('summary').innerHTML = summaryCards().map(c => `<div class="card ${c.cls}"><div class="k">${c.k}</div><div class="v">${c.v}${c.vSub ? `<small class="sub">${c.vSub}</small>` : ''}</div>${c.s ? `<div class="s">${c.s}</div>` : ''}</div>`).join('');
+    const cards = summaryCards(); const g = cards[0];
+    let h = `<div class="goal"><span class="k">ゴール予定</span><b>${esc(g.v)}</b><span class="s">${esc(g.s)}</span></div>`;
+    if (cards.length > 1) {
+      h += '<div class="kpis">' + cards.slice(1).map(c => `<button type="button" class="kpi ${c.cls}" data-id="${c.id}" aria-expanded="false" aria-controls="kpiDetail"><span class="k">${c.k}</span><b>${esc(c.num)}${c.unit ? '<small>' + c.unit + '</small>' : ''}</b></button>`).join('') + '</div>';
+      h += '<div class="kpiDetail" id="kpiDetail" hidden></div>';
+    }
+    const el = $('summary'); el.innerHTML = h;
+    el.querySelectorAll('.kpi').forEach(b => b.addEventListener('click', () => {
+      const d = $('kpiDetail'); const open = b.getAttribute('aria-expanded') === 'true';
+      el.querySelectorAll('.kpi').forEach(x => x.setAttribute('aria-expanded', 'false'));
+      if (open) { d.hidden = true; return; }
+      b.setAttribute('aria-expanded', 'true'); const c = cards.find(x => x.id === b.dataset.id) || {}; d.textContent = c.s ? `${c.k} ${c.unit === 'km' ? c.v + '・' : ''}${c.s}` : ''; d.hidden = false; // 要点の km は整数に丸めているので、詳細では小数まで出す
+    }));
   }
   // SVG 断片
   const rect = (x, y, w, h, fill, op) => `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(0, w).toFixed(1)}" height="${h.toFixed(1)}" fill="${fill}"${op != null ? ` opacity="${op}"` : ''}/>`;
@@ -1355,14 +1403,24 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && mapFS.open) closeMapFull(); });
   document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && mapFS.open) closeMapFull(); });
   $('shareMap').addEventListener('click', async () => { const b = $('shareMap'); b.disabled = true; b.textContent = '作成中…'; try { await shareMapImage(); } catch (e) { setStatus('地図画像の共有に失敗しました：' + e.message, 'err'); } finally { b.disabled = false; b.textContent = '地図を画像で共有'; } });
-  $('theme').addEventListener('click', () => {
-    const cur = document.documentElement.dataset.theme || 'auto';
-    const next = cur === 'auto' ? 'dark' : cur === 'dark' ? 'light' : 'auto';
+  // ヘッダーのメニュー（v2 段階 3）：表示モード・現在位置から再取得（走行時間帯以外）・コース削除・このサイトについて
+  const menu = $('menu'), menuBtn = $('menuBtn');
+  const setMenu = open => { menu.hidden = !open; menuBtn.setAttribute('aria-expanded', String(open)); };
+  menuBtn.addEventListener('click', e => { e.stopPropagation(); setMenu(menu.hidden); });
+  document.addEventListener('click', e => { if (!menu.hidden && !e.target.closest('#menu')) setMenu(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!menu.hidden) { setMenu(false); menuBtn.focus(); } else if ($('loadBox').classList.contains('open')) closeLoad(); } });
+  menu.querySelectorAll('[data-theme-set]').forEach(b => b.addEventListener('click', () => {
+    const next = b.dataset.themeSet;
     if (next === 'auto') { delete document.documentElement.dataset.theme; store.del('rw:theme'); } else { document.documentElement.dataset.theme = next; store.set('rw:theme', next); }
     renderTheme(); if (state.result) { renderRibbon(); renderMap(); }
-  });
-  function renderTheme() { const cur = document.documentElement.dataset.theme || 'auto'; $('theme').textContent = '表示：' + ({ auto: '自動', dark: 'ダーク', light: 'ライト' })[cur]; }
+  }));
+  function renderTheme() { const cur = document.documentElement.dataset.theme || 'auto'; menu.querySelectorAll('[data-theme-set]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themeSet === cur))); }
   renderTheme();
+  $('menuGps').addEventListener('click', () => { setMenu(false); state.gpsShown = true; renderGpsPlace(); $('gpsWrap').scrollIntoView({ block: 'center', behavior: 'smooth' }); gpsRefresh(); });
+  $('changeCourse').addEventListener('click', openLoad);
+  $('loadClose').addEventListener('click', closeLoad);
+  $('sheetBack').addEventListener('click', closeLoad);
+  $('planChips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) openEditor(b.dataset.focus); });
   if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('./sw.js').catch(() => { /* 未対応・失敗時は通常動作 */ }); }
   // ⓘ：aria-controls の説明を開閉する（v2 段階 2）
   document.addEventListener('click', e => {
@@ -1394,6 +1452,7 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
   });
   // コース削除：読み込んだコース・最近のコース・予報キャッシュ・注意報／アメダスの保持分を端末から消す（設定値は残す）
   $('clearData').addEventListener('click', () => {
+    setMenu(false);
     if (!confirm('読み込んだコースと予報のキャッシュを端末から削除します。よろしいですか？\n（出走日時・速度などの設定は残ります）')) return;
     ['rw:course', 'rw:last', 'rw:courses', 'rw:rwgps', 'rw:oauthState'].forEach(k => store.del(k));
     try { Object.keys(localStorage).filter(k => k.startsWith('rw:fc')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* noop */ }
@@ -1403,7 +1462,7 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
     $('results').classList.add('hidden'); $('notice').className = 'notice hidden'; $('notice').innerHTML = '';
     $('layout').classList.remove('has-results');
     $('cName').textContent = 'コース未読み込み'; $('cMeta').innerHTML = C_META_DEFAULT; $('sumLine').textContent = '';
-    renderRecent(); $('settings').open = true;
+    closeLoad(); state.gpsShown = false; renderCourse(); renderRecent(); $('settings').open = true;
     setStatus('コースと予報のキャッシュを削除しました');
   });
   $('recent').addEventListener('change', e => { const list = store.get('rw:courses') || []; const c = list[+e.target.value]; e.target.value = ''; if (c && c.course && c.course.pts) setCourse(c.course); });
@@ -1446,7 +1505,7 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
     const ra = q.get('rwgpsapi'); if (ra && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(ra)) state.rwgpsApi = ra; // RwGPS API のモック（localhost のみ）
   } catch (e) { /* noop */ }
   loadParams(); renderRecent();
-  renderRwgpsAuth(); rwgpsAuthReturn(); // OAuth の戻り先ならトークンに交換して連携状態にする
+  renderRwgpsAuth();
   const last = store.get('rw:last');
   const savedCourse = (last && last.course) || store.get('rw:course');
   if (savedCourse && savedCourse.pts && savedCourse.pts.length > 1) {
@@ -1456,4 +1515,5 @@ import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新�
     if (state.series) { try { recompute(); restorePosStatus(); } catch (e) { /* 壊れた保存データは無視して再取得へ */ } }
     run();
   }
+  rwgpsAuthReturn(); // OAuth の戻り先ならトークンに交換して連携状態にする（コースの復元後に。コースがあればシートで結果を見せる）
 })();

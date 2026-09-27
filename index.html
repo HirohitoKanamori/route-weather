@@ -62,7 +62,7 @@
   :root[data-theme="dark"] h1 .logo-light{display:none} :root[data-theme="dark"] h1 .logo-dark{display:block}
   @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) h1 .logo-light{display:none} :root:not([data-theme="light"]) h1 .logo-dark{display:block} }
   h1 .beta{font-size:13px;font-weight:600;color:var(--ink-2)}
-  @media (max-width:480px){ h1 .logo{height:22px} h1 .beta{font-size:11px} .bar{gap:6px} .bar .theme{padding:0 8px} } /* 文字が 1 段大きくなってもヘッダーを 1 行に収める（段階 3 でメニュー化するまでの措置） */
+  @media (max-width:480px){ h1 .logo{height:24px} }
   h2{font-size:13px;font-weight:600;margin:0 0 6px;color:var(--ink-2)}
   a{color:inherit}
   .app{max-width:1180px;margin:0 auto;padding:8px 10px 48px;
@@ -70,6 +70,55 @@
   .bar{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;border-bottom:1px solid var(--line);padding:6px 0 8px}
   .bar .sub{color:var(--ink-2);font-size:13px}
   .hidden{display:none!important}
+  /* v2 段階 3：ヘッダーのメニュー */
+  .menuWrap{margin-left:auto;position:relative}
+  .menuBtn{width:40px;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);display:grid;place-items:center;cursor:pointer}
+  .menuBtn svg{width:18px;height:18px}
+  .menu{position:absolute;right:0;top:46px;z-index:4500;min-width:240px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column}
+  .menu[hidden]{display:none}
+  .mItem{border:0;background:none;color:var(--ink);text-align:left;text-decoration:none;cursor:pointer;padding:10px 12px;border-radius:8px;font-size:15px;min-height:44px;display:flex;align-items:center}
+  .mItem:hover,.mItem:focus-visible{background:var(--paper)}
+  .mTheme{display:flex;align-items:center;gap:8px;padding:6px 6px 8px 12px;font-size:13px;color:var(--ink-2);border-bottom:1px solid var(--line);margin-bottom:4px}
+  .mTheme .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-left:auto}
+  .mTheme .seg button{border:0;background:none;color:var(--ink);padding:0 10px;font-size:13px;cursor:pointer;min-height:36px}
+  .mTheme .seg button+button{border-left:1px solid var(--line)}
+  .mTheme .seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+  /* コース行と計画の札 */
+  .courseBar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border-radius:12px;padding:10px 12px;margin-top:10px}
+  .courseBar .cInfo{min-width:0}
+  .courseBar b{display:block;font-size:15px;line-height:1.35;word-break:break-all}
+  .courseBar span{font-size:13px;color:var(--ink-2)}
+  .courseBar .btn{flex:none}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:0 10px;min-height:36px;font-size:13px;font-variant-numeric:tabular-nums;cursor:pointer;white-space:nowrap}
+  .chip.more{border-style:dashed;color:var(--ink-2);background:transparent}
+  /* コースの読み込み：未読み込みなら画面に、読み込み後は「変更」で開くシートに */
+  .loadBox{display:flex;flex-direction:column;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:10px;padding:14px}
+  .loadBox .sheetHead{display:none}
+  .layout.hasCourse .loadBox{display:none}
+  .layout.hasCourse .loadBox.open{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:4000;max-height:88vh;overflow-y:auto;margin:0;border:0;border-radius:16px 16px 0 0;
+    padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 30px rgba(0,0,0,.22)}
+  @supports (max-height:88dvh){ .layout.hasCourse .loadBox.open{max-height:88dvh} }
+  @media (min-width:700px){ .layout.hasCourse .loadBox.open{left:50%;right:auto;bottom:auto;top:8vh;width:520px;transform:translateX(-50%);border-radius:16px} }
+  .layout.hasCourse .loadBox .sheetHead{display:flex;justify-content:space-between;align-items:center;font-size:15px}
+  .sheetBack{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:3999}
+  .layout.hasCourse #settings:not([open]){display:none}
+  .sumLine{font-weight:400;color:var(--ink-2);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  #sumLine{display:none} /* 走行計画の要約は札で見せる */
+  /* 要点：ゴール予定と 5 指標（タップで地点・時刻） */
+  .summary{margin-top:14px}
+  .goal{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
+  .goal .k{font-size:13px;color:var(--ink-2);width:100%}
+  .goal b{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.3}
+  .goal .s{font-size:13px;color:var(--ink-2)}
+  .kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin-top:8px;border-top:1.5px solid var(--ink)}
+  .kpi{border:0;border-bottom:1px solid var(--line);background:none;color:var(--ink);text-align:left;cursor:pointer;padding:7px 6px 8px 0;min-height:44px;display:flex;flex-direction:column;gap:1px;border-radius:0;min-width:0;overflow:hidden}
+  .kpi .k{font-size:11px;color:var(--ink-2);white-space:nowrap}
+  .kpi b{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.3}
+  .kpi b small{font-size:11px;font-weight:600;margin-left:1px;color:var(--ink-2)}
+  .kpi.head b{color:var(--head)} .kpi.rain b{color:var(--rain)}
+  .kpi[aria-expanded="true"]{border-bottom:2px solid var(--ink)}
+  .kpiDetail{font-size:13px;color:var(--ink-2);padding:6px 0 0}
 
   /* お知らせ帯 */
   .notice{border-radius:8px;padding:10px 12px;margin:10px 0 0;font-size:13px;line-height:1.5}
@@ -84,7 +133,6 @@
   details.settings>summary::-webkit-details-marker{display:none}
   details.settings>summary::before{content:"▸";color:var(--ink-3);flex:none}
   details.settings[open]>summary::before{content:"▾"}
-  .sumLine{font-weight:400;color:var(--ink-2);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   .ctl{padding:0 14px 14px;display:flex;flex-direction:column;gap:12px}
   .loadBtn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;border:1.5px solid var(--ink);border-radius:8px;
     background:var(--card);font-weight:600;cursor:pointer;position:relative;overflow:hidden}
@@ -152,13 +200,6 @@
   .status.err{color:var(--err-ink)}
 
   /* 要点 */
-  .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:12px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:44px}
-  .card .k{font-size:11px;color:var(--ink-2)}
-  .card .v{font-size:17px;font-weight:600;line-height:1.3}
-  .card .s{font-size:11px;color:var(--ink-3)}
-  .card.head .v{color:var(--head)}
-  .card.rain .v{color:var(--rain)}
 
   /* パネル・リボン */
   .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 6px 4px;margin-top:12px;position:relative}
@@ -189,8 +230,6 @@
   table{width:100%;border-collapse:collapse;font-size:13px}
   th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:top;white-space:nowrap}
   th{font-weight:600;color:var(--ink-2);font-size:11px}
-  .bar .theme{margin-left:auto;font-size:13px;min-height:32px;padding:0 10px;white-space:nowrap;flex:none} .bar .theme+.theme{margin-left:0}
-  .bar .theme.clear{margin-left:0}
   td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
   tr.night td{background:var(--night-row)}
   tr.na td{color:var(--ink-3)}
@@ -263,48 +302,65 @@
 <div class="app">
   <header class="bar">
     <h1><img class="logo logo-light" src="logo/logo-light.png?v=3" alt="Route-Weather.jp" width="738" height="120"><img class="logo logo-dark" src="logo/logo-dark.png?v=2" alt="Route-Weather.jp" width="738" height="120"><span class="beta">(Beta)</span></h1>
-    <button type="button" class="btn theme" id="theme" title="表示モード（自動／ダーク／ライト）">表示：自動</button>
-    <button type="button" class="btn theme clear" id="clearData" title="読み込んだコースと予報のキャッシュを端末から削除">コース削除</button>
+    <div class="menuWrap">
+      <button type="button" class="menuBtn" id="menuBtn" aria-expanded="false" aria-controls="menu" aria-label="メニュー"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      <div class="menu" id="menu" hidden>
+        <div class="mTheme"><span>表示</span><div class="seg" role="group" aria-label="表示モード"><button type="button" data-theme-set="auto">自動</button><button type="button" data-theme-set="dark">ダーク</button><button type="button" data-theme-set="light">ライト</button></div></div>
+        <button type="button" class="mItem hidden" id="menuGps">現在位置から予報を再取得</button>
+        <button type="button" class="mItem" id="clearData">コース削除</button>
+        <a class="mItem" href="about.html">このサイトについて</a>
+      </div>
+    </div>
   </header>
 
   <div class="layout" id="layout">
     <aside>
+      <section class="courseBar hidden" id="courseBar" aria-label="コース">
+        <div class="cInfo"><b id="cbName"></b><span id="cbMeta"></span></div>
+        <button type="button" class="btn small" id="changeCourse">変更</button>
+      </section>
+      <div class="chips hidden" id="planChips" aria-label="走行計画"></div>
+      <div class="sheetBack hidden" id="sheetBack"></div>
+      <section class="loadBox" id="loadBox" aria-label="コースを選ぶ">
+        <div class="sheetHead"><b>コースを選ぶ</b><button type="button" class="btn small" id="loadClose">閉じる</button></div>
+        <label class="loadBtn" id="loadBtn">
+          <span>コースを読み込む（GPX / FIT）</span>
+          <input type="file" id="file" aria-label="コースファイルを選択">
+        </label>
+        <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpFile">読み込み方法</button></div>
+        <div class="help" id="helpFile" hidden>スマホでは、Ride with GPS アプリでルートを開き、右上「⋯」→ Export GPX →「"ファイル"に保存」してから選びます。ファイルは端末内だけで処理します。<a href="about.html#load">詳しく</a></div>
+        <div class="rwgps" id="rwgpsBox">
+          <div class="row auth">
+            <button type="button" class="btn" id="rwgpsAuth">Ride with GPS と連携 <small class="trial">（試験運用中）</small></button>
+            <button type="button" class="btn hidden" id="rwgpsPick">自分のルートを選ぶ</button>
+            <button type="button" class="btn small hidden" id="rwgpsUnlink">連携を解除</button>
+          </div>
+          <div class="posMsg hidden" id="rwgpsAuthMsg" aria-live="polite"></div>
+          <div class="rwList hidden" id="rwgpsList">
+            <div class="row"><input type="search" id="rwgpsFilter" placeholder="ルート名で絞り込み" autocomplete="off" aria-label="ルート名で絞り込み"><button type="button" class="btn" id="rwgpsFilterGo">検索</button></div>
+            <div class="items" id="rwgpsItems"></div>
+            <div class="row more"><button type="button" class="btn small" id="rwgpsMore">さらに読み込む</button><button type="button" class="btn small" id="rwgpsClose">閉じる</button></div>
+          </div>
+          <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpAuth">連携について</button></div>
+          <div class="help" id="helpAuth" hidden>自分のルート一覧から選べます。非公開のルートも本人のものは読めます。連携のトークンは端末内にだけ保存します。<a href="about.html#rwgps">詳しく</a></div>
+          <label class="lbl sep" for="rwgpsUrl">Ride with GPS のルート URL から読み込む <small class="trial">（試験運用中）</small></label>
+          <div class="row"><input type="url" id="rwgpsUrl" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://ridewithgps.com/routes/…"><button type="button" class="btn" id="rwgpsGo">読み込む</button></div>
+          <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpUrl">対象のルート</button></div>
+          <div class="help" id="helpUrl" hidden>公開ルートか、共有リンク（privacy_code 付き）の URL です。アプリの「共有」で出る文をそのまま貼っても構いません。<a href="about.html#rwgps">詳しく</a></div>
+        </div>
+        <div class="course" id="courseBox">
+          <div class="name" id="cName">コース未読み込み</div>
+          <div class="meta" id="cMeta"><a href="samples/WanIchi_Clockwise.gpx" id="sampleLink">サンプルコースで試す</a>（東京湾一周・約 200 km）</div>
+          <div class="courseBtns">
+            <select id="recent" aria-label="最近のコース"><option value="">最近のコース…</option></select>
+            <button type="button" class="btn" id="reverse" title="コースを反転（往復・復路の確認用）">反転</button>
+          </div>
+        </div>
+        <div class="status" id="loadStatus" aria-live="polite"></div>
+      </section>
       <details class="settings" id="settings" open>
-        <summary>コースと走行計画 <span class="sumLine" id="sumLine"></span></summary>
+        <summary>走行計画 <span class="sumLine" id="sumLine"></span></summary>
         <div class="ctl">
-          <label class="loadBtn" id="loadBtn">
-            <span>コースを読み込む（GPX / FIT）</span>
-            <input type="file" id="file" aria-label="コースファイルを選択">
-          </label>
-          <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpFile">読み込み方法</button></div>
-          <div class="help" id="helpFile" hidden>スマホでは、Ride with GPS アプリでルートを開き、右上「⋯」→ Export GPX →「"ファイル"に保存」してから選びます。ファイルは端末内だけで処理します。<a href="about.html#load">詳しく</a></div>
-          <div class="rwgps" id="rwgpsBox">
-            <div class="row auth">
-              <button type="button" class="btn" id="rwgpsAuth">Ride with GPS と連携 <small class="trial">（試験運用中）</small></button>
-              <button type="button" class="btn hidden" id="rwgpsPick">自分のルートを選ぶ</button>
-              <button type="button" class="btn small hidden" id="rwgpsUnlink">連携を解除</button>
-            </div>
-            <div class="posMsg hidden" id="rwgpsAuthMsg" aria-live="polite"></div>
-            <div class="rwList hidden" id="rwgpsList">
-              <div class="row"><input type="search" id="rwgpsFilter" placeholder="ルート名で絞り込み" autocomplete="off" aria-label="ルート名で絞り込み"><button type="button" class="btn" id="rwgpsFilterGo">検索</button></div>
-              <div class="items" id="rwgpsItems"></div>
-              <div class="row more"><button type="button" class="btn small" id="rwgpsMore">さらに読み込む</button><button type="button" class="btn small" id="rwgpsClose">閉じる</button></div>
-            </div>
-            <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpAuth">連携について</button></div>
-            <div class="help" id="helpAuth" hidden>自分のルート一覧から選べます。非公開のルートも本人のものは読めます。連携のトークンは端末内にだけ保存します。<a href="about.html#rwgps">詳しく</a></div>
-            <label class="lbl sep" for="rwgpsUrl">Ride with GPS のルート URL から読み込む <small class="trial">（試験運用中）</small></label>
-            <div class="row"><input type="url" id="rwgpsUrl" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://ridewithgps.com/routes/…"><button type="button" class="btn" id="rwgpsGo">読み込む</button></div>
-            <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpUrl">対象のルート</button></div>
-            <div class="help" id="helpUrl" hidden>公開ルートか、共有リンク（privacy_code 付き）の URL です。アプリの「共有」で出る文をそのまま貼っても構いません。<a href="about.html#rwgps">詳しく</a></div>
-          </div>
-          <div class="course" id="courseBox">
-            <div class="name" id="cName">コース未読み込み</div>
-            <div class="meta" id="cMeta"><a href="samples/WanIchi_Clockwise.gpx" id="sampleLink">サンプルコースで試す</a>（東京湾一周・約 200 km）</div>
-            <div class="courseBtns">
-              <select id="recent" aria-label="最近のコース"><option value="">最近のコース…</option></select>
-              <button type="button" class="btn" id="reverse" title="コースを反転（往復・復路の確認用）">反転</button>
-            </div>
-          </div>
           <div class="row2">
             <div class="field"><label for="date">出走日</label><input type="date" id="date"></div>
             <div class="field"><label for="time">出走時刻</label><input type="time" id="time" value="06:00"></div>
@@ -328,9 +384,9 @@
           </div>
           <div class="hidden" id="ancHidden"><input type="number" id="ancD" aria-hidden="true" tabindex="-1"><input type="datetime-local" id="ancT" aria-hidden="true" tabindex="-1"></div>
           <button type="button" class="primary" id="run">予報を取得する</button>
-          <div class="status" id="status" aria-live="polite"></div>
         </div>
       </details>
+      <div class="status" id="status" aria-live="polite"></div>
     </aside>
 
     <main>
