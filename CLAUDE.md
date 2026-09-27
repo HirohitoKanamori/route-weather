@@ -25,6 +25,12 @@ V-6 本地図は Leaflet で実装済み（2026-09-05 に利用者が許可）�
 - UI の文言は日本語。コード内コメントも日本語で可
 - 出走日時は 4 日前の 0:00（JST）以降のみ受け付け（`RW.const.START_BACK_DAYS`）、初期値は現在より先の最も近い 06:00（v1.1.2、`RW.fmt.minStart` / `nextStart`）。1200 km・90 時間の走行中でも実際の出走時刻を入れられるようにするため。予報の取得は過去 5 日分まで（`PAST_DAYS_MAX`）
 
+## DNS
+
+- route-weather.jp の DNS は Cloudflare（無料プラン、ネームサーバー `buck`／`donna.ns.cloudflare.com`）で管理する（2026-09-27 にお名前.com レンタルサーバーの DNS から移管）。ドメインの契約はお名前.com
+- GitHub Pages（A ×4・www の CNAME）と mail の A は必ず「DNS のみ」（灰色の雲）。MX・SPF・DKIM はお名前.com のメール用で、消さない
+- 元に戻すときはお名前.com でネームサーバーを `ns-rs1.gmoserver.jp`／`ns-rs2.gmoserver.jp` に戻す
+
 ## 参考
 
 - `mock/brevet_weather_mock.html`：表示イメージ。予報値はダミーだが GPX 解析・距離/方位計算・描画の原型として流用してよい
@@ -56,5 +62,5 @@ V-6 本地図は Leaflet で実装済み（2026-09-05 に利用者が許可）�
 
 - 仕様と調査結果は `docs/ADD_03.md`。Stage 1（公開ルートの URL 貼り付け、C-5）は v1.4.0、Stage 2（OAuth で自分のルート一覧、C-6）は v1.5.0 で実装
 - RwGPS は公式 API v1（`/api/v1/routes/{id}.json`、`x-rwgps-api-key`）だけを使う。鍵なしで取れる旧 `/routes/{id}.json` は非公式なので使わない
-- 中継は `worker/src/index.mjs`（Cloudflare Workers、workers.dev、手元から `npx wrangler deploy`）。Origin を許可リストで限定し、秘密（運用者の OAuth アクセストークン `RWGPS_ACCESS_TOKEN`（`worker/setup-oauth.sh` で発行・登録）と `RWGPS_CLIENT_SECRET`）は `wrangler secret` で登録する。秘密を repo や会話に置かない
+- 中継は `worker/src/index.mjs`（Cloudflare Workers、独自ドメイン `https://api.route-weather.jp`（v1.5.4 から。旧 workers.dev の住所も当面は有効）、手元から `npx wrangler deploy`）。Origin を許可リストで限定し、秘密（運用者の OAuth アクセストークン `RWGPS_ACCESS_TOKEN`（`worker/setup-oauth.sh` で発行・登録）と `RWGPS_CLIENT_SECRET`）は `wrangler secret` で登録する。秘密を repo や会話に置かない
 - 中継の URL は `js/app.js` の `RWGPS_RELAY`、OAuth の client_id は `RWGPS_CLIENT_ID`（公開値）。利用者のトークンは端末内 `rw:rwgps` にのみ保持し、一覧・本文は端末から RwGPS を直接呼ぶ。ローカル確認は `?relay=http://localhost:8787&rwgpsapi=http://localhost:8787`（localhost のみ受け付ける）

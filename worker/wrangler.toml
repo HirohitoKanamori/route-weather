@@ -2,7 +2,11 @@
 name = "route-weather-relay"
 main = "src/index.mjs"
 compatibility_date = "2025-06-01"
-workers_dev = true
+workers_dev = true   # 旧住所（route-weather-relay.route-weather.workers.dev）。古い版のアプリが残る間は生かしておく
+# 独自ドメイン（2026-09-27 に route-weather.jp の DNS を Cloudflare へ移管。DNS 記録と証明書は Cloudflare が自動で作る）
+routes = [
+  { pattern = "api.route-weather.jp", custom_domain = true }
+]
 
 [vars]
 # 許可する呼び出し元（カンマ区切り）。ローカル確認時は http://localhost:8766 を足す

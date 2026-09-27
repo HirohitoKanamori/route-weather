@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=1.5.3-2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=1.5.4'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -10,7 +10,7 @@ import { RW } from './core.js?v=1.5.3-2'; // 版を付けて、公開直後に�
   const PAST_DAYS_MAX = RW.const.START_BACK_DAYS + 1; // 予報取得の過去日数。出走日時の下限（4 日前）を覆う
   // Ride with GPS 連携（ADD_03、試験運用中）：公式 API v1 への転送だけを行う中継（Cloudflare Workers）の URL。
   // 未設定（空）なら機能を案内文だけにする。確認用に ?relay=http://localhost:8787 で差し替えられる
-  const RWGPS_RELAY = 'https://route-weather-relay.route-weather.workers.dev';
+  const RWGPS_RELAY = 'https://api.route-weather.jp'; // v1.5.4 から独自ドメイン（旧：route-weather-relay.route-weather.workers.dev）
   // Stage 2（OAuth）：client_id は秘密ではない（authorize の URL に載る値）。redirect_uri は API クライアントに登録した値と一致させる。
   // トークンは端末内（rw:rwgps）にのみ保持し、Ride with GPS の API 呼び出し以外には送らない
   const RWGPS_CLIENT_ID = 'utYdUEU0XPHVePXnKqqhDc7Aw_yxD4AK4hoif9SQTgA';
