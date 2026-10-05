@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=2.0.2-2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=2.0.3'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -1136,13 +1136,14 @@ import { RW } from './core.js?v=2.0.2-2'; // 版を付けて、公開直後に�
     const W = +svgEl.getAttribute('width'), H = +svgEl.getAttribute('height');
     const scale = 2, pad = 10;
     const ctx0 = document.createElement('canvas').getContext('2d');
-    // 要点カードの配置（画面と同じく幅 150px 以上で自動列数）
-    const cards = summaryCards(); const gap = 8;
-    const cols = Math.max(1, Math.min(cards.length, Math.floor((W + gap) / (150 + gap)))); const cw = (W - gap * (cols - 1)) / cols;
-    ctx0.font = '10px ' + FONT; const rowsOf = c => wrapText(ctx0, c.s || '', cw - 18);
-    const rowH = []; for (let i = 0; i < cards.length; i += cols) rowH.push(38 + Math.max(...cards.slice(i, i + cols).map(c => rowsOf(c).length)) * 13 + 4);
+    // 要点は画面と同じ形：ゴール予定（20 px）と経過、その下に 5 指標を 1 行の表（17 px、上に太線・下に細線）。v2.0.3
+    const cards = summaryCards(); const goal = cards[0], kpis = cards.slice(1);
     const footLines = wrapText(ctx0, 'Route-Weather.jp ／ 出典：気象庁 数値予報（MSM/GSM）— Open-Meteo 経由 ／ 予報取得 ' + F.fmtDT(state.series.fetchedAt), W);
-    const head = 62, cardsH = rowH.reduce((a, h) => a + h + gap, 0), foot = 10 + footLines.length * 13;
+    ctx0.font = 'bold 20px ' + FONT; const goalW = ctx0.measureText(goal.v).width; ctx0.font = '13px ' + FONT;
+    const goalSubInline = goalW + 10 + ctx0.measureText(goal.s || '').width <= W; // 経過が同じ行に入らなければ次の行へ
+    const goalH = 18 + 26 + (goal.s && !goalSubInline ? 18 : 0);
+    const kpiH = kpis.length ? 8 + 50 : 0;
+    const head = 62, cardsH = goalH + kpiH + 14, foot = 10 + footLines.length * 13;
     const canvas = document.createElement('canvas'); canvas.width = (W + pad * 2) * scale; canvas.height = (head + cardsH + H + foot) * scale;
     const ctx = canvas.getContext('2d'); ctx.scale(scale, scale);
     ctx.fillStyle = v('--card'); ctx.fillRect(0, 0, W + pad * 2, head + cardsH + H + foot);
@@ -1150,17 +1151,21 @@ import { RW } from './core.js?v=2.0.2-2'; // 版を付けて、公開直後に�
     ctx.font = 'bold 13px ' + FONT; ctx.fillText(course.name, pad, 39);
     ctx.fillStyle = v('--ink-2'); ctx.font = '11px ' + FONT;
     ctx.fillText(`${F.fmtDT(p.start)} 出走 ・ ${p.spd} km/h${p.sleeps.length ? ' ・ 仮眠 ' + p.sleeps.map(x => Math.round(x.d) + 'km/' + x.m + '分').join(', ') : ''}${p.anchor ? ' ・ 現在 ' + Math.round(p.anchor.d) + ' km' : ''}`, pad, 55);
-    const vcol = { head: v('--head'), rain: v('--rain') };
-    let cy = head;
-    cards.forEach((c, i) => {
-      const r = Math.floor(i / cols), col = i % cols; const x = pad + col * (cw + gap), y = cy + rowH.slice(0, r).reduce((a, h) => a + h + gap, 0), h = rowH[r];
-      ctx.fillStyle = v('--paper'); ctx.strokeStyle = v('--line'); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x + .5, y + .5, cw - 1, h - 1, 6) : ctx.rect(x + .5, y + .5, cw - 1, h - 1); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = v('--ink-2'); ctx.font = '10px ' + FONT; ctx.fillText(c.k, x + 9, y + 15);
-      ctx.fillStyle = vcol[c.cls] || v('--ink'); ctx.font = 'bold 15px ' + FONT; ctx.fillText(c.v, x + 9, y + 32);
-      if (c.vSub) { const w = ctx.measureText(c.v).width; ctx.fillStyle = v('--ink-2'); ctx.font = '10px ' + FONT; ctx.fillText(c.vSub, x + 9 + w + 2, y + 32); }
-      ctx.fillStyle = v('--ink-3'); ctx.font = '10px ' + FONT; rowsOf(c).forEach((ln, j) => ctx.fillText(ln, x + 9, y + 46 + j * 13));
-    });
+    let y = head + 4;
+    ctx.fillStyle = v('--ink-2'); ctx.font = '13px ' + FONT; ctx.fillText('ゴール予定', pad, y + 13);
+    ctx.fillStyle = v('--ink'); ctx.font = 'bold 20px ' + FONT; ctx.fillText(goal.v, pad, y + 40);
+    if (goal.s) { ctx.fillStyle = v('--ink-2'); ctx.font = '13px ' + FONT; if (goalSubInline) ctx.fillText(goal.s, pad + goalW + 10, y + 40); else ctx.fillText(goal.s, pad, y + 58); }
+    if (kpis.length) {
+      const ky = head + 4 + goalH + 8, cw = W / kpis.length, vcol = { head: v('--head'), rain: v('--rain') };
+      ctx.fillStyle = v('--ink'); ctx.fillRect(pad, ky, W, 1.5);
+      ctx.fillStyle = v('--line'); ctx.fillRect(pad, ky + 49, W, 1);
+      kpis.forEach((c, i) => {
+        const x = pad + i * cw;
+        ctx.fillStyle = v('--ink-2'); ctx.font = '11px ' + FONT; ctx.fillText(c.k, x, ky + 18);
+        ctx.fillStyle = vcol[c.cls] || v('--ink'); ctx.font = 'bold 17px ' + FONT; ctx.fillText(c.num, x, ky + 40);
+        if (c.unit) { const w = ctx.measureText(c.num).width; ctx.fillStyle = v('--ink-2'); ctx.font = '600 11px ' + FONT; ctx.fillText(c.unit, x + w + 1, ky + 40); }
+      });
+    }
     const top = head + cardsH;
     const url = URL.createObjectURL(new Blob([xml], { type: 'image/svg+xml;charset=utf-8' }));
     try {
