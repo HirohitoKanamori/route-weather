@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=2.0.1-2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=2.0.2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -531,7 +531,7 @@ import { RW } from './core.js?v=2.0.1-2'; // 版を付けて、公開直後に�
     const host = $('ribbon'); const { S, step, p, trend } = state.result; const course = state.course;
     const W = Math.max(320, Math.floor(host.clientWidth || 360)); const L = 30, RM = 8, innerW = W - L - RM;
     const lanes = { time: { y: 2, h: 26 }, dist: { y: 30, h: 14 } }; let y = 48;
-    const order = trend ? [['rain', 44], ['temp', 44], ['ele', 40]] : [['wind', 54], ['rain', 44], ['temp', 44], ['ele', 40]];
+    const order = [['wind', 54], ['rain', 44], ['temp', 44], ['ele', 40]]; // v2.0.2：傾向モード（GSM）でも風レーンを出す（区間×通過日の表と併記）
     for (const [k, h] of order) { lanes[k] = { y, h }; y += h + 4; }
     const H = y + 4, top = lanes[order[0][0]].y, bottom = H - 6;
     const axis = ribbonAxis(course, p, L, innerW); const xOf = axis.xOf;
@@ -580,10 +580,10 @@ import { RW } from './core.js?v=2.0.1-2'; // 版を付けて、公開直後に�
     for (let d = 0; d <= course.total + 1e-9; d += dStep) { const x = xOf(d); s += text(x, lanes.dist.y + 11, String(d), 'tick', 'middle'); s += line(x, lanes.dist.y + 13, x, bottom, 'var(--line)', 1, '2 4'); }
     s += text(L - 4, lanes.dist.y + 11, 'km', 'tick', 'end');
     const lab = (k, t) => text(L - 4, lanes[k].y + lanes[k].h / 2 + 4, t, 'lane-label', 'end');
-    if (!trend) s += lab('wind', '風');
+    s += lab('wind', '風');
     s += lab('rain', '雨') + lab('temp', '気温') + lab('ele', '標高');
-    // 風レーン：進行方向基準の矢印（上＝追い風）
-    if (!trend) {
+    // 風レーン：進行方向基準の矢印（上＝追い風）。傾向モードでも GSM の値で描く
+    {
       const wy = lanes.wind.y + lanes.wind.h / 2 - 4; const st = stride(16);
       S.forEach((pt, i) => {
         if (pt.na || !pt.cls || i % st) return;
