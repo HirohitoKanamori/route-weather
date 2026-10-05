@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=2.0.2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=2.0.2-2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -625,8 +625,9 @@ import { RW } from './core.js?v=2.0.2'; // 版を付けて、公開直後に新�
       const base = lanes.ele.y + lanes.ele.h;
       s += `<path d="M${xOf(0).toFixed(1)},${base} ${course.pts.map(q => 'L' + xOf(q.d).toFixed(1) + ',' + ey(q.ele).toFixed(1)).join(' ')} L${xOf(course.total).toFixed(1)},${base} Z" fill="var(--paper-2)" stroke="none"/>`;
       // 相対風で塗り分け（向かい風＝赤系、横風＝黄系、追い風＝緑系）。各サンプルの受け持ちは前後のサンプルとの中点まで。
-      // 同じ分類が続く区間は 1 つの面にまとめ、仮眠地点で区切る（仮眠帯の上に面を渡さない）。傾向モード・欠測・予報範囲外は無彩色のまま
-      if (!trend) {
+      // 同じ分類が続く区間は 1 つの面にまとめ、仮眠地点で区切る（仮眠帯の上に面を渡さない）。欠測・予報範囲外は無彩色のまま
+      // v2.0.2：風レーンと揃えて傾向モード（GSM）でも塗り分ける
+      {
         const runs = [];
         S.forEach((pt, i) => {
           const a = i ? (S[i - 1].d + pt.d) / 2 : 0, b = i < S.length - 1 ? (pt.d + S[i + 1].d) / 2 : course.total;
