@@ -1,6 +1,6 @@
 # 中継 Worker（Ride with GPS 連携、ADD_03）
 
-住所：`https://api.route-weather.jp`（2026-09-27 から。`wrangler.toml` の `routes` で Cloudflare の独自ドメインとして付与。DNS 記録と証明書は Cloudflare が自動で作る）。旧 `https://route-weather-relay.route-weather.workers.dev` も当面は有効（`workers_dev = true`）。
+住所：`https://api.route-weather.jp`（2026-09-27 から。`wrangler.toml` の `routes` で Cloudflare の独自ドメインとして付与。DNS 記録と証明書は Cloudflare が自動で作る）。旧 `https://route-weather-relay.route-weather.workers.dev` は 2026-10-12 に閉じた（`workers_dev = false`。戻すときは true にして deploy）。
 
 Ride with GPS 公式 API v1 への転送だけを行う Cloudflare Worker。役割は API 鍵を端末に置かないことだけで、ルートの内容は保存・記録しない。
 
@@ -33,7 +33,7 @@ Ride with GPS 公式 API v1 への転送だけを行う Cloudflare Worker。役�
    表示される住所（独自ドメインを付けていれば `api.route-weather.jp`）を `js/app.js` の `RWGPS_RELAY` に入れて push する
 5. 動作確認
    ```bash
-   curl -s https://route-weather-relay.<アカウント名>.workers.dev/health
+   curl -s https://api.route-weather.jp/health
    ```
    `ok` が返れば配置できている。ルート取得はブラウザ（route-weather.jp）からのみ受け付ける
 

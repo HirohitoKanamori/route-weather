@@ -64,5 +64,5 @@ V-6 本地図は Leaflet で実装済み（2026-09-05 に利用者が許可）�
 
 - 仕様と調査結果は `docs/ADD_03.md`。Stage 1（公開ルートの URL 貼り付け、C-5）は v1.4.0、Stage 2（OAuth で自分のルート一覧、C-6）は v1.5.0 で実装
 - RwGPS は公式 API v1（`/api/v1/routes/{id}.json`、`x-rwgps-api-key`）だけを使う。鍵なしで取れる旧 `/routes/{id}.json` は非公式なので使わない
-- 中継は `worker/src/index.mjs`（Cloudflare Workers、独自ドメイン `https://api.route-weather.jp`（v1.5.4 から。旧 workers.dev の住所も当面は有効）、手元から `npx wrangler deploy`）。Origin を許可リストで限定し、秘密（運用者の OAuth アクセストークン `RWGPS_ACCESS_TOKEN`（`worker/setup-oauth.sh` で発行・登録）と `RWGPS_CLIENT_SECRET`）は `wrangler secret` で登録する。秘密を repo や会話に置かない
+- 中継は `worker/src/index.mjs`（Cloudflare Workers、独自ドメイン `https://api.route-weather.jp`（v1.5.4 から。旧 workers.dev の住所は 2026-10-12 に閉じた）、手元から `npx wrangler deploy`）。Origin を許可リストで限定し、秘密（運用者の OAuth アクセストークン `RWGPS_ACCESS_TOKEN`（`worker/setup-oauth.sh` で発行・登録）と `RWGPS_CLIENT_SECRET`）は `wrangler secret` で登録する。秘密を repo や会話に置かない
 - 中継の URL は `js/app.js` の `RWGPS_RELAY`、OAuth の client_id は `RWGPS_CLIENT_ID`（公開値）。利用者のトークンは端末内 `rw:rwgps` にのみ保持し、一覧・本文は端末から RwGPS を直接呼ぶ。ローカル確認は `?relay=http://localhost:8787&rwgpsapi=http://localhost:8787`（localhost のみ受け付ける）
