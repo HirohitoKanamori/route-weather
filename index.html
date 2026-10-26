@@ -90,7 +90,6 @@
   .courseBar .btn{flex:none}
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
   .chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:0 10px;min-height:36px;font-size:13px;font-variant-numeric:tabular-nums;cursor:pointer;white-space:nowrap}
-  .chip.more{border-style:dashed;color:var(--ink-2);background:transparent}
   /* コースの読み込み：未読み込みなら画面に、読み込み後は「変更」で開くシートに */
   .loadBox{display:flex;flex-direction:column;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:10px;padding:14px}
   .loadBox .sheetHead{display:none}
@@ -101,7 +100,6 @@
   @media (min-width:700px){ .layout.hasCourse .loadBox.open{left:50%;right:auto;bottom:auto;top:8vh;width:520px;transform:translateX(-50%);border-radius:16px} }
   .layout.hasCourse .loadBox .sheetHead{display:flex;justify-content:space-between;align-items:center;font-size:15px}
   .sheetBack{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:3999}
-  .layout.hasCourse #settings:not([open]){display:none}
   .sumLine{font-weight:400;color:var(--ink-2);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   #sumLine{display:none} /* 走行計画の要約は札で見せる */
   /* 要点：ゴール予定と 5 指標（タップで地点・時刻） */
@@ -481,7 +479,7 @@
   <footer class="src">
     <div>予報は参考情報です（<a href="about.html#disclaimer">免責事項</a>）。出典：気象庁 数値予報（<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由）、注意報・アメダス：気象庁、地図：© OpenStreetMap</div>
     <div class="model" id="modelInfo"></div>
-    <div class="links"><a href="about.html">このサイトについて</a><span class="ver">Route-Weather.jp <b id="appVersion">v2.0.3</b></span></div>
+    <div class="links"><a href="about.html">このサイトについて</a><span class="ver">Route-Weather.jp <b id="appVersion">v2.0.4</b></span></div>
   </footer>
 </div>
 
@@ -489,6 +487,6 @@
 // 表示モードを最初に適用（自動＝OS 設定に従う）
 try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式（生文字列）はそのまま */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
 </script>
-<script type="module" src="js/app.js?v=2.0.3"></script>
+<script type="module" src="js/app.js?v=2.0.4"></script>
 </body>
 </html>

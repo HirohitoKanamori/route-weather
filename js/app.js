@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=2.0.3'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=2.0.4'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -103,7 +103,7 @@ import { RW } from './core.js?v=2.0.3'; // 版を付けて、公開直後に新�
     const sleepMin = p.sleeps.reduce((a, x) => a + x.m, 0);
     const chips = [['date', `${F.fmtDT(p.start)} 出走`], ['spd', `${p.spd} km/h`], ['addSleep', p.sleeps.length ? `仮眠 ${p.sleeps.length} 回・${sleepMin} 分` : '仮眠なし']];
     if (p.segments.length) chips.push(['addSeg', `区間速度 ${p.segments.length}`]);
-    el.innerHTML = chips.map(([f, t]) => `<button type="button" class="chip" data-focus="${f}">${esc(t)}</button>`).join('') + '<button type="button" class="chip more" data-focus="date">編集</button>';
+    el.innerHTML = chips.map(([f, t]) => `<button type="button" class="chip" data-focus="${f}">${esc(t)}</button>`).join('');
     el.classList.remove('hidden');
   }
   function openEditor(focusId) {
