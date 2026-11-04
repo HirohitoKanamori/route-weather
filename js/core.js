@@ -455,6 +455,40 @@ export const RW = (function () {
       tmax: r.tmax, tmin: r.tmin, headKm: r1(r.headKm), models: [...r.models]
     }));
   }
+  // 区間表（v3）：size km ごとの行に集約する。summarize と同じく、サンプル i は次のサンプルまでの距離を受け持つ（行の境界で按分）。
+  // 行の値：相対風は距離の最も長い分類、風速・降水は行内の最大、気温は最高・最低と行の中ほどの値、夜間は行の半分以上なら夜。
+  // 予報範囲外のサンプルしか無い行は na。t は行の始まりの通過時刻（その地点の仮眠を終えて出発する時刻）。
+  // fromD を渡すとそこから始める（走行中の「現在地から」。最初の行は次の区切りまで：86 km なら 86〜90 km）
+  function tableRows(S, total, size, p, fromD = 0) {
+    const rows = [];
+    for (let a = Math.max(0, fromD); a < total - 1e-6; a = Math.min(total, (Math.floor(a / size + 1e-9) + 1) * size)) {
+      const b = Math.min(total, (Math.floor(a / size + 1e-9) + 1) * size);
+      rows.push({ from: a, to: b, t: timeAt(a, p), km: { head: 0, cross: 0, tail: 0 }, rv: { head: [0, 0], cross: [0, 0], tail: [0, 0] }, okLen: 0, naLen: 0, nightLen: 0, ws: null, mm: null, tmin: null, tmax: null, ux: 0, uy: 0, nw: 0, mid: null, midDist: Infinity, models: new Set() });
+    }
+    for (let i = 0; i < S.length - 1; i++) {
+      const s = S[i], e = S[i + 1].d;
+      for (const r of rows) {
+        const len = Math.min(e, r.to) - Math.max(s.d, r.from);
+        if (len <= 1e-9) continue;
+        if (s.night) r.nightLen += len;
+        if (s.na) { r.naLen += len; continue; }
+        r.okLen += len; r.models.add(s.model);
+        if (s.cls) { r.km[s.cls] += len; if (s.rel != null) { r.rv[s.cls][0] += Math.sin(s.rel * R) * len; r.rv[s.cls][1] += Math.cos(s.rel * R) * len; } }
+        if (s.ws != null) { r.ws = r.ws == null ? s.ws : Math.max(r.ws, s.ws); if (s.wd != null) { r.nw++; r.ux += Math.sin(s.wd * R) * s.ws; r.uy += Math.cos(s.wd * R) * s.ws; } }
+        if (s.mm != null) r.mm = r.mm == null ? s.mm : Math.max(r.mm, s.mm);
+        if (s.temp != null) { r.tmin = r.tmin == null ? s.temp : Math.min(r.tmin, s.temp); r.tmax = r.tmax == null ? s.temp : Math.max(r.tmax, s.temp); }
+        const md = Math.abs((s.d + e) / 2 - (r.from + r.to) / 2); if (md < r.midDist) { r.midDist = md; r.mid = s; }
+      }
+    }
+    return rows.map(r => {
+      const len = r.to - r.from;
+      const cls = ['head', 'cross', 'tail'].filter(c => r.km[c] > 0).sort((x, y) => r.km[y] - r.km[x])[0] || null;
+      const v = cls && r.rv[cls]; const rel = v && (v[0] || v[1]) ? Math.atan2(v[0], v[1]) / R : null; // 矢印の向き：多い分類の相対風の平均
+      return { from: r.from, to: r.to, t: r.t, na: r.okLen <= 0 && r.naLen > 0, night: r.nightLen >= len / 2, cls, rel, headKm: r1(r.km.head),
+        ws: r.ws, wd: r.nw ? (Math.atan2(r.ux, r.uy) / R + 360) % 360 : null, mm: r.mm, tmin: r.tmin, tmax: r.tmax,
+        temp: r.mid ? r.mid.temp : null, mid: r.mid, models: [...r.models] };
+    });
+  }
   // 出走時刻の比較（F-6）
   function startComparison(course, p, series, offsets = [-3, -2, -1, 0, 1, 2, 3]) {
     return offsets.map(off => {
@@ -505,6 +539,6 @@ export const RW = (function () {
     locate: { locateOnCourse, chooseCandidate },
     wind: { relative, dir16 },
     sun: { sunTimes, isNight },
-    forecast: { buildUrl, parseSeries, horizon, at, pick, computeRide, sleepRain, summarize, trendAggregate, startComparison, wmoText, wxClass }
+    forecast: { buildUrl, parseSeries, horizon, at, pick, computeRide, sleepRain, summarize, trendAggregate, tableRows, startComparison, wmoText, wxClass }
   };
 })();

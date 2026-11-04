@@ -56,7 +56,7 @@ try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } ca
 
   <h1>このサイトについて</h1>
   <p class="lede">日本国内専用・自転車向けのコース天気予報です。コースと出走時刻から、通過する時点の風・雨・気温を気象庁の数値予報で表示します。</p>
-  <nav class="toc" aria-label="目次"><a href="#use">使い方</a><a href="#read">図の読み方</a><a href="#data">データとプライバシー</a><a href="#source">出典とライセンス</a><a href="#disclaimer">免責事項</a></nav>
+  <nav class="toc" aria-label="目次"><a href="#use">使い方</a><a href="#read">画面の見方</a><a href="#data">データとプライバシー</a><a href="#source">出典とライセンス</a><a href="#disclaimer">免責事項</a></nav>
 
   <h2 id="use">使い方</h2>
   <h3 id="load">コースの読み込み</h3>
@@ -80,23 +80,37 @@ try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } ca
     <li>予報は 30 分間端末に保存し、その間の再表示では取り直しません。</li>
   </ul>
   <h3 id="gps">現在位置から予報を再取得</h3>
-  <p>走行中に押すと、端末の位置と時刻からコース上の現在地（km）を求め、それより先の通過時刻と予報を計算し直します。往復コースなどで候補が複数ある場合は選択を求めます。位置を取れないときは、現在の km を手入力できます。</p>
+  <p>走行中に地図の右下の現在地ボタン（走行中の時間帯以外はメニュー）を押すと、端末の位置と時刻からコース上の現在地（km）を求め、それより先の通過時刻と予報を計算し直します。区間表は現在地の行から始まります。往復コースなどで候補が複数ある場合は選択を求めます。位置を取れないときは、現在の km を手入力できます。</p>
 
-  <h2 id="read">図の読み方</h2>
-  <h3 id="ribbon">タイムライン概要</h3>
+  <h2 id="read">画面の見方</h2>
+  <h3 id="screen">地図とシート</h3>
   <ul>
-    <li><b>風の矢印</b>は進行方向が基準です（上＝追い風、下＝向かい風）。色は <span class="sw" style="background:var(--head)"></span>向かい風、<span class="sw" style="background:var(--cross)"></span>横風、<span class="sw" style="background:var(--tail)"></span>追い風。</li>
-    <li><b>雨</b>は 1 時間あたりの降水量（mm）の棒です。0.5 mm/h 以上は濃く、その区間の背景を淡い青にしています。</li>
-    <li><b>標高</b>の塗りは、その地点の相対風の色です。</li>
-    <li>紫の帯は仮眠、灰色の帯は夜間（日没〜日の出）と予報範囲外です。</li>
-    <li>図をタップするとその地点の詳細が出ます。もう一度タップで閉じます。</li>
+    <li>予報が出ると、地図が画面いっぱいに広がります。上の札にはコース名と走行計画が出ていて、押すと走行計画の編集とコースの変更ができます。</li>
+    <li>下のシートは、取っ手を押すか上下に引くと高さが変わります。下げた状態では要点（ゴール予定と 5 つの指標）とコース全体の帯、半分まで上げると区間表が見えます。PC では左の欄に常に開いています。</li>
+    <li>区間表の行・地図の風の矢印・コース全体の帯のどれを押しても、同じ区間が地図（黒い縁取りと「130〜140 km」の札）と区間表の両方で示されます。区間表をスクロールすると、止まったところで地図がその区間に寄ります。</li>
+  </ul>
+  <h3 id="strip">コース全体の帯</h3>
+  <ul>
+    <li>上の帯は相対風の色です：<span class="sw" style="background:var(--head)"></span>向かい風、<span class="sw" style="background:var(--cross)"></span>横風、<span class="sw" style="background:var(--tail)"></span>追い風。帯の下の灰色の線は夜間（日没〜日の出）です。</li>
+    <li>下の青い棒は 1 時間あたりの降水量です。0.5 mm/h 以上は濃く、それ未満は淡く出します。</li>
+    <li>紫の印は仮眠、黒い印は現在地です。</li>
+  </ul>
+  <h3 id="rows">区間表</h3>
+  <ul>
+    <li>10 km ごと（傾向モードでは 50 km ごと）に、通過時刻・風・雨・気温を出します。風は区間の中で最も長い相対風と最大風速、雨は最大の降水量（mm/h）、気温は区間の中ほどの値です。</li>
+    <li>左端の細い帯は標高で、相対風の色で塗っています。灰色の地の行は夜間です。</li>
+    <li>行を押すと、場所・天気・湿度・日照・風向・気温の幅・体感温度・標高が開きます。</li>
+    <li>行の間には、日付、注意報・警報（発表のある区間をまとめたもの）、仮眠（到着〜出発と、その間の雨）を入れています。市区町村ごとの内訳は「通過区域の注意報・警報」にあります。</li>
+    <li>走行中に現在地から再計算したときは、「スタートから」と「現在地から」を切り替えられます。</li>
   </ul>
   <h3 id="map">地図と風向</h3>
   <ul>
     <li><b>線の色</b>は通過時刻の予報です：<span class="sw" style="background:#6E9AD6"></span>雨（降水 0.5 mm/h 以上）、<span class="sw" style="background:#A6AEB3"></span>曇り、<span class="sw" style="background:#F0B36B"></span>晴れ。点線は予報範囲外。</li>
-    <li><b>矢印</b>は風の吹いていく向き（実際の方位）で、色は相対風です。矢印をタップすると詳細が出ます。</li>
-    <li>「»」は進行方向、● はスタート、○ はゴールです。</li>
+    <li><b>矢印</b>は風の吹いていく向き（実際の方位）で、色は相対風です。矢印を押すと、区間表のその区間が開きます。</li>
+    <li>「»」は進行方向、● はスタート、○ はゴールです。凡例と地図の出典は上の札の下に出しています。</li>
   </ul>
+  <h3 id="share">画像で共有</h3>
+  <p>コース名と走行計画、地図、ゴール予定と 5 つの指標を 1 枚の画像（1080 × 1350）にして、共有または保存します。</p>
 
   <h2 id="data">データとプライバシー</h2>
   <ul>
@@ -113,7 +127,7 @@ try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } ca
     <dt>予報</dt><dd>気象庁 数値予報（MSM／GSM）。<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由（CC BY 4.0）</dd>
     <dt>注意報・警報、アメダス</dt><dd>気象庁ホームページ</dd>
     <dt>市区町村の判定</dt><dd>国土地理院 逆ジオコーダ</dd>
-    <dt>地図</dt><dd>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors（ODbL）</dd>
+    <dt>地図</dt><dd>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors（ODbL）。地図の誤りは <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">OpenStreetMap に報告</a>できます</dd>
     <dt>地図の表示</dt><dd>Leaflet 1.9.4（BSD 2-Clause License）</dd>
     <dt>FIT の読み込み</dt><dd>Garmin FIT SDK（Flexible and Interoperable Data Transfer (FIT) Protocol License）</dd>
   </dl>

@@ -155,3 +155,33 @@ test('sleepRain：仮眠地点に近いサンプルの予報を、走行中と�
   assert.deepEqual(RW.forecast.sleepRain({ ...p, sleeps: [] }, { msm, gsm: [] }, S, step), []);
   assert.deepEqual(RW.forecast.sleepRain(p, { msm: [], gsm: [] }, S, step), []); // 予報範囲外は含めない
 });
+
+test('tableRows：10 km ごとに集約。距離は行の境界で按分し、相対風は最も長い分類、雨・風は最大、範囲外だけの行は na', () => {
+  const p = { start: new Date(T0), spd: 20, sleeps: [], segments: [], anchor: null };
+  const mk = (d, o) => Object.assign({ d, t: new Date(T0 + d / 20 * 3600e3), na: false, night: false, model: 'msm', cls: 'tail', ws: 2, wd: 0, mm: 0, temp: 20 }, o);
+  const S = [mk(0, { cls: 'head', ws: 6, mm: 1.2 }), mk(5, { cls: 'head' }), mk(10, { cls: 'tail', temp: 18 }), mk(15, { na: true }), mk(20, { na: true }), mk(25, { na: true })];
+  const rows = RW.forecast.tableRows(S, 25, 10, p);
+  assert.deepEqual(rows.map(r => [r.from, r.to]), [[0, 10], [10, 20], [20, 25]]);
+  assert.equal(rows[0].cls, 'head'); assert.equal(rows[0].headKm, 10); assert.equal(rows[0].ws, 6); assert.equal(rows[0].mm, 1.2);
+  assert.equal(rows[1].cls, 'tail'); assert.equal(rows[1].na, false); assert.equal(rows[1].tmin, 18);
+  assert.equal(rows[2].na, true); assert.equal(rows[2].cls, null);
+  assert.equal(+rows[1].t, T0 + 0.5 * 3600e3, '行の始まりの通過時刻');
+});
+
+test('tableRows：仮眠をはさむと行の時刻は仮眠を終えて出発する時刻。サンプルが行をまたぐときは按分', () => {
+  const p = { start: new Date(T0), spd: 20, sleeps: [{ d: 10, m: 60 }], segments: [], anchor: null };
+  const S = [{ d: 0, t: new Date(T0), cls: 'cross', ws: 3, wd: 90, mm: 0, temp: 15, model: 'msm' }, { d: 15, t: new Date(T0), cls: 'head', rel: 170, ws: 4, wd: 270, mm: 0, temp: 15, model: 'msm' }, { d: 20, t: new Date(T0), model: 'msm', temp: 15 }];
+  const rows = RW.forecast.tableRows(S, 20, 10, p);
+  assert.equal(+rows[1].t, T0 + 1.5 * 3600e3);
+  assert.equal(rows[1].cls, 'head', '10–15 km は横風 5 km、15–20 km は向かい風 5 km。同じ長さなら先に並ぶ向かい風');
+  assert.equal(rows[0].cls, 'cross');
+  assert.ok(Math.abs(rows[1].rel) > 135, '矢印は多い分類（向かい風）の相対風の向き');
+});
+
+test('tableRows：fromD から始める（現在地から）。最初の行は次の区切りまで', () => {
+  const p = { start: new Date(T0), spd: 20, sleeps: [], segments: [], anchor: null };
+  const S = [0, 10, 20, 30].map(d => ({ d, t: new Date(T0), cls: 'tail', ws: 2, wd: 0, mm: 0, temp: 15, model: 'msm' }));
+  const rows = RW.forecast.tableRows(S, 30, 10, p, 16);
+  assert.deepEqual(rows.map(r => [r.from, r.to]), [[16, 20], [20, 30]]);
+  assert.deepEqual(RW.forecast.tableRows(S, 30, 10, p).map(r => r.from), [0, 10, 20]);
+});

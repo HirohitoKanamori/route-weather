@@ -101,7 +101,6 @@
   .layout.hasCourse .loadBox .sheetHead{display:flex;justify-content:space-between;align-items:center;font-size:15px}
   .sheetBack{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:3999}
   .sumLine{font-weight:400;color:var(--ink-2);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-  #sumLine{display:none} /* 走行計画の要約は札で見せる */
   /* 要点：ゴール予定と 5 指標（タップで地点・時刻） */
   .summary{margin-top:14px}
   .goal{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
@@ -124,13 +123,9 @@
   .notice.warn{background:var(--warn-bg);color:var(--warn-ink)}
   .notice.err{background:var(--err-bg);color:var(--err-ink)}
 
-  /* 設定欄（折りたたみ） */
-  details.settings{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:10px}
-  details.settings>summary{list-style:none;cursor:pointer;padding:0 14px;min-height:46px;display:flex;align-items:center;gap:8px;font-weight:600}
-  details.settings>summary::-webkit-details-marker{display:none}
-  details.settings>summary::before{content:"▸";color:var(--ink-3);flex:none}
-  details.settings[open]>summary::before{content:"▾"}
-  .ctl{padding:0 14px 14px;display:flex;flex-direction:column;gap:12px}
+  /* 走行計画（コースを読む前は画面に置く） */
+  .settings{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:10px}
+  .ctl{padding:14px;display:flex;flex-direction:column;gap:12px}
   .loadBtn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;border:1.5px solid var(--ink);border-radius:8px;
     background:var(--card);font-weight:600;cursor:pointer;position:relative;overflow:hidden}
   .loadBtn input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;font-size:0}
@@ -175,7 +170,6 @@
   .sleeps .seg{display:grid;grid-template-columns:1fr 1fr 1fr 44px;gap:6px}
   .anchor{display:grid;grid-template-columns:1fr 1.5fr 44px 44px;gap:6px}
   .gpsWrap{margin-top:10px}
-  .gps{width:100%;display:flex;align-items:center;justify-content:center;gap:6px}
   .gpsNote{margin:6px 2px 0}
   .gpsNote a{color:var(--ink-2)}
   tr.past td{opacity:.45}
@@ -197,29 +191,58 @@
 
   /* 要点 */
 
-  /* パネル・リボン */
+  /* パネル（折りたたみの欄） */
   .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 6px 4px;margin-top:12px;position:relative}
   .panel h2{padding:0 6px}
   details.fold{padding:0 6px 4px}
-  details.fold>summary{list-style:none;cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;color:var(--ink-2);padding:0 2px}
+  details.fold>summary{list-style:none;cursor:pointer;min-height:44px;display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px;color:var(--ink-2);padding:0 2px;white-space:nowrap;overflow:hidden}
   details.fold>summary::-webkit-details-marker{display:none}
   details.fold>summary::before{content:"▸";color:var(--ink-3);flex:none}
   details.fold[open]>summary::before{content:"▾"}
   details.fold[open]>summary{margin-bottom:4px}
-  .ribbon svg{display:block;width:100%;height:auto;touch-action:pan-y}
   .panelBar{display:flex;justify-content:flex-end;gap:8px;padding:0 2px 6px}
   .btn.small{min-height:32px;font-size:13px;padding:0 10px}
-  .map .lg{display:inline-block;width:14px;height:4px;border-radius:2px;background:var(--c);vertical-align:middle;margin:0 2px 0 4px}
-  .map .lg.dash{background:none;border-top:2px dashed var(--na);height:0}
   .lane-label{font-size:10px;fill:var(--ink-2)}
   .tick{font-size:10px;fill:var(--ink-2)}
   .tick.day{font-weight:700;fill:var(--ink)}
-  .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font-size:13px;line-height:1.45;padding:8px 10px;border-radius:6px;
-    display:none;z-index:2;max-width:min(320px,calc(100% - 12px))}
-  .tip b{font-weight:600}
-  .tip.pinned{pointer-events:auto;box-shadow:0 2px 8px rgba(0,0,0,.25)}
-  .legend{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:11px;color:var(--ink-2);margin:6px 6px 4px}
-  .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:4px}
+
+  /* 区間表（v3）：左端に標高（相対風で塗る）、km・時刻・風・雨・気温。行を押すと詳細。注意報・仮眠・日付は行の間に入れる */
+  .rowsWrap{margin-top:14px}
+  .rowsHead{display:flex;align-items:baseline;gap:10px}
+  .rowsHead h2{margin:0;font-size:15px;color:var(--ink)}
+  .thead,.row{display:grid;grid-template-columns:28px 34px 42px minmax(0,1fr) 50px 34px;gap:0 6px;align-items:center}
+  .thead{position:sticky;top:0;z-index:2;align-items:end;white-space:nowrap;padding:8px 0 4px;background:var(--card);border-bottom:1.5px solid var(--ink);font-size:11px;color:var(--ink-2);margin-top:4px}
+  .thead span:nth-child(2),.thead span:last-child{text-align:right}
+  .row{width:100%;min-height:46px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--ink);text-align:left;padding:0;cursor:pointer;border-radius:0}
+  .row.night{background:linear-gradient(90deg,transparent 28px,var(--night-row) 28px)}
+  .row.on{background:var(--paper-2)}
+  .row.past{opacity:.45}
+  .row .sp{display:block;width:28px;height:46px}
+  .row .km{font-size:17px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+  .row .t{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .row .w{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;min-width:0;overflow:hidden}
+  .row .w svg{flex:none;width:16px;height:16px}
+  .row .w em{font-style:normal;font-size:11px}
+  .row .r{font-size:11px;color:var(--rain);display:flex;align-items:center;gap:3px;font-variant-numeric:tabular-nums}
+  .row .r i{display:block;height:8px;background:var(--rain);border-radius:1px;flex:none}
+  .row .r.light{opacity:.55}
+  .row .r.none{color:var(--ink-3)}
+  .row .tp{font-size:15px;text-align:right;font-variant-numeric:tabular-nums}
+  .row .na{grid-column:4 / -1;font-size:13px;color:var(--ink-3)}
+  .det{margin-left:34px;padding:6px 0 10px;font-size:13px;line-height:1.55;color:var(--ink-2);border-bottom:1px solid var(--line);display:grid;grid-template-columns:auto 1fr;gap:2px 12px}
+  .det b{font-weight:600;color:var(--ink)}
+  .rnote{margin:6px 0 6px 34px;padding:5px 10px;border-radius:8px;font-size:13px;line-height:1.45}
+  .rnote.adv{background:var(--warn-bg);color:var(--warn-ink)}
+  .rnote.warn{background:var(--err-bg);color:var(--err-ink);font-weight:600}
+  .rnote.danger{background:var(--lv4);color:#fff;font-weight:600}
+  .rnote.emg{background:var(--lv5);color:#fff;font-weight:600;border:1px solid var(--lv5-edge)}
+  .rnote.sleep{background:var(--sleep-row);color:var(--sleep);font-weight:600}
+  .selLabel span{display:inline-block;transform:translateX(-50%);background:var(--ink);color:var(--paper);font-size:11px;font-weight:700;line-height:1.5;padding:2px 9px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+  .rowsTabs{display:flex;gap:6px;margin-top:8px}
+  .rowsTabs button{flex:1;min-height:36px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;cursor:pointer}
+  .rowsTabs button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .rnote.here{margin-left:0;background:var(--ink);color:var(--paper);font-weight:700}
+  .rnote.day{margin-left:0;padding:8px 0 2px;font-size:13px;font-weight:700;color:var(--ink);border-radius:0}
 
   /* 表 */
   .tableWrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -240,32 +263,13 @@
   .rel.head{background:var(--head)} .rel.tail{background:var(--tail)} .rel.cross{background:var(--cross)}
   small.sub{font-size:11px;color:var(--ink-3);font-weight:400}
   .tag{display:inline-block;font-size:11px;border:1px solid var(--ink-3);color:var(--ink-2);border-radius:3px;padding:0 4px;margin-left:4px;line-height:15px;vertical-align:1px}
-  .map .osm{position:relative;overflow:hidden;border-radius:6px;background:var(--paper-2);margin:0 auto}
-  .map .osm canvas.tile{position:absolute;display:block;width:256px;height:256px;pointer-events:none}
-  .map .osm img{position:absolute;display:block;width:256px;height:256px;pointer-events:none;user-select:none;
+  #map .osm{position:relative;overflow:hidden;border-radius:6px;background:var(--paper-2);margin:0 auto}
+  #map .osm canvas.tile{position:absolute;display:block;width:256px;height:256px;pointer-events:none}
+  #map .osm img{position:absolute;display:block;width:256px;height:256px;pointer-events:none;user-select:none;
     filter:var(--map-filter)} /* 地図はモノクロ・淡めにして風矢印の色を目立たせる（ダークでは反転） */
-  .map .osm svg{position:absolute;left:0;top:0;display:block}
-  .map .osm .attr{position:absolute;right:4px;bottom:2px;font-size:10px;line-height:1.4;color:var(--ink-2);background:var(--card);opacity:.9;padding:0 4px;border-radius:3px}
-  .map .osm .attr a{color:inherit}
-  .map .note{font-size:11px;color:var(--ink-2);margin:6px 4px 2px}
+  #map .osm svg{position:absolute;left:0;top:0;display:block}
   /* Leaflet 本地図 */
-  .map .leaflet{position:relative;border-radius:6px;overflow:hidden;background:var(--paper-2);z-index:0}
-  /* 地図の全画面表示（ADD_02）：Leaflet を作り直さず、入れ物を画面に固定して広げる */
-  .map .fsUi{display:none}
-  .map.fullscreen{position:fixed;inset:0;z-index:5000;margin:0;padding:0;border:0;border-radius:0;height:100vh;background:var(--paper-2)}
-  @supports (height:100dvh){ .map.fullscreen{height:100dvh} }
-  .map.fullscreen h2,.map.fullscreen .panelBar,.map.fullscreen .note{display:none}
-  .map.fullscreen #map,.map.fullscreen .leaflet,.map.fullscreen .osm{width:100%!important;height:100%!important;border-radius:0;margin:0}
-  .map.fullscreen .fsUi{display:block}
-  .map.fullscreen .leaflet-top{top:env(safe-area-inset-top,0px)} .map.fullscreen .leaflet-left{left:env(safe-area-inset-left,0px)}
-  .map.fullscreen .leaflet-bottom{bottom:env(safe-area-inset-bottom,0px)} .map.fullscreen .leaflet-right{right:env(safe-area-inset-right,0px)}
-  .fsUi .fsClose{position:absolute;z-index:2;top:calc(10px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));width:48px;height:48px;border-radius:50%;
-    border:3px solid var(--card);background:var(--ink);color:var(--paper);font-size:26px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35)}
-  .fsUi .fsBtns{position:absolute;z-index:2;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px}
-  .fsUi .fsBtns .btn{box-shadow:0 2px 8px rgba(0,0,0,.3);font-weight:600}
-  .fsUi .fsLegend{position:absolute;z-index:2;left:0;right:0;bottom:calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-wrap:wrap;justify-content:center;gap:2px 5px;
-    padding:5px calc(4px + env(safe-area-inset-left,0px)) 5px calc(4px + env(safe-area-inset-right,0px));font-size:11px;white-space:nowrap;line-height:1.4;color:var(--ink);background:var(--card);opacity:.92;pointer-events:none}
-  .fsUi .fsLegend .lg{margin:0 2px 0 0;width:11px} .fsUi .fsLegend .swatch{margin-right:2px;width:9px;height:9px}
+  #map .leaflet{position:relative;border-radius:6px;overflow:hidden;background:var(--paper-2);z-index:0}
   html.noScroll,body.noScroll{overflow:hidden;height:100%}
   .leaflet-container{font-family:inherit;background:var(--paper-2)}
   .leaflet-tile-pane .rawTile{filter:var(--map-filter)} /* タイルは端末内でモノクロに描き直す。CORS が通らなかったタイルだけ従来の CSS フィルター */
@@ -280,25 +284,110 @@
   .leaflet-container .leaflet-bar a,.leaflet-touch .leaflet-bar a{background:var(--card);color:var(--ink);border-bottom-color:var(--line)}
   .leaflet-container .leaflet-bar a.leaflet-disabled{background:var(--paper-2);color:var(--ink-3)}
   .leaflet-touch .leaflet-bar{border-color:var(--line)}
-  .map .osm .attr{opacity:.92}
   .src{font-size:11px;color:var(--ink-3);line-height:1.6;margin-top:20px;padding:10px 4px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
   .src .links{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px}
   .src .links a{color:var(--link);font-weight:600}
   .src .ver{color:var(--ink-2)} .src .ver b{font-weight:600}
   .src .disclaimer{color:var(--ink-2)}
 
+
+  /* ===== v3：地図を画面いっぱいに敷き、要点と区間表は下から引き出すシート（PC は左の欄）に置く ===== */
+  .mapStage,.mapLegend,.planPill,.grab,.setCourse,#planClose{display:none}
+  .setHead{display:flex;justify-content:space-between;align-items:center;font-size:15px;padding:14px 14px 0}
+  html.mapMode #planClose{display:inline-block}
+  .fab{display:none}
+  html.mapMode,html.mapMode body{height:100%;overflow:hidden;overscroll-behavior:none}
+  html.mapMode .app{max-width:none;padding:0}
+  html.mapMode .mapStage{display:block;position:fixed;inset:0;z-index:0;background:var(--paper-2)}
+  html.mapMode #map{position:absolute;inset:0}
+  html.mapMode #map .leaflet,html.mapMode #map .osm{position:absolute;inset:0;width:100%!important;height:100%!important;border-radius:0;margin:0}
+  /* 上の札（コース名と走行計画）とメニュー */
+  html.mapMode .bar{position:fixed;z-index:1000;top:calc(8px + env(safe-area-inset-top,0px));left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));
+    border:0;padding:0;gap:8px;align-items:flex-start;pointer-events:none}
+  html.mapMode .bar>*{pointer-events:auto}
+  html.mapMode .bar h1{display:none}
+  html.mapMode .menuBtn{box-shadow:0 4px 14px -6px rgba(0,0,0,.35)}
+  html.mapMode .planPill{display:block;flex:1;min-width:0;text-align:left;cursor:pointer;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:5px 12px 6px;min-height:40px;box-shadow:0 4px 14px -6px rgba(0,0,0,.35)}
+  .planPill b{display:block;font-size:13px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .planPill span{display:block;font-size:11px;line-height:1.4;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* 凡例と出典：札の下に小さく常に出す */
+  html.mapMode .mapLegend{display:block;position:fixed;z-index:999;top:calc(56px + env(safe-area-inset-top,0px));left:max(8px,env(safe-area-inset-left,0px));max-width:calc(100% - 16px);
+    font-size:11px;line-height:1.5;color:var(--ink-2);background:var(--card);background:color-mix(in srgb,var(--card) 88%,transparent);border-radius:8px;padding:2px 8px 3px}
+  .mapLegend .items{display:flex;flex-wrap:wrap;align-items:center;gap:0 10px}
+  .mapLegend .items>span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+  .mapLegend .lg{display:inline-block;width:14px;height:4px;border-radius:2px;background:var(--c)}
+  .mapLegend .lg.dash{background:none;border-top:2px dashed var(--na);height:0}
+  .mapLegend .la{width:11px;height:11px}
+  .mapLegend .info.icon{min-height:24px;padding:0 2px;min-width:24px}
+  .mapLegend .info::before{width:14px;height:14px;font-size:10px}
+  .mapLegend .help{margin:4px 0;max-width:24em}
+  .mapLegend .attr{font-size:10px;color:var(--ink-3)}
+  .mapLegend .attr a{color:inherit}
+  /* シート */
+  .sheet{max-width:1180px;margin:0 auto}
+  html.mapMode .sheet{position:fixed;left:0;right:0;bottom:0;z-index:1100;max-width:none;margin:0;height:var(--sheet-h,220px);background:var(--card);
+    border-radius:18px 18px 0 0;box-shadow:0 -10px 30px -12px rgba(0,0,0,.4);display:flex;flex-direction:column;transition:height .28s cubic-bezier(.2,.8,.2,1)}
+  html.mapMode .sheet.drag{transition:none}
+  html.mapMode .grab{display:grid;place-items:center;flex:none;width:100%;border:0;background:none;padding:8px 0 6px;cursor:grab;touch-action:none}
+  .grab i{display:block;width:40px;height:5px;border-radius:3px;background:var(--line)}
+  html.mapMode .sheetBody{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+    padding:0 max(14px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px))}
+  html.mapMode .sheet[data-state="peek"] .sheetBody{overflow:hidden}
+  html.mapMode .sheet .summary{margin-top:0}
+  html.mapMode .sheet .notice{margin:0 0 8px}
+  html.mapMode .sheet .status:empty{display:none}
+  html.mapMode .sheet .panel{background:none;border:0;border-top:1px solid var(--line);border-radius:0;padding:4px 0 0;margin-top:10px}
+  html.mapMode .sheet .panel h2,html.mapMode .sheet details.fold{padding-left:0;padding-right:0}
+  html.mapMode .sheet .src{margin-top:24px}
+  html.mapMode .sheet .rowsWrap{border-top:1px solid var(--line);padding-top:10px}
+  /* 現在地ボタン：シートの上に浮かせる */
+  html.mapMode .fab:not(.hidden){display:grid;place-items:center;position:fixed;z-index:1050;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(var(--sheet-h,220px) + 12px);
+    width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;box-shadow:0 4px 14px -6px rgba(0,0,0,.4);transition:bottom .28s cubic-bezier(.2,.8,.2,1),opacity .2s}
+  html.mapMode .fab svg{width:24px;height:24px}
+  html.mapMode .fab[disabled] svg{animation:rwSpin 1.2s linear infinite}
+  html.mapMode.sheetFull .fab{opacity:0;pointer-events:none}
+  .fab .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  @keyframes rwSpin{to{transform:rotate(360deg)}}
+  /* 要点の横の共有ボタン */
+  .sumHead{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+  .sumHead .goal{min-width:0}
+  .sumHead .btn{flex:none;margin-top:2px}
+  /* コース全体の帯：相対風の色と雨の棒 */
+  .strip svg{display:block;width:100%;height:auto;margin-top:8px;cursor:pointer;touch-action:pan-y}
+  /* 走行計画とコースの変更：地図の画面では上の札から開くシート */
+  html.mapMode .layout{max-width:none;margin:0}
+  html.mapMode .courseBar,html.mapMode #planChips,html.mapMode .layout>.status,html.mapMode #notice0{display:none!important}
+  html.mapMode .settings{display:none}
+  html.mapMode .settings.open{display:block;position:fixed;left:0;right:0;bottom:0;z-index:4000;max-height:88vh;overflow-y:auto;margin:0;border:0;border-radius:16px 16px 0 0;
+    padding:14px 16px calc(16px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 30px rgba(0,0,0,.22)}
+  @supports (max-height:88dvh){ html.mapMode .settings.open{max-height:88dvh} }
+  @media (min-width:700px){ html.mapMode .settings.open{left:50%;right:auto;bottom:auto;top:8vh;width:520px;transform:translateX(-50%);border-radius:16px} }
+  html.mapMode .settings .setHead{padding:0;margin-bottom:10px}
+  html.mapMode .settings .setCourse{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--paper);border-radius:10px;padding:8px 10px;margin-bottom:12px}
+  .setCourse .cInfo{min-width:0} .setCourse b{display:block;font-size:15px;word-break:break-all} .setCourse span{font-size:13px;color:var(--ink-2)}
+  html.mapMode .settings .ctl{padding:0}
   @media (min-width:900px){
-    /* 結果が出るまでは設定欄だけを中央に置き、結果が出たら 2 カラムにする */
     .layout{max-width:600px;margin:0 auto}
-    .layout.has-results{max-width:none;display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start}
-    .layout.has-results>aside{position:sticky;top:8px;z-index:10} /* sticky は重なりの階層を作るので、左欄の中の「変更」シートが右欄のパネルの下に潜らないよう左欄ごと上に */
+    /* PC：シートは左の欄にして常に開いておく */
+    html.mapMode .sheet{top:12px;left:12px;bottom:12px;right:auto;width:400px;height:auto;border-radius:14px;box-shadow:0 10px 30px -12px rgba(0,0,0,.4)}
+    html.mapMode .grab{display:none}
+    html.mapMode .sheet[data-state] .sheetBody{overflow-y:auto;padding:14px 16px 16px}
+    html.mapMode .thead{top:-14px} /* 本文の上の余白の分だけ上に貼り付ける */
+    html.mapMode .bar{left:432px;right:16px;top:12px}
+    html.mapMode .mapLegend{left:432px;top:62px}
+    html.mapMode .fab:not(.hidden){bottom:96px;right:22px}
   }
+  @media (prefers-reduced-motion:reduce){ html.mapMode .sheet,html.mapMode .fab{transition:none} html.mapMode .fab[disabled] svg{animation:none} }
 </style>
 </head>
 <body>
 <div class="app">
+  <!-- 地図（v3：予報が出たら画面いっぱいに敷く。それまでは出さない） -->
+  <div class="mapStage" id="mapStage"><div id="map"></div></div>
+
   <header class="bar">
     <h1><img class="logo logo-light" src="logo/logo-light.png?v=3" alt="Route-Weather.jp" width="738" height="120"><img class="logo logo-dark" src="logo/logo-dark.png?v=2" alt="Route-Weather.jp" width="738" height="120"></h1>
+    <button type="button" class="planPill" id="planPill" aria-controls="settings"><b id="pillName"></b><span id="pillPlan"></span></button>
     <div class="menuWrap">
       <button type="button" class="menuBtn" id="menuBtn" aria-expanded="false" aria-controls="menu" aria-label="メニュー"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
       <div class="menu" id="menu" hidden>
@@ -310,132 +399,118 @@
     </div>
   </header>
 
-  <div class="layout" id="layout">
-    <aside>
-      <section class="courseBar hidden" id="courseBar" aria-label="コース">
-        <div class="cInfo"><b id="cbName"></b><span id="cbMeta"></span></div>
-        <button type="button" class="btn small" id="changeCourse">変更</button>
-      </section>
-      <div class="chips hidden" id="planChips" aria-label="走行計画"></div>
-      <div class="sheetBack hidden" id="sheetBack"></div>
-      <section class="loadBox" id="loadBox" aria-label="コースを選ぶ">
-        <div class="sheetHead"><b>コースを選ぶ</b><button type="button" class="btn small" id="loadClose">閉じる</button></div>
-        <label class="loadBtn" id="loadBtn">
-          <span>コースを読み込む（GPX / FIT）</span>
-          <input type="file" id="file" aria-label="コースファイルを選択">
-        </label>
-        <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpFile">読み込み方法</button></div>
-        <div class="help" id="helpFile" hidden>スマホでは、Ride with GPS アプリでルートを開き、右上「⋯」→ Export GPX →「"ファイル"に保存」してから選びます。ファイルは端末内だけで処理します。<a href="about.html#load">詳しく</a></div>
-        <div class="rwgps" id="rwgpsBox">
-          <div class="row auth">
-            <button type="button" class="btn" id="rwgpsAuth">Ride with GPS と連携</button>
-            <button type="button" class="btn hidden" id="rwgpsPick">自分のルートを選ぶ</button>
-            <button type="button" class="btn small hidden" id="rwgpsUnlink">連携を解除</button>
-          </div>
-          <div class="posMsg hidden" id="rwgpsAuthMsg" aria-live="polite"></div>
-          <div class="rwList hidden" id="rwgpsList">
-            <div class="row"><input type="search" id="rwgpsFilter" placeholder="ルート名で絞り込み" autocomplete="off" aria-label="ルート名で絞り込み"><button type="button" class="btn" id="rwgpsFilterGo">検索</button></div>
-            <div class="items" id="rwgpsItems"></div>
-            <div class="row more"><button type="button" class="btn small" id="rwgpsMore">さらに読み込む</button><button type="button" class="btn small" id="rwgpsClose">閉じる</button></div>
-          </div>
-          <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpAuth">連携について</button></div>
-          <div class="help" id="helpAuth" hidden>自分のルート一覧から選べます。非公開のルートも本人のものは読めます。連携のトークンは端末内にだけ保存します。<a href="about.html#rwgps">詳しく</a></div>
-          <label class="lbl sep" for="rwgpsUrl">Ride with GPS のルート URL から読み込む</label>
-          <div class="row"><input type="url" id="rwgpsUrl" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://ridewithgps.com/routes/…"><button type="button" class="btn" id="rwgpsGo">読み込む</button></div>
-          <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpUrl">対象のルート</button></div>
-          <div class="help" id="helpUrl" hidden>公開ルートか、共有リンク（privacy_code 付き）の URL です。アプリの「共有」で出る文をそのまま貼っても構いません。<a href="about.html#rwgps">詳しく</a></div>
-        </div>
-        <div class="course" id="courseBox">
-          <div class="name" id="cName">コース未読み込み</div>
-          <div class="meta" id="cMeta"><a href="samples/WanIchi_Clockwise.gpx" id="sampleLink">サンプルコースで試す</a>（東京湾一周・約 200 km）</div>
-          <div class="courseBtns">
-            <select id="recent" aria-label="最近のコース"><option value="">最近のコース…</option></select>
-            <button type="button" class="btn" id="reverse" title="コースを反転（往復・復路の確認用）">反転</button>
-          </div>
-        </div>
-        <div class="status" id="loadStatus" aria-live="polite"></div>
-      </section>
-      <details class="settings" id="settings" open>
-        <summary>走行計画 <span class="sumLine" id="sumLine"></span></summary>
-        <div class="ctl">
-          <div class="row2">
-            <div class="field"><label for="date">出走日</label><input type="date" id="date"></div>
-            <div class="field"><label for="time">出走時刻</label><input type="time" id="time" value="06:00"></div>
-          </div>
-          <div class="field">
-            <label for="spd">移動速度 <button type="button" class="info icon" aria-expanded="false" aria-controls="helpSpd" aria-label="移動速度の説明"></button></label>
-            <div class="help" id="helpSpd" hidden>PC や食事などの短い停止を含めた平均の速度です。長い休憩は仮眠で入れます。</div>
-            <span class="unit" data-unit="km/h"><input type="number" id="spd" value="18" step="0.5" min="5" max="45" inputmode="decimal"></span>
-          </div>
-          <div class="field">
-            <span class="lbl">仮眠 <button type="button" class="info icon" aria-expanded="false" aria-controls="helpSleep" aria-label="仮眠の説明"></button></span>
-            <div class="help" id="helpSleep" hidden>スタートからの距離（km）と仮眠の時間（分）の組です。以降の通過時刻がその分だけ後ろにずれます。</div>
-            <div class="sleeps" id="sleeps"></div>
-            <button type="button" class="btn" id="addSleep">＋ 仮眠を追加</button>
-          </div>
-          <div class="field">
-            <span class="lbl">区間ごとの速度 <button type="button" class="info icon" aria-expanded="false" aria-controls="helpSeg" aria-label="区間ごとの速度の説明"></button></span>
-            <div class="help" id="helpSeg" hidden>開始 km・終了 km・速度（km/h）の組です。山岳区間だけ遅くする、などに使います。指定のない区間は移動速度で計算します。</div>
-            <div class="sleeps" id="segRows"></div>
-            <button type="button" class="btn" id="addSeg">＋ 区間を追加</button>
-          </div>
-          <div class="hidden" id="ancHidden"><input type="number" id="ancD" aria-hidden="true" tabindex="-1"><input type="datetime-local" id="ancT" aria-hidden="true" tabindex="-1"></div>
-          <button type="button" class="primary" id="run">予報を取得する</button>
-        </div>
-      </details>
-      <div class="status" id="status" aria-live="polite"></div>
-    </aside>
+  <!-- 地図の凡例と出典：上の札の下に常に出す（OSM の利用ポリシー：出典を他の部品の下に隠さない） -->
+  <div class="mapLegend" id="mapLegend">
+    <div class="items">
+      <span><i class="lg" style="--c:var(--wx-sun)"></i>晴れ</span><span><i class="lg" style="--c:var(--wx-cloud)"></i>曇り</span><span><i class="lg" style="--c:var(--wx-rain)"></i>雨</span><span class="lgNa hidden"><i class="lg dash"></i>範囲外</span>
+      <span><svg class="la" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0-8.5 5.6-1H1.8V8.5H-1.8V-1H-5.6Z" fill="var(--head)"/></svg>向かい</span><span><svg class="la" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0-8.5 5.6-1H1.8V8.5H-1.8V-1H-5.6Z" fill="var(--cross)"/></svg>横</span><span><svg class="la" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0-8.5 5.6-1H1.8V8.5H-1.8V-1H-5.6Z" fill="var(--tail)"/></svg>追い</span>
+      <button type="button" class="info icon" aria-expanded="false" aria-controls="helpMap" aria-label="地図の読み方"></button>
+    </div>
+    <div class="help" id="helpMap" hidden>線の色は通過時刻の予報です（雨は降水 0.5 mm/h 以上）。矢印は風の吹いていく向き（実際の方位）で、色は進行方向に対する向かい風・横風・追い風。»は進行方向、●はスタート、○はゴール。<a href="about.html#map">詳しく</a></div>
+    <div class="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div>
+  </div>
 
-    <main>
-      <div id="notice" class="notice hidden" role="status"></div>
+  <button type="button" class="fab hidden" id="gps"><svg viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="11" cy="11" r="2.4" fill="currentColor"/><path d="M11 1.5v3.5M11 17v3.5M1.5 11H5M17 11h3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="lbl">現在位置から予報を再取得</span></button>
+
+  <div class="layout" id="layout">
+    <section class="courseBar hidden" id="courseBar" aria-label="コース">
+      <div class="cInfo"><b id="cbName"></b><span id="cbMeta"></span></div>
+      <button type="button" class="btn small" id="changeCourse">変更</button>
+    </section>
+    <div class="chips hidden" id="planChips" aria-label="走行計画"></div>
+    <div class="sheetBack hidden" id="sheetBack"></div>
+    <section class="loadBox" id="loadBox" aria-label="コースを選ぶ">
+      <div class="sheetHead"><b>コースを選ぶ</b><button type="button" class="btn small" id="loadClose">閉じる</button></div>
+      <label class="loadBtn" id="loadBtn">
+        <span>コースを読み込む（GPX / FIT）</span>
+        <input type="file" id="file" aria-label="コースファイルを選択">
+      </label>
+      <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpFile">読み込み方法</button></div>
+      <div class="help" id="helpFile" hidden>スマホでは、Ride with GPS アプリでルートを開き、右上「⋯」→ Export GPX →「"ファイル"に保存」してから選びます。ファイルは端末内だけで処理します。<a href="about.html#load">詳しく</a></div>
+      <div class="rwgps" id="rwgpsBox">
+        <div class="row auth">
+          <button type="button" class="btn" id="rwgpsAuth">Ride with GPS と連携</button>
+          <button type="button" class="btn hidden" id="rwgpsPick">自分のルートを選ぶ</button>
+          <button type="button" class="btn small hidden" id="rwgpsUnlink">連携を解除</button>
+        </div>
+        <div class="posMsg hidden" id="rwgpsAuthMsg" aria-live="polite"></div>
+        <div class="rwList hidden" id="rwgpsList">
+          <div class="row"><input type="search" id="rwgpsFilter" placeholder="ルート名で絞り込み" autocomplete="off" aria-label="ルート名で絞り込み"><button type="button" class="btn" id="rwgpsFilterGo">検索</button></div>
+          <div class="items" id="rwgpsItems"></div>
+          <div class="row more"><button type="button" class="btn small" id="rwgpsMore">さらに読み込む</button><button type="button" class="btn small" id="rwgpsClose">閉じる</button></div>
+        </div>
+        <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpAuth">連携について</button></div>
+        <div class="help" id="helpAuth" hidden>自分のルート一覧から選べます。非公開のルートも本人のものは読めます。連携のトークンは端末内にだけ保存します。<a href="about.html#rwgps">詳しく</a></div>
+        <label class="lbl sep" for="rwgpsUrl">Ride with GPS のルート URL から読み込む</label>
+        <div class="row"><input type="url" id="rwgpsUrl" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://ridewithgps.com/routes/…"><button type="button" class="btn" id="rwgpsGo">読み込む</button></div>
+        <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpUrl">対象のルート</button></div>
+        <div class="help" id="helpUrl" hidden>公開ルートか、共有リンク（privacy_code 付き）の URL です。アプリの「共有」で出る文をそのまま貼っても構いません。<a href="about.html#rwgps">詳しく</a></div>
+      </div>
+      <div class="course" id="courseBox">
+        <div class="name" id="cName">コース未読み込み</div>
+        <div class="meta" id="cMeta"><a href="samples/WanIchi_Clockwise.gpx" id="sampleLink">サンプルコースで試す</a>（東京湾一周・約 200 km）</div>
+        <div class="courseBtns">
+          <select id="recent" aria-label="最近のコース"><option value="">最近のコース…</option></select>
+          <button type="button" class="btn" id="reverse" title="コースを反転（往復・復路の確認用）">反転</button>
+        </div>
+      </div>
+      <div class="status" id="loadStatus" aria-live="polite"></div>
+    </section>
+    <!-- 走行計画：コースを読む前は画面に置き、地図の画面では上の札から開くシートにする（v3） -->
+    <section class="settings" id="settings" aria-labelledby="settingsTitle">
+      <div class="setHead"><b id="settingsTitle">走行計画</b><button type="button" class="btn small" id="planClose">閉じる</button></div>
+      <div class="setCourse"><div class="cInfo"><b id="scName"></b><span id="scMeta"></span></div><button type="button" class="btn small" id="planCourse">コースを変更</button></div>
+      <div class="ctl">
+        <div class="row2">
+          <div class="field"><label for="date">出走日</label><input type="date" id="date"></div>
+          <div class="field"><label for="time">出走時刻</label><input type="time" id="time" value="06:00"></div>
+        </div>
+        <div class="field">
+          <label for="spd">移動速度 <button type="button" class="info icon" aria-expanded="false" aria-controls="helpSpd" aria-label="移動速度の説明"></button></label>
+          <div class="help" id="helpSpd" hidden>PC や食事などの短い停止を含めた平均の速度です。長い休憩は仮眠で入れます。</div>
+          <span class="unit" data-unit="km/h"><input type="number" id="spd" value="18" step="0.5" min="5" max="45" inputmode="decimal"></span>
+        </div>
+        <div class="field">
+          <span class="lbl">仮眠 <button type="button" class="info icon" aria-expanded="false" aria-controls="helpSleep" aria-label="仮眠の説明"></button></span>
+          <div class="help" id="helpSleep" hidden>スタートからの距離（km）と仮眠の時間（分）の組です。以降の通過時刻がその分だけ後ろにずれます。</div>
+          <div class="sleeps" id="sleeps"></div>
+          <button type="button" class="btn" id="addSleep">＋ 仮眠を追加</button>
+        </div>
+        <div class="field">
+          <span class="lbl">区間ごとの速度 <button type="button" class="info icon" aria-expanded="false" aria-controls="helpSeg" aria-label="区間ごとの速度の説明"></button></span>
+          <div class="help" id="helpSeg" hidden>開始 km・終了 km・速度（km/h）の組です。山岳区間だけ遅くする、などに使います。指定のない区間は移動速度で計算します。</div>
+          <div class="sleeps" id="segRows"></div>
+          <button type="button" class="btn" id="addSeg">＋ 区間を追加</button>
+        </div>
+        <div class="hidden" id="ancHidden"><input type="number" id="ancD" aria-hidden="true" tabindex="-1"><input type="datetime-local" id="ancT" aria-hidden="true" tabindex="-1"></div>
+        <button type="button" class="primary" id="run">予報を取得する</button>
+      </div>
+    </section>
+    <div class="status" id="status" aria-live="polite"></div>
+    <div id="notice0" class="notice hidden" role="status"></div>
+  </div>
+
+  <!-- 下から引き出すシート（PC では左の欄）。地図の画面でだけ浮かせ、それまでは出典の行だけを置く -->
+  <section class="sheet" id="sheet" data-state="peek" aria-label="予報">
+    <button type="button" class="grab" id="grab" aria-label="シートの高さを変える"><i></i></button>
+    <div class="sheetBody" id="sheetBody">
       <div id="results" class="hidden">
+        <div class="status" id="sheetStatus" aria-live="polite"></div>
+        <div id="notice" class="notice hidden" role="status"></div>
         <section class="summary" id="summary" aria-label="要点"></section>
-        <section class="gpsWrap" id="gpsWrap">
-          <button type="button" class="primary gps" id="gps"><span class="lbl">現在位置から予報を再取得</span></button>
+        <div class="strip" id="strip"></div>
+        <section class="gpsWrap hidden" id="gpsWrap">
           <div class="posMsg hidden" id="gpsMsg" aria-live="polite"></div>
           <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpGps">位置情報の扱い</button></div>
           <div class="help" id="helpGps" hidden>位置は端末内でコース上の距離に変換するためだけに使い、外部に送りません。<a href="about.html#location">詳しく</a></div>
         </section>
 
-        <section class="panel ribbon" id="ribbonWrap">
-          <h2>タイムライン概要</h2>
-          <div class="panelBar"><button type="button" class="btn small" id="share" title="タイムライン概要と要点を画像にして共有・保存">画像で共有</button></div>
-          <div id="ribbon"></div>
-          <div class="tip" id="tip"></div>
-          <div class="legend">
-            <span><i class="swatch" style="background:var(--head)"></i>向かい風</span>
-            <span><i class="swatch" style="background:var(--cross)"></i>横風</span>
-            <span><i class="swatch" style="background:var(--tail)"></i>追い風</span>
-            <span><i class="swatch" style="background:var(--rain)"></i>降水 mm/h</span>
-            <span><i class="swatch" style="background:var(--night);opacity:.25"></i>夜間</span>
-            <span><i class="swatch" style="background:var(--sleep);opacity:.45"></i>仮眠</span>
-            <span><i class="swatch" style="background:var(--na);opacity:.5"></i>範囲外</span>
-            <button type="button" class="info" aria-expanded="false" aria-controls="helpRibbon">読み方</button>
-          </div>
-          <div class="help" id="helpRibbon" hidden>矢印は進行方向が基準で、上が追い風、下が向かい風です。標高の塗りは相対風の色、淡い青の帯は降水 0.5 mm/h 以上の区間です。図をタップするとその地点の詳細が出ます。<a href="about.html#ribbon">詳しく</a></div>
-        </section>
-
-        <section class="panel hidden" id="trendWrap">
-          <h2>区間 × 通過日の傾向（気象庁 GSM）</h2>
-          <div class="tableWrap">
-            <table id="trend">
-              <thead><tr><th>区間</th><th>通過日</th><th>卓越風向・平均風速</th><th class="n">向かい風区間距離 km</th><th class="n">降水量 目安</th><th class="n">最高／最低</th></tr></thead>
-              <tbody></tbody>
-            </table>
-          </div>
-          <div class="howto" id="trendNote"></div>
-        </section>
-
-          <section class="panel map" id="mapWrap">
-          <h2>地図と風向</h2>
-          <div class="panelBar"><button type="button" class="btn small" id="mapFull" title="地図を画面いっぱいに表示">全画面</button><button type="button" class="btn small" id="shareMap" title="コース全体の地図を正方形の画像にして共有・保存">地図を画像で共有</button></div>
-          <div id="map"></div>
-          <div class="fsUi" aria-hidden="true">
-            <button type="button" class="fsClose" id="fsClose" aria-label="全画面を閉じる" title="閉じる">×</button>
-            <div class="fsBtns" id="fsBtns"><button type="button" class="btn small" id="fsFit">全体</button><button type="button" class="btn small hidden" id="fsHere">現在地</button></div>
-            <div class="fsLegend"><span><span class="lg" style="--c:var(--wx-rain)"></span>雨</span><span><span class="lg" style="--c:var(--wx-cloud)"></span>曇り</span><span><span class="lg" style="--c:var(--wx-sun)"></span>晴れ</span><span><span class="lg dash"></span>予報範囲外</span>
-              <span><i class="swatch" style="background:var(--head)"></i>向かい風</span><span><i class="swatch" style="background:var(--cross)"></i>横風</span><span><i class="swatch" style="background:var(--tail)"></i>追い風</span><span>»進行方向</span></div>
-          </div>
+        <!-- 区間表（v3）：10 km ごと（傾向モードは 50 km ごと）。行の位置を地図と連動させる -->
+        <section class="rowsWrap" id="rowsWrap" aria-labelledby="rowsTitle">
+          <div class="rowsHead"><h2 id="rowsTitle">区間表</h2><span class="sumLine" id="rowsSum"></span></div>
+          <div class="rowsTabs hidden" id="rowsTabs" role="group" aria-label="表の始まり"><button type="button" data-here="0">スタートから</button><button type="button" data-here="1" id="tabHere">現在地から</button></div>
+          <div class="thead" id="rowsThead" aria-hidden="true"><span>標高</span><span>km</span><span>時刻</span><span>風</span><span>雨 mm</span><span>気温</span></div>
+          <div class="rows" id="rows"></div>
         </section>
         <details class="panel fold hidden" id="warnWrap">
           <summary>通過区域の注意報・警報 <span class="sumLine" id="warnSum"></span></summary>
@@ -451,18 +526,6 @@
           </div>
           <div class="howto" id="amedasNote"></div>
         </details>
-        <div class="lower">
-          <details class="panel fold" id="segsWrap">
-            <summary>区間表 <span class="sumLine" id="segsSum"></span></summary>
-            <div class="tableWrap">
-              <table id="segs">
-                <thead><tr><th class="n">距離</th><th>通過</th><th>天気</th><th>風</th><th class="n">降水</th><th class="n">気温</th></tr></thead>
-                <tbody></tbody>
-              </table>
-            </div>
-          </details>
-        </div>
-
         <details class="panel fold" id="startsWrap">
           <summary>出発時間をずらした場合 <span class="sumLine" id="startsSum"></span></summary>
           <div class="tableWrap">
@@ -473,20 +536,20 @@
           </div>
         </details>
       </div>
-    </main>
-  </div>
 
-  <footer class="src">
-    <div>予報は参考情報です（<a href="about.html#disclaimer">免責事項</a>）。出典：気象庁 数値予報（<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由）、注意報・アメダス：気象庁、地図：© OpenStreetMap</div>
-    <div class="model" id="modelInfo"></div>
-    <div class="links"><a href="about.html">このサイトについて</a><span class="ver">Route-Weather.jp <b id="appVersion">v2.0.4</b></span></div>
-  </footer>
+      <footer class="src">
+        <div>予報は参考情報です（<a href="about.html#disclaimer">免責事項</a>）。出典：気象庁 数値予報（<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由）、注意報・アメダス：気象庁、地図：© OpenStreetMap</div>
+        <div class="model" id="modelInfo"></div>
+        <div class="links"><a href="about.html">このサイトについて</a><span class="ver">Route-Weather.jp <b id="appVersion">v3.0.0</b></span></div>
+      </footer>
+    </div>
+  </section>
 </div>
 
 <script>
 // 表示モードを最初に適用（自動＝OS 設定に従う）
 try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式（生文字列）はそのまま */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
 </script>
-<script type="module" src="js/app.js?v=2.0.4"></script>
+<script type="module" src="js/app.js?v=3.0.0"></script>
 </body>
 </html>
