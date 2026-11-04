@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=3.0.0'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=3.0.1'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -762,6 +762,7 @@ import { RW } from './core.js?v=3.0.0'; // 版を付けて、公開直後に新�
       if (isWide()) L.control.zoom({ position: 'bottomright' }).addTo(lmap);
       monoTileLayer(theme === 'dark').addTo(lmap);
       lmap.createPane('chev'); lmap.getPane('chev').style.zIndex = 450; // 経路線（400）の上、風矢印など通常マーカー（600）の下
+      lmap.createPane('sel'); lmap.getPane('sel').style.zIndex = 390; // 選んだ区間の縁取りは経路線の下に敷き、両側にだけ見せる
       lmapLayers = { sel: L.layerGroup().addTo(lmap), route: L.layerGroup().addTo(lmap), chev: L.layerGroup().addTo(lmap), arrows: L.layerGroup().addTo(lmap), marks: L.layerGroup().addTo(lmap), label: L.layerGroup().addTo(lmap) };
       lmap.on('zoomend moveend', updateMapArrows);
       lmapHash = hash; lmapTheme = theme;
@@ -785,7 +786,7 @@ import { RW } from './core.js?v=3.0.0'; // 版を付けて、公開直後に新�
     const r = (state.rows || []).find(q => q.from === state.active);
     if (!r || (state.sheet === 'peek' && !isWide())) return;
     const pts = [RW.course.interp(state.course, r.from), ...state.course.pts.filter(q => q.d > r.from && q.d < r.to), RW.course.interp(state.course, r.to)];
-    L.polyline(pts.map(q => [q.lat, q.lon]), { color: cssVar('--ink'), weight: 14, opacity: .85, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(lmapLayers.sel);
+    L.polyline(pts.map(q => [q.lat, q.lon]), { pane: 'sel', color: cssVar('--ink'), weight: 14, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(lmapLayers.sel);
     const c = RW.course.interp(state.course, (r.from + r.to) / 2);
     const label = `${Math.round(r.from)}〜${Math.round(r.to)} km`;
     L.marker([c.lat, c.lon], { icon: L.divIcon({ className: 'selLabel', html: `<span>${label}</span>`, iconSize: [0, 0], iconAnchor: [0, 26] }), interactive: false, keyboard: false }).addTo(lmapLayers.label);
@@ -1381,16 +1382,45 @@ import { RW } from './core.js?v=3.0.0'; // 版を付けて、公開直後に新�
     if (on && !was) { state.sheet = 'peek'; $('sheet').dataset.state = 'peek'; }
     if (!on) { closePlan(); document.documentElement.classList.remove('sheetFull'); }
   }
-  { // 取っ手：押すと 下げた → 半分 → 全部 → 下げた、上下に引くと近い段階へ
-    const sh = $('sheet'), grab = $('grab'); let y0 = null, h0 = 0, moved = false;
-    grab.addEventListener('pointerdown', e => { y0 = e.clientY; h0 = sh.offsetHeight; moved = false; try { grab.setPointerCapture(e.pointerId); } catch (er) { /* noop */ } sh.classList.add('drag'); });
-    grab.addEventListener('pointermove', e => { if (y0 == null) return; const d = y0 - e.clientY; if (Math.abs(d) > 4) moved = true; const max = sheetH('full'); document.documentElement.style.setProperty('--sheet-h', Math.max(120, Math.min(max, h0 + d)) + 'px'); });
-    const end = () => {
-      if (y0 == null) return; y0 = null; sh.classList.remove('drag');
-      if (!moved) { setSheet(state.sheet === 'peek' ? 'half' : state.sheet === 'half' ? 'full' : 'peek'); return; }
-      const h = sh.offsetHeight; setSheet(['peek', 'half', 'full'].sort((a, b) => Math.abs(sheetH(a) - h) - Math.abs(sheetH(b) - h))[0]);
+  { // シートの上げ下げ。取っ手を押すと 下げた → 半分 → 全部 → 下げた。上下に引くと近い段階へ（v3.0.1）
+    // 下げた状態ではシートのどこを引いても動かす。半分・全部では取っ手か、中身がいちばん上までスクロールしてあるときの引き下げで動かす（それ以外は中身のスクロール）
+    const sh = $('sheet'), grab = $('grab'), body = $('sheetBody'); const ORDER = ['peek', 'half', 'full'];
+    let drag = null, quietUntil = 0;
+    const start = (y, target) => {
+      if (isWide() || !isMap()) return;
+      const onGrab = !!target.closest('#grab');
+      if (!onGrab && state.sheet !== 'peek' && body.scrollTop > 0) return;
+      drag = { y0: y, h0: sh.offsetHeight, onGrab, moved: false, d: 0 };
     };
-    grab.addEventListener('pointerup', end); grab.addEventListener('pointercancel', end);
+    const move = (y, ev) => {
+      if (!drag) return; const d = drag.y0 - y; // 上向きが正
+      if (!drag.moved) {
+        if (Math.abs(d) < 8) return;
+        if (!drag.onGrab && state.sheet !== 'peek' && d > 0) { drag = null; return; } // 中身を上へスクロールする操作
+        drag.moved = true; sh.classList.add('drag');
+      }
+      if (ev.cancelable) ev.preventDefault();
+      drag.d = d; document.documentElement.style.setProperty('--sheet-h', Math.max(120, Math.min(sheetH('full'), drag.h0 + d)) + 'px');
+    };
+    const end = () => {
+      if (!drag) return; const dr = drag; drag = null;
+      if (!dr.moved) return; // 押しただけ（取っ手は click で段階を送る）
+      sh.classList.remove('drag'); quietUntil = Date.now() + 400; // 引いた直後の click（行や指標）は無視する
+      const h = sh.offsetHeight, cur = ORDER.indexOf(state.sheet);
+      let next = ORDER.slice().sort((x, y) => Math.abs(sheetH(x) - h) - Math.abs(sheetH(y) - h))[0];
+      if (next === state.sheet && Math.abs(dr.d) > 40) next = ORDER[Math.max(0, Math.min(2, cur + (dr.d > 0 ? 1 : -1)))]; // 少し引いただけでも向きに合わせて 1 段動かす
+      setSheet(next);
+    };
+    // 指は touch で扱う（下げた状態は本文のスクロールが無いので、preventDefault で画面ごと動くのを止める）
+    sh.addEventListener('touchstart', e => { if (e.touches.length === 1) start(e.touches[0].clientY, e.target); else drag = null; }, { passive: true });
+    sh.addEventListener('touchmove', e => { if (drag && e.touches.length === 1) move(e.touches[0].clientY, e); }, { passive: false });
+    sh.addEventListener('touchend', end); sh.addEventListener('touchcancel', end);
+    // マウス（PC でスマホ幅にしたとき）
+    sh.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse' && e.button === 0) start(e.clientY, e.target); });
+    window.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') move(e.clientY, e); });
+    window.addEventListener('pointerup', e => { if (e.pointerType === 'mouse') end(); });
+    sh.addEventListener('click', e => { if (Date.now() < quietUntil) { e.stopPropagation(); e.preventDefault(); } }, true);
+    grab.addEventListener('click', () => { if (!isWide()) setSheet(ORDER[(ORDER.indexOf(state.sheet) + 1) % 3]); });
     $('strip').addEventListener('click', e => { const svg = e.target.closest('svg'); if (!svg || !state.rows) return; const r = svg.getBoundingClientRect(); const d = Math.max(0, Math.min(state.course.total, (e.clientX - r.left) / r.width * state.course.total)); selectRow(rowFor(d), { scroll: true }); });
     $('rowsTabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || !state.result) return; state.fromHere = b.dataset.here === '1'; state.active = null; state.open.clear(); renderRows(); renderStrip(); });
     $('rows').addEventListener('click', e => { const b = e.target.closest('.row'); if (b) selectRow(+b.dataset.k, { toggle: true, scroll: state.sheet === 'peek' && !isWide() }); });
