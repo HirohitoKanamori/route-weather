@@ -1,0 +1,11 @@
+// v3 の確認用サイト beta.route-weather.jp（Cloudflare Workers の静的アセットだけ。処理のコードは持たない）。
+// scripts/deploy-beta.sh が、サイトに要るファイルを一時フォルダの site/ に書き出し、この設定と一緒に wrangler deploy する
+{
+  "name": "route-weather-beta",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./site" },
+  "workers_dev": false, // workers.dev の住所は使わない
+  "routes": [
+    { "pattern": "beta.route-weather.jp", "custom_domain": true }
+  ]
+}
