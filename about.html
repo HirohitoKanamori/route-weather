@@ -91,14 +91,14 @@ try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } ca
   </ul>
   <h3 id="strip">コース全体の帯</h3>
   <ul>
-    <li>上の帯は相対風の色です：<span class="sw" style="background:var(--head)"></span>向かい風、<span class="sw" style="background:var(--cross)"></span>横風、<span class="sw" style="background:var(--tail)"></span>追い風。帯の下の灰色の線は夜間（日没〜日の出）です。</li>
+    <li>上は標高の断面で、その地点の相対風の色で塗っています：<span class="sw" style="background:var(--head)"></span>向かい風、<span class="sw" style="background:var(--cross)"></span>横風、<span class="sw" style="background:var(--tail)"></span>追い風。断面の下の灰色の線は夜間（日没〜日の出）です。</li>
     <li>下の青い棒は 1 時間あたりの降水量です。0.5 mm/h 以上は濃く、それ未満は淡く出します。</li>
     <li>紫の印は仮眠、黒い印は現在地です。</li>
   </ul>
   <h3 id="rows">区間表</h3>
   <ul>
     <li>10 km ごと（傾向モードでは 50 km ごと）に、通過時刻・風・雨・気温を出します。風は区間の中で最も長い相対風と最大風速、雨は最大の降水量（mm/h）、気温は区間の中ほどの値です。</li>
-    <li>左端の細い帯は標高で、相対風の色で塗っています。灰色の地の行は夜間です。</li>
+    <li>灰色の地の行は夜間です。標高はコース全体の帯で見られます（行を押すと、その区間の標高の幅が出ます）。</li>
     <li>行を押すと、場所・天気・湿度・日照・風向・気温の幅・体感温度・標高が開きます。</li>
     <li>行の間には、日付、注意報・警報（発表のある区間をまとめたもの）、仮眠（到着〜出発と、その間の雨）を入れています。市区町村ごとの内訳は「通過区域の注意報・警報」にあります。</li>
     <li>走行中に現在地から再計算したときは、「スタートから」と「現在地から」を切り替えられます。</li>

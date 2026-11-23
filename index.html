@@ -210,14 +210,13 @@
   .rowsWrap{margin-top:14px}
   .rowsHead{display:flex;align-items:baseline;gap:10px}
   .rowsHead h2{margin:0;font-size:15px;color:var(--ink)}
-  .thead,.row{display:grid;grid-template-columns:28px 34px 42px minmax(0,1fr) 50px 34px;gap:0 6px;align-items:center}
+  .thead,.row{display:grid;grid-template-columns:38px 44px minmax(0,1fr) 54px 36px;gap:0 8px;align-items:center}
   .thead{position:sticky;top:0;z-index:2;align-items:end;white-space:nowrap;padding:8px 0 4px;background:var(--card);border-bottom:1.5px solid var(--ink);font-size:11px;color:var(--ink-2);margin-top:4px}
-  .thead span:nth-child(2),.thead span:last-child{text-align:right}
+  .thead span:first-child,.thead span:last-child{text-align:right}
   .row{width:100%;min-height:46px;border:0;border-bottom:1px solid var(--line);background:none;color:var(--ink);text-align:left;padding:0;cursor:pointer;border-radius:0}
-  .row.night{background:linear-gradient(90deg,transparent 28px,var(--night-row) 28px)}
+  .row.night{background:var(--night-row)}
   .row.on{background:var(--paper-2)}
   .row.past{opacity:.45}
-  .row .sp{display:block;width:28px;height:46px}
   .row .km{font-size:17px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
   .row .t{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
   .row .w{display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;min-width:0;overflow:hidden}
@@ -228,10 +227,10 @@
   .row .r.light{opacity:.55}
   .row .r.none{color:var(--ink-3)}
   .row .tp{font-size:15px;text-align:right;font-variant-numeric:tabular-nums}
-  .row .na{grid-column:4 / -1;font-size:13px;color:var(--ink-3)}
-  .det{margin-left:34px;padding:6px 0 10px;font-size:13px;line-height:1.55;color:var(--ink-2);border-bottom:1px solid var(--line);display:grid;grid-template-columns:auto 1fr;gap:2px 12px}
+  .row .na{grid-column:3 / -1;font-size:13px;color:var(--ink-3)}
+  .det{margin-left:46px;padding:6px 0 10px;font-size:13px;line-height:1.55;color:var(--ink-2);border-bottom:1px solid var(--line);display:grid;grid-template-columns:auto 1fr;gap:2px 12px}
   .det b{font-weight:600;color:var(--ink)}
-  .rnote{margin:6px 0 6px 34px;padding:5px 10px;border-radius:8px;font-size:13px;line-height:1.45}
+  .rnote{margin:6px 0;padding:5px 10px;border-radius:8px;font-size:13px;line-height:1.45}
   .rnote.adv{background:var(--warn-bg);color:var(--warn-ink)}
   .rnote.warn{background:var(--err-bg);color:var(--err-ink);font-weight:600}
   .rnote.danger{background:var(--lv4);color:#fff;font-weight:600}
@@ -509,7 +508,7 @@
         <section class="rowsWrap" id="rowsWrap" aria-labelledby="rowsTitle">
           <div class="rowsHead"><h2 id="rowsTitle">区間表</h2><span class="sumLine" id="rowsSum"></span></div>
           <div class="rowsTabs hidden" id="rowsTabs" role="group" aria-label="表の始まり"><button type="button" data-here="0">スタートから</button><button type="button" data-here="1" id="tabHere">現在地から</button></div>
-          <div class="thead" id="rowsThead" aria-hidden="true"><span>標高</span><span>km</span><span>時刻</span><span>風</span><span>雨 mm</span><span>気温</span></div>
+          <div class="thead" id="rowsThead" aria-hidden="true"><span>km</span><span>時刻</span><span>風</span><span>雨 mm</span><span>気温</span></div>
           <div class="rows" id="rows"></div>
         </section>
         <details class="panel fold hidden" id="warnWrap">
@@ -550,6 +549,6 @@
 // 表示モードを最初に適用（自動＝OS 設定に従う）
 try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式（生文字列）はそのまま */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
 </script>
-<script type="module" src="js/app.js?v=3.0.1"></script>
+<script type="module" src="js/app.js?v=3.0.1-2"></script>
 </body>
 </html>

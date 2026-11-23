@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=3.0.1'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=3.0.1-2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -539,41 +539,45 @@ import { RW } from './core.js?v=3.0.1'; // 版を付けて、公開直後に新�
   const arrow = (x, y, angDeg, len, color, w = 2) =>
     `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${angDeg.toFixed(1)})"><line x1="${(-len / 2).toFixed(1)}" y1="0" x2="${(len / 2).toFixed(1)}" y2="0" stroke="${color}" stroke-width="${w}"/><path d="M${(len / 2).toFixed(1)} 0 l-5 -3.5 v7 z" fill="${color}"/></g>`;
 
-  // コース全体の帯（v3）：相対風の色と雨の棒、夜間・仮眠・現在地。押すとシートを上げる
+  // コース全体の帯（v3）：標高の断面を相対風の色で塗り（v2 のタイムライン概要と同じ）、その下に夜間の線と雨の棒。仮眠・現在地の印。押すとその区間へ
+  // v3.0.1-2：区間表の左端にあった標高をやめ、ここに標高を戻した（利用者判断）
   function renderStrip() {
-    const host = $('strip'); const { S, p } = state.result; const total = state.course.total;
-    const W = 360, top = 6, bandH = 11, base = 40, rainH = 22, H = 54; const x = d => d / total * W; state.stripW = W;
-    let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="コース全体の相対風と雨。押すと区間表へ">`;
-    S.forEach((pt, i) => {
-      const a = i ? (S[i - 1].d + pt.d) / 2 : 0, b = i < S.length - 1 ? (pt.d + S[i + 1].d) / 2 : total;
-      const fill = pt.na ? 'var(--na)' : pt.cls ? COL[pt.cls] : 'var(--line)';
-      s += rect(x(a), top, x(b) - x(a) + 0.4, bandH, fill, pt.na ? .35 : null);
-      if (pt.night) s += rect(x(a), top + bandH + 1, x(b) - x(a) + 0.4, 2.5, 'var(--night)', .55);
-    });
+    const host = $('strip'); const { S, p } = state.result; const course = state.course, total = course.total;
+    const W = 360, top = 14, eleH = 30, eleB = top + eleH, nightY = eleB + 1.5, rainTop = eleB + 6, base = rainTop + 16, H = base + 14;
+    const x = d => d / total * W; state.stripW = W;
+    let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="コース全体の標高（相対風の色）と雨。押すと区間表へ">`;
+    const runOf = i => ({ a: i ? (S[i - 1].d + S[i].d) / 2 : 0, b: i < S.length - 1 ? (S[i].d + S[i + 1].d) / 2 : total });
+    if (course.hasEle) {
+      const eles = course.pts.map(q => q.ele ?? 0); const emax = Math.max(...eles), emin = Math.min(...eles);
+      const ey = v => eleB - ((v ?? emin) - emin) / ((emax - emin) * 1.05 || 1) * eleH;
+      const eleAt = d => RW.course.interp(course, d).ele;
+      const area = (a, b) => { const pts = [[x(a), ey(eleAt(a))], ...course.pts.filter(q => q.d > a && q.d < b).map(q => [x(q.d), ey(q.ele)]), [x(b), ey(eleAt(b))]];
+        return `M${x(a).toFixed(1)},${eleB} ${pts.map(q => 'L' + q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' ')} L${x(b).toFixed(1)},${eleB} Z`; };
+      s += `<path d="${area(0, total)}" fill="var(--paper-2)"/>`;
+      S.forEach((pt, i) => { if (pt.na || !pt.cls) return; const { a, b } = runOf(i); s += `<path d="${area(a, b)}" fill="${COL[pt.cls]}" style="opacity:var(--ele-op)"/>`; });
+      s += `<path d="M${course.pts.map(q => x(q.d).toFixed(1) + ',' + ey(q.ele).toFixed(1)).join(' L')}" fill="none" stroke="var(--ink-3)" stroke-width="1"/>`;
+      s += text(W - 1, top - 1, `最高 ${Math.round(emax)} m`, 'tick', 'end');
+    } else { // 標高の無いコースは相対風の色の帯だけ
+      S.forEach((pt, i) => { const { a, b } = runOf(i); s += rect(x(a), eleB - 11, x(b) - x(a) + 0.4, 11, pt.na ? 'var(--na)' : pt.cls ? COL[pt.cls] : 'var(--line)', pt.na ? .35 : null); });
+    }
+    s += line(0, eleB + .5, W, eleB + .5, 'var(--line)');
+    S.forEach((pt, i) => { const { a, b } = runOf(i); if (pt.na) s += rect(x(a), top, x(b) - x(a) + 0.4, eleH, 'var(--na)', .25); if (pt.night) s += rect(x(a), nightY, x(b) - x(a) + 0.4, 2.5, 'var(--night)', .55); });
     const ok = S.filter(pt => !pt.na && pt.mm > 0); const mmMax = Math.max(3, ...ok.map(pt => pt.mm)); const bw = Math.max(1.2, W / Math.max(1, S.length) * .7);
-    for (const pt of ok) { const h = Math.max(1, pt.mm / mmMax * rainH); s += rect(x(pt.d) - bw / 2, base - h, bw, h, 'var(--rain)', pt.mm >= RAIN_MM ? 1 : .45); }
+    for (const pt of ok) { const h = Math.max(1, pt.mm / mmMax * (base - rainTop)); s += rect(x(pt.d) - bw / 2, base - h, bw, h, 'var(--rain)', pt.mm >= RAIN_MM ? 1 : .45); }
     s += line(0, base + .5, W, base + .5, 'var(--line)');
-    for (const sl of p.sleeps) s += `<path d="M${x(sl.d).toFixed(1)},${top + bandH + 4} l-4,6 h8 z" fill="var(--sleep)"/>`;
+    for (const sl of p.sleeps) s += `<path d="M${x(sl.d).toFixed(1)},${nightY + 2} l-4,6 h8 z" fill="var(--sleep)"/>`;
     if (p.anchor) s += `<path d="M${x(p.anchor.d).toFixed(1)},${top} l-5,-6 h10 z" fill="var(--ink)"/>`;
     if (state.active != null) { const r = (state.rows || []).find(q => q.from === state.active); if (r) s += `<rect x="${x(r.from).toFixed(1)}" y="${top - 3}" width="${Math.max(2, x(r.to) - x(r.from)).toFixed(1)}" height="${base - top + 4}" fill="none" stroke="var(--ink)" stroke-width="1.5" rx="2"/>`; }
     const dStep = [10, 20, 25, 50, 100, 200, 500].find(n => n / total * W >= 56) || 1000;
     for (let d = 0; d <= total + 1e-9; d += dStep) { const xx = Math.min(W - 1, Math.max(1, x(d))); s += text(xx, H - 1, d ? String(d) : '0 km', 'tick', d ? (x(d) > W - 12 ? 'end' : 'middle') : 'start'); }
     host.innerHTML = s + '</svg>';
   }
-  // ===== 区間表（v3）：10 km ごと（傾向モードは 50 km ごと）。左端の標高は相対風の色。注意報・仮眠・日付は行の間に入れる =====
+  // ===== 区間表（v3）：10 km ごと（傾向モードは 50 km ごと）。注意報・仮眠・日付は行の間に入れる（標高はコース全体の帯に） =====
   const rowSize = () => state.result && state.result.trend ? 50 : 10;
   const rowOf = d => { const rows = state.rows || []; return (rows.filter(r => r.from <= d + 1e-9).pop() || rows[0] || { from: 0 }).from; };
   // 地図や帯から選んだ地点が「現在地から」の表より手前なら、「スタートから」に切り替えてから行を探す
   function rowFor(d) { const a = state.result && state.result.p.anchor; if (a && state.fromHere !== false && d < a.d) { state.fromHere = false; renderRows(); } return rowOf(d); }
   const ARW = 'M0-8.5 5.6-1H1.8V8.5H-1.8V-1H-5.6Z';
-  function spineSvg(r, emin, emax) {
-    const P = state.course.pts.filter(q => q.d >= r.from && q.d <= r.to); const len = r.to - r.from || 1; const { S } = state.result;
-    const colOf = d => { let best = null, bd = Infinity; for (const s of S) { const dd = d - s.d; if (dd >= -1e-9 && dd < bd) { bd = dd; best = s; } } return best && !best.na && best.cls ? COL[best.cls] : 'var(--line)'; };
-    const h = 46 / Math.max(1, P.length);
-    let g = P.map(q => { const w = 3 + ((q.ele ?? emin) - emin) / ((emax - emin) || 1) * 22; return `<rect x="${(27 - w).toFixed(1)}" y="${((q.d - r.from) / len * 46).toFixed(1)}" width="${w.toFixed(1)}" height="${(h + .6).toFixed(1)}" fill="${colOf(q.d)}" style="opacity:var(--ele-op)"/>`; }).join('');
-    g += '<line x1="27.5" x2="27.5" y1="0" y2="46" stroke="var(--ink-3)"/>';
-    return `<svg class="sp" viewBox="0 0 28 46" preserveAspectRatio="none" aria-hidden="true">${g}</svg>`;
-  }
   const placeAt = d => { const w = state.warnings; const sg = w && w.segs && w.segs.find(x => d >= x.from && d < x.to); return sg && sg.status !== 'unknown' ? sg.name : null; };
   function rowDetail(r) {
     const m = r.mid; if (!m || r.na) return '';
@@ -594,7 +598,6 @@ import { RW } from './core.js?v=3.0.1'; // 版を付けて、公開直後に新�
     $('rowsTabs').classList.toggle('hidden', !p.anchor);
     if (p.anchor) { $('tabHere').textContent = `現在地から（${Math.round(p.anchor.d)} km）`; $('rowsTabs').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.here === '1') === here))); }
     if (state.active != null && !rows.some(r => r.from === state.active)) { state.active = null; state.open.clear(); }
-    const eles = state.course.pts.map(q => q.ele ?? 0); const emin = Math.min(...eles), emax = Math.max(...eles);
     const sr = RW.forecast.sleepRain(p, state.series, S, state.result.step);
     const wsegs = warnNotes();
     let h = here ? `<div class="rnote here">現在地 ${Math.round(p.anchor.d)} km（${F.fmtH(p.anchor.t)}）から</div>` : '', lastDay = null;
@@ -612,7 +615,7 @@ import { RW } from './core.js?v=3.0.1'; // 版を付けて、公開直後に新�
         const rain = mm >= 0.05 ? `<span class="r${mm < RAIN_MM ? ' light' : ''}"><i style="width:${Math.max(2, Math.round(Math.min(mm, 5) / 5 * 18))}px"></i>${mm.toFixed(mm >= 10 ? 0 : 1)}</span>` : '<span class="r none">—</span>';
         cells = `<span class="t">${F.fmtH(r.t)}</span><span class="w">${wind}</span>${rain}<span class="tp">${r.temp != null ? Math.round(r.temp) + '°' : '—'}</span>`;
       }
-      h += `<button type="button" class="${cls}" data-k="${r.from}" aria-expanded="${state.open.has(r.from)}">${spineSvg(r, emin, emax)}<span class="km">${Math.round(r.from)}</span>${r.na ? '<span class="t">' + F.fmtH(r.t) + '</span>' : ''}${cells}</button>`;
+      h += `<button type="button" class="${cls}" data-k="${r.from}" aria-expanded="${state.open.has(r.from)}"><span class="km">${Math.round(r.from)}</span>${r.na ? '<span class="t">' + F.fmtH(r.t) + '</span>' : ''}${cells}</button>`;
       if (state.open.has(r.from)) h += rowDetail(r);
       for (const sl of p.sleeps) if (sl.d > r.from && sl.d <= r.to + 1e-9) {
         const rr = sr.filter(x => x.d === sl.d); const mx = rr.length ? Math.max(...rr.map(x => x.mm)) : null;
