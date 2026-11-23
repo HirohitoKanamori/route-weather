@@ -428,7 +428,7 @@
 
           <section class="panel map" id="mapWrap">
           <h2>地図と風向</h2>
-          <div class="panelBar"><button type="button" class="btn small" id="mapFull" title="地図を画面いっぱいに表示">全画面</button><button type="button" class="btn small" id="shareMap" title="コース全体の地図を正方形の画像にして共有・保存">地図を画像で共有</button></div>
+          <div class="panelBar"><button type="button" class="btn small" id="mapFull" title="地図を画面いっぱいに表示">全画面</button><button type="button" class="btn small" id="shareMap" title="地図と要点を 1 枚の画像にして共有・保存">地図を画像で共有</button></div>
           <div id="map"></div>
           <div class="fsUi" aria-hidden="true">
             <button type="button" class="fsClose" id="fsClose" aria-label="全画面を閉じる" title="閉じる">×</button>
@@ -487,6 +487,6 @@
 // 表示モードを最初に適用（自動＝OS 設定に従う）
 try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式（生文字列）はそのまま */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
 </script>
-<script type="module" src="js/app.js?v=2.0.5"></script>
+<script type="module" src="js/app.js?v=2.0.5-2"></script>
 </body>
 </html>
