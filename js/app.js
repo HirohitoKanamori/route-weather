@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=2.0.4'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=2.0.5'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -324,12 +324,28 @@ import { RW } from './core.js?v=2.0.4'; // 版を付けて、公開直後に新�
   }
 
   // ===== 予報取得 =====
+  // 予報の取得（v2.0.5）：25 秒で打ち切る。タイムアウト・通信エラー・サーバー側の失敗（5xx・429）は 1.5 秒おいて 1 回だけ取り直す
+  const FETCH_TIMEOUT_MS = 25000;
+  const fetchErr = (msg, retry) => Object.assign(new Error(msg), { retry });
   async function fetchSeriesRaw(model, pts, pastDays) {
-    const res = await fetch(RW.forecast.buildUrl(pts, model, pastDays));
-    if (!res.ok) { let msg = 'HTTP ' + res.status; try { const j = await res.json(); if (j.reason) msg += ' ' + j.reason; } catch (e) { /* noop */ } throw new Error(msg); }
-    const series = RW.forecast.parseSeries(await res.json());
-    if (series.length !== pts.length) throw new Error('地点数が一致しません（' + series.length + '/' + pts.length + '）');
-    return series;
+    const url = RW.forecast.buildUrl(pts, model, pastDays); let lastErr = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt) await new Promise(r => setTimeout(r, 1500));
+      const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+      try {
+        let res;
+        try { res = await fetch(url, { signal: ctrl.signal }); }
+        catch (e) { throw fetchErr(ctrl.signal.aborted ? 'タイムアウト：予報サーバーの応答がありません' : '予報サーバーに接続できませんでした', true); }
+        if (!res.ok) { let msg = 'HTTP ' + res.status; try { const j = await res.json(); if (j.reason) msg += ' ' + j.reason; } catch (e) { /* noop */ } throw fetchErr('予報サーバーのエラー：' + msg, res.status >= 500 || res.status === 429); }
+        const series = RW.forecast.parseSeries(await res.json());
+        if (series.length !== pts.length) throw fetchErr('地点数が一致しません（' + series.length + '/' + pts.length + '）', false);
+        return series;
+      } catch (e) {
+        lastErr = e && e.name === 'AbortError' ? fetchErr('タイムアウト：予報サーバーの応答がありません', true) : e; // 本文の受信中に打ち切った場合
+        if (!lastErr.retry) throw lastErr;
+      } finally { clearTimeout(timer); }
+    }
+    throw lastErr;
   }
   async function getSeries(model, pts, hash, pastDays, force) {
     const key = 'rw:fc2:' + hash + ':' + model + ':' + pastDays;
@@ -372,7 +388,7 @@ import { RW } from './core.js?v=2.0.4'; // 版を付けて、公開直後に新�
       try { const r = await fetch('https://api.open-meteo.com/data/' + M[m].id + '/static/meta.json'); const j = await r.json(); ser.runs[m] = j.last_run_initialisation_time * 1000; }
       catch (e) { /* 表示だけの情報なので無視 */ }
     }
-    if (state.series === ser) { store.set('rw:last', { course: state.course, series: ser }); renderModelInfo(); renderNotice(); }
+    if (state.series === ser) { store.set('rw:last', { course: state.course, series: ser }); renderModelInfo(); if (state.result) renderNotice(); } // 取得に失敗して結果を隠している間は描かない
   }
   async function run(opts) {
     const force = !!(opts && opts.force);
@@ -394,14 +410,16 @@ import { RW } from './core.js?v=2.0.4'; // 版を付けて、公開直後に新�
     if (force || !fresh || !covered(ser)) {
       if (state.busy) { state.rerun = true; return; } // 取得中の変更は捨てず、終わってから最後の設定で再実行
       state.busy = true; $('run').disabled = true; setStatus('予報を取得中…');
+      const slow = setTimeout(() => { if (state.busy) setStatus('予報を取得中…（サーバーの応答を待っています）'); }, 8000);
       let stale = false;
       try {
         const msm = await getSeries('msm', pts, hash, pastDays, force);
         const hM = RW.forecast.horizon(msm);
-        const gsm = (hM == null || goalT > hM) ? await getSeries('gsm', pts, hash, pastDays, force) : null;
+        let gsm = null, gsmError = '';
+        if (hM == null || goalT > hM) { try { gsm = await getSeries('gsm', pts, hash, pastDays, force); } catch (e) { gsmError = e.message; } } // GSM だけの失敗は、取れた MSM の分を出す
         stale = seq !== state.runSeq || !state.course || RW.course.hashCourse(state.course) !== hash;
         if (!stale) {
-          ser = { msm, gsm, hash, pastDays, fetchedAt: Date.now(), runs: {} };
+          ser = { msm, gsm, gsmError, hash, pastDays, fetchedAt: Date.now(), runs: {} };
           state.series = ser; state.offlineNote = '';
           store.set('rw:last', { course: state.course, series: ser });
           try { Object.keys(localStorage).filter(k => k.startsWith('rw:fc:')).forEach(k => localStorage.removeItem(k)); } catch (e) { /* 旧キャッシュの掃除 */ }
@@ -412,16 +430,18 @@ import { RW } from './core.js?v=2.0.4'; // 版を付けて、公開直後に新�
         stale = seq !== state.runSeq || !state.course || RW.course.hashCourse(state.course) !== hash;
         if (!stale) {
           const last = store.get('rw:last');
-          if (last && last.series && last.series.hash === hash) {
+          // 保存済みの予報は、今回の通過時刻を 1 地点でも含むときだけ使う（含まない古い予報で「予報範囲外」と出さない）
+          if (last && last.series && last.series.hash === hash && RW.forecast.computeRide(state.course, p, last.series).S.some(s => !s.na)) {
             ser = state.series = last.series;
             state.offlineNote = `予報を取得できませんでした（${e.message}）。${F.fmtDT(ser.fetchedAt)} に取得した予報を表示しています。`;
             setStatus('');
           } else {
-            setStatus('予報を取得できませんでした：' + e.message, 'err');
+            renderFetchError(e.message);
             stale = true;
           }
         }
       } finally {
+        clearTimeout(slow);
         state.busy = false; $('run').disabled = false;
         if (state.rerun) { state.rerun = false; stale = true; run(); }
       }
@@ -433,6 +453,7 @@ import { RW } from './core.js?v=2.0.4'; // 版を付けて、公開直後に新�
     p = p || params();
     const { S, step } = RW.forecast.computeRide(state.course, p, state.series);
     const sm = RW.forecast.summarize(S, step, p.anchor ? p.anchor.d : null); // 再計算中は「残り」で集計（R-20）
+    if (sm.nOk === 0 && naFailReason()) { renderFetchError(naFailReason()); return; }
     const hM = RW.forecast.horizon(state.series.msm);
     const trend = hM == null ? true : +p.start > hM;
     state.result = { S, step, sm, p, trend };
@@ -440,6 +461,22 @@ import { RW } from './core.js?v=2.0.4'; // 版を付けて、公開直後に新�
   }
 
   // ===== 描画 =====
+  // 予報の無い地点が「取得の失敗」によるものなら、その理由（GSM の取得失敗か、保存済みの古い予報で代用中）。無ければ空（＝本当の範囲外）
+  function naFailReason() {
+    const ser = state.series;
+    if (ser && ser.gsmError) return ser.gsmError;
+    if (state.offlineNote) return '保存済みの予報に含まれない時刻です';
+    return '';
+  }
+  const naLabel = () => naFailReason() ? '予報を取得できませんでした' : '予報範囲外';
+  // 予報を取得できず、出せる予報も無いとき：結果を隠し、範囲外ではなく取得の失敗として案内する
+  function renderFetchError(msg) {
+    state.result = null;
+    $('results').classList.add('hidden'); $('layout').classList.remove('has-results');
+    const el = $('notice'); el.className = 'notice warn';
+    el.innerHTML = `<div>予報を取得できませんでした（${esc(msg)}）。通信状態を確認し、少し時間をおいてから「予報を取得する」で取り直してください。</div>`;
+    setStatus(''); // 案内はお知らせ帯に出す（同じ文を 2 か所に出さない）
+  }
   function renderOutOfRange(daysAhead) {
     $('results').classList.add('hidden'); $('layout').classList.remove('has-results');
     const el = $('notice'); el.className = 'notice warn';
@@ -476,7 +513,10 @@ import { RW } from './core.js?v=2.0.4'; // 版を付けて、公開直後に新�
     if (sm.nOk === 0) msgs.push(['warn', `出走まで ${days} 日。通過時刻が予報範囲（気象庁 GSM・11 日先まで）を超えています。出走が近づいてから再取得してください。`]);
     else if (trend) msgs.push(['info', `出走まで ${days} 日。傾向モード：予報は傾向としてお読みください（${M.gsm.label}・${M.gsm.grid}）。出走 4 日前を切ると MSM の詳細表示に切り替わります。`]);
     else if (sm.gsmFrom != null) msgs.push(['info', `${Math.round(sm.gsmFrom)} km 以降は MSM の予報期間を超えるため ${M.gsm.label}（${M.gsm.grid}）の値です。`]);
-    if (sm.nOk > 0 && sm.naFrom != null) msgs.push(['warn', `${Math.round(sm.naFrom)} km 以降（${F.fmtDT(S.find(s => s.na).t)}〜）は予報範囲外です。`]);
+    if (sm.nOk > 0 && sm.naFrom != null) {
+      const fail = naFailReason(); const head = `${Math.round(sm.naFrom)} km 以降（${F.fmtDT(S.find(s => s.na).t)}〜）`;
+      msgs.push(['warn', fail ? `${head}の予報を取得できませんでした（${fail}）。少し時間をおいてから「予報を取得する」で取り直してください。` : `${head}は予報範囲外です。`]);
+    }
     const st = staleNote(); if (st) msgs.push(['warn', st]);
     if (state.warnings && state.warnings.segs) {
       const hot = state.warnings.segs.filter(x => x.warnings.some(y => wLevel(y.code) !== 'adv'));
@@ -557,7 +597,7 @@ import { RW } from './core.js?v=2.0.4'; // 版を付けて、公開直後に新�
     if (rs !== null) band(rs, course.total, 'var(--rain)', .13);
     // 予報範囲外（後半にまとまる）
     const naFirst = S.find(pt => pt.na);
-    if (naFirst) { const a = Math.max(0, naFirst.d - step / 2); band(a, course.total, 'var(--na)', .5); s += text(xOf(a) + 4, top + 22, '予報範囲外', 'lane-label'); }
+    if (naFirst) { const a = Math.max(0, naFirst.d - step / 2); band(a, course.total, 'var(--na)', .5); s += text(xOf(a) + 4, top + 22, naFailReason() ? '取得できず' : '予報範囲外', 'lane-label'); }
     // 仮眠帯（仮眠時間に比例した幅。横軸は距離だが、仮眠の分だけ時間軸の帯を挟む）
     for (const sl of p.sleeps) { const x = xOf(sl.d); const w = Math.max(4, axis.gapW(sl)); s += rect(x, top, w, bottom - top, 'var(--sleep)', .35); const lb = `仮眠 ${sl.m}分`; const rightRoom = L + innerW - (x + w + 3); s += rightRoom >= lb.length * 10 ? text(x + w + 3, top + 10, lb, 'lane-label', 'start', 'var(--sleep)') : text(x - 3, top + 10, lb, 'lane-label', 'end', 'var(--sleep)'); } // 右に収まらなければ帯の左に出す
     // 時刻目盛（正時。日付境界を強調。仮眠中の正時は仮眠帯の中に置く）
@@ -676,7 +716,7 @@ import { RW } from './core.js?v=2.0.4'; // 版を付けて、公開直後に新�
   }
   function tipHtml(pt) {
     const head = `<b>${pt.d.toFixed(0)} km</b>　${F.fmtDT(pt.t)}${pt.night ? '　夜間' : ''}`;
-    if (pt.na) return head + '<br>予報範囲外';
+    if (pt.na) return head + '<br>' + naLabel();
     const ele = pt.ele != null ? `　標高 ${Math.round(pt.ele)} m` : '';
     const sun = pt.sun != null ? `　日照 ${Math.round(pt.sun / 36)}%` : '';
     const wind = pt.cls ? `${RW.wind.dir16(pt.wd)}の風 ${n1(pt.ws)} m/s → <b>${REL[pt.cls]}風</b>（進行方向成分 ${pt.comp >= 0 ? '+' : ''}${n1(pt.comp)} m/s）` : '風：欠測';
@@ -727,7 +767,7 @@ import { RW } from './core.js?v=2.0.4'; // 版を付けて、公開直後に新�
       // この地点までに到達する仮眠を挟む
       while (si < p.sleeps.length && p.sleeps[si].d < pt.d) { rows.push(sleepRow(p.sleeps[si], p)); si++; }
       const cls = (pt.na ? 'na' : '') + (pt.night ? ' night' : '') + (p.anchor && pt.d < p.anchor.d ? ' past' : '');
-      if (pt.na) rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}</td><td colspan="4">予報範囲外</td></tr>`);
+      if (pt.na) rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}</td><td colspan="4">${naLabel()}</td></tr>`);
       else rows.push(`<tr class="${cls}"><td class="n">${pt.d.toFixed(0)} km</td><td>${F.fmtDT(pt.t)}${pt.night ? ' <span class="tag">夜</span>' : ''}</td><td>${esc(RW.forecast.wmoText(pt.code))}${pt.model === 'gsm' ? ' <span class="tag">GSM</span>' : ''}<br><small class="sub">湿度 ${nv(pt.rh, 0)}%${pt.sun != null ? '・日照 ' + Math.round(pt.sun / 36) + '%' : ''}</small></td>
         <td>${pt.cls ? `${RW.wind.dir16(pt.wd)} ${n1(pt.ws)} m/s <span class="rel ${pt.cls}">${REL[pt.cls]}風</span>` : '<span class="sub">欠測</span>'}</td><td class="n">${nv(pt.mm)} mm/h</td><td class="n">${n1(pt.temp)}℃${pt.feel != null ? '<br><small class="sub">体感 ' + n1(pt.feel) + '℃</small>' : ''}</td></tr>`);
       while (si < p.sleeps.length && p.sleeps[si].d === pt.d) { rows.push(sleepRow(p.sleeps[si], p)); si++; }
