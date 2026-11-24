@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=3.0.2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=3.0.2-2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -458,16 +458,15 @@ import { RW } from './core.js?v=3.0.2'; // 版を付けて、公開直後に新�
   function renderAll() {
     $('results').classList.remove('hidden'); $('notice0').className = 'notice hidden'; setMapMode(true);
     renderNotice(); renderSummary(); renderStrip(); renderRows(); renderStarts(); renderModelInfo(); renderGpsPlace();
-    sheetLayout(); renderMap();
+    renderRibbon(); sheetLayout(); renderMap();
     if (navigator.onLine !== false) { loadWarnings(); loadAmedas(); } else { renderWarnings(); renderAmedas(); }
   }
-  // 「現在位置から予報を再取得」は走行中の可能性がある時間帯（出走 1 時間前〜ゴール 6 時間後）か、現在地を使っているときだけ画面に出す。それ以外はメニューから
+  // 「現在位置から予報を再取得」：v2 は走行中の時間帯だけ画面に出したが、v3 はシートを 1 段上げたところに常に置く
   function renderGpsPlace() {
     const r = state.result; const now = Date.now();
     const riding = !!(r && (r.p.anchor || (now >= +r.p.start - 3600e3 && now <= +r.sm.goal + 6 * 3600e3)));
-    $('gps').classList.toggle('hidden', !(riding || state.gpsShown));
-    $('gpsWrap').classList.toggle('hidden', !(riding || state.gpsShown));
-    $('menuGps').classList.toggle('hidden', !r || riding || !!state.gpsShown);
+    $('gpsWrap').classList.toggle('hidden', !r); // v3：シートを 1 段上げたところに常に置く（走行中かどうかで隠さない）
+    $('menuGps').classList.add('hidden'); void riding;
   }
   function staleNote() {
     const ser = state.series; if (!ser) return '';
@@ -572,6 +571,186 @@ import { RW } from './core.js?v=3.0.2'; // 版を付けて、公開直後に新�
     for (let d = 0; d <= total + 1e-9; d += dStep) { const xx = Math.min(W - 1, Math.max(1, x(d))); s += text(xx, H - 1, d ? String(d) : '0 km', 'tick', d ? (x(d) > W - 12 ? 'end' : 'middle') : 'start'); }
     host.innerHTML = s + '</svg>';
   }
+  // ===== タイムライン概要（v2 と同じ図。v3 ではシートを 1 段上げたところに置く） =====
+  function renderRibbon() {
+    const host = $('ribbon'); const { S, step, p, trend } = state.result; const course = state.course;
+    const W = Math.max(320, Math.floor(host.clientWidth || 360)); const L = 30, RM = 8, innerW = W - L - RM;
+    const lanes = { time: { y: 2, h: 26 }, dist: { y: 30, h: 14 } }; let y = 48;
+    const order = [['wind', 54], ['rain', 44], ['temp', 44], ['ele', 40]]; // v2.0.2：傾向モード（GSM）でも風レーンを出す（区間×通過日の表と併記）
+    for (const [k, h] of order) { lanes[k] = { y, h }; y += h + 4; }
+    const H = y + 4, top = lanes[order[0][0]].y, bottom = H - 6;
+    const axis = ribbonAxis(course, p, L, innerW); const xOf = axis.xOf;
+    const px = axis.distW / Math.max(1, S.length - 1);
+    const stride = minPx => Math.max(1, Math.ceil(minPx / px));
+    const ok = S.filter(s => !s.na);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="コース上の天候タイムライン">`;
+    // 夜間帯（全レーンを貫く）
+    let ns = null;
+    const band = (a, b, fill, op) => { s += rect(xOf(a), top, xOf(b) - xOf(a), bottom - top, fill, op); };
+    S.forEach(pt => {
+      if (pt.night && ns === null) ns = Math.max(0, pt.d - step / 2);
+      if (!pt.night && ns !== null) { band(ns, Math.max(ns, pt.d - step / 2), 'var(--night)', .10); ns = null; }
+    });
+    if (ns !== null) band(ns, course.total, 'var(--night)', .10);
+    // 雨帯（降水 0.5 mm/h 以上の区間。棒グラフが濃いので帯は薄く）
+    let rs = null;
+    S.forEach(pt => {
+      const wet = !pt.na && pt.mm != null && pt.mm >= RAIN_MM;
+      if (wet && rs === null) rs = Math.max(0, pt.d - step / 2);
+      if (!wet && rs !== null) { band(rs, Math.max(rs, pt.d - step / 2), 'var(--rain)', .13); rs = null; }
+    });
+    if (rs !== null) band(rs, course.total, 'var(--rain)', .13);
+    // 予報範囲外（後半にまとまる）
+    const naFirst = S.find(pt => pt.na);
+    if (naFirst) { const a = Math.max(0, naFirst.d - step / 2); band(a, course.total, 'var(--na)', .5); s += text(xOf(a) + 4, top + 22, '予報範囲外', 'lane-label'); }
+    // 仮眠帯（仮眠時間に比例した幅。横軸は距離だが、仮眠の分だけ時間軸の帯を挟む）
+    for (const sl of p.sleeps) { const x = xOf(sl.d); const w = Math.max(4, axis.gapW(sl)); s += rect(x, top, w, bottom - top, 'var(--sleep)', .35); const lb = `仮眠 ${sl.m}分`; const rightRoom = L + innerW - (x + w + 3); s += rightRoom >= lb.length * 10 ? text(x + w + 3, top + 10, lb, 'lane-label', 'start', 'var(--sleep)') : text(x - 3, top + 10, lb, 'lane-label', 'end', 'var(--sleep)'); } // 右に収まらなければ帯の左に出す
+    // 時刻目盛（正時。日付境界を強調。仮眠中の正時は仮眠帯の中に置く）
+    const pxPerH = axis.pxPerH;
+    const hStep = [1, 2, 3, 6, 12].find(n => n * pxPerH >= 34) || 24;
+    const longLabel = hStep * pxPerH >= 52;
+    let lastDay = F.dateKey(S[0].t), lastX = -Infinity;
+    s += text(xOf(0) + 2, lanes.time.y + 9, lastDay, 'tick day');
+    for (const tk of RW.plan.hourTicks(RW.plan.timeNodes(S, p))) {
+      const x = tk.sleep ? axis.xOfSleep(tk) : xOf(tk.d); const dk = F.dateKey(tk.t); const hr = F.jstParts(tk.t).h;
+      if (dk !== lastDay) { lastDay = dk; s += text(x + 2, lanes.time.y + 9, dk, 'tick day'); s += line(x, lanes.time.y, x, bottom, 'var(--ink-3)', 1); }
+      if (hr % hStep !== 0 || x - lastX < 38) continue;
+      lastX = x;
+      s += line(x, lanes.time.y + 12, x, lanes.dist.y, 'var(--line)'); s += text(x, lanes.time.y + 22, longLabel ? F.fmtH(tk.t) : F.fmtH(tk.t).slice(0, 2), 'tick', 'middle');
+    }
+    // 現在地（走行中の再計算）
+    if (p.anchor) { const x = xOf(p.anchor.d); s += line(x, top, x, bottom, 'var(--ink)', 1.5, '4 3'); s += text(x + 4, bottom - 4, '現在地 ' + F.fmtH(p.anchor.t), 'lane-label'); }
+    // 距離目盛
+    const dStep = [5, 10, 20, 25, 50, 100, 200].find(n => n / course.total * innerW >= 34) || 500;
+    for (let d = 0; d <= course.total + 1e-9; d += dStep) { const x = xOf(d); s += text(x, lanes.dist.y + 11, String(d), 'tick', 'middle'); s += line(x, lanes.dist.y + 13, x, bottom, 'var(--line)', 1, '2 4'); }
+    s += text(L - 4, lanes.dist.y + 11, 'km', 'tick', 'end');
+    const lab = (k, t) => text(L - 4, lanes[k].y + lanes[k].h / 2 + 4, t, 'lane-label', 'end');
+    s += lab('wind', '風');
+    s += lab('rain', '雨') + lab('temp', '気温') + lab('ele', '標高');
+    // 風レーン：進行方向基準の矢印（上＝追い風）。傾向モードでも GSM の値で描く
+    {
+      const wy = lanes.wind.y + lanes.wind.h / 2 - 4; const st = stride(16);
+      S.forEach((pt, i) => {
+        if (pt.na || !pt.cls || i % st) return;
+        const x = xOf(pt.d); const len = Math.min(26, 7 + pt.ws * 2.2);
+        s += arrow(x, wy, -pt.rel - 90, len, COL[pt.cls]); // 上＝追い風、下＝向かい風
+        if (pt.ws >= 5) s += text(x, lanes.wind.y + lanes.wind.h - 2, pt.ws.toFixed(0) + 'm', 'tick', 'middle', COL[pt.cls]);
+      });
+    }
+    // 雨レーン：降水量の棒（降水確率は気象庁モデルでは提供されないため非表示）
+    { const ry = lanes.rain.y, rh = lanes.rain.h; const sr = RW.forecast.sleepRain(p, state.series, S, step);
+      const mmMax = Math.max(3, ...ok.map(x => x.mm || 0), ...sr.map(x => x.mm || 0)); const bw = Math.max(1.5, px * 0.7); const st = stride(22);
+      // 仮眠中（距離は進まないので仮眠帯の中に時刻の位置で出す）
+      for (const r of sr) {
+        if (!(r.mm > 0)) continue;
+        const x = axis.xOfSleep({ d: r.d, t: r.t }); const h = Math.max(1, r.mm / mmMax * (rh - 12));
+        const w = bw; // 走行中の棒と同じ幅（刻みも同じ時間間隔）
+        s += rect(x - w / 2, ry + rh - h, w, h, 'var(--rain)', r.mm >= RAIN_MM ? 1 : .45);
+        if (r.mm >= 1) s += text(x, ry + rh - h - 3, r.mm.toFixed(r.mm >= 10 ? 0 : 1), 'tick', 'middle', 'var(--rain)');
+      }
+      S.forEach((pt, i) => {
+        if (pt.na || !(pt.mm > 0)) return;
+        const x = xOf(pt.d); const h = Math.max(1, pt.mm / mmMax * (rh - 12));
+        s += rect(x - bw / 2, ry + rh - h, bw, h, 'var(--rain)', pt.mm >= RAIN_MM ? 1 : .45);
+        if (pt.mm >= 1 && i % st === 0) s += text(x, ry + rh - h - 3, pt.mm.toFixed(pt.mm >= 10 ? 0 : 1), 'tick', 'middle', 'var(--rain)');
+      });
+      s += line(L, ry + rh, L + innerW, ry + rh, 'var(--line)');
+    }
+    // 気温レーン
+    if (ok.length) {
+      const temps = ok.map(x => x.temp); const tmin = Math.min(...temps) - 2, tmax = Math.max(...temps) + 2;
+      const ty = v => lanes.temp.y + lanes.temp.h - 4 - (v - tmin) / (tmax - tmin) * (lanes.temp.h - 12);
+      s += `<polyline fill="none" stroke="var(--ink)" stroke-width="1.5" points="${ok.map(x => xOf(x.d).toFixed(1) + ',' + ty(x.temp).toFixed(1)).join(' ')}"/>`;
+      const st = stride(30); ok.forEach((pt, i) => { if (i % st === 0) s += text(xOf(pt.d), ty(pt.temp) - 4, pt.temp.toFixed(0) + '°', 'tick', 'middle'); });
+    }
+    // 標高レーン
+    if (course.hasEle) {
+      const eles = course.pts.map(q => q.ele ?? 0); const emax = Math.max(...eles), emin = Math.min(...eles);
+      const ey = v => lanes.ele.y + lanes.ele.h - ((v ?? emin) - emin) / ((emax - emin) * 1.05 || 1) * lanes.ele.h;
+      const base = lanes.ele.y + lanes.ele.h;
+      s += `<path d="M${xOf(0).toFixed(1)},${base} ${course.pts.map(q => 'L' + xOf(q.d).toFixed(1) + ',' + ey(q.ele).toFixed(1)).join(' ')} L${xOf(course.total).toFixed(1)},${base} Z" fill="var(--paper-2)" stroke="none"/>`;
+      // 相対風で塗り分け（向かい風＝赤系、横風＝黄系、追い風＝緑系）。各サンプルの受け持ちは前後のサンプルとの中点まで。
+      // 同じ分類が続く区間は 1 つの面にまとめ、仮眠地点で区切る（仮眠帯の上に面を渡さない）。欠測・予報範囲外は無彩色のまま
+      // v2.0.2：風レーンと揃えて傾向モード（GSM）でも塗り分ける
+      {
+        const runs = [];
+        S.forEach((pt, i) => {
+          const a = i ? (S[i - 1].d + pt.d) / 2 : 0, b = i < S.length - 1 ? (pt.d + S[i + 1].d) / 2 : course.total;
+          const cls = !pt.na && pt.cls ? pt.cls : null;
+          const lastRun = runs[runs.length - 1];
+          if (lastRun && lastRun.cls === cls) lastRun.b = b; else runs.push({ a, b, cls });
+        });
+        const cuts = p.sleeps.map(x => x.d).filter(d => d > 0 && d < course.total);
+        const eleAt = d => RW.course.interp(course, d).ele;
+        for (const r of runs) {
+          if (!r.cls) continue;
+          const edges = [r.a, ...cuts.filter(d => d > r.a && d < r.b), r.b];
+          for (let k = 0; k < edges.length - 1; k++) {
+            const a = edges[k], b = edges[k + 1]; if (b - a <= 0) continue;
+            const inner = course.pts.filter(q => q.d > a && q.d < b);
+            const xa = xOf(a, true), xb = xOf(b);
+            const pts = [[xa, ey(eleAt(a))], ...inner.map(q => [xOf(q.d), ey(q.ele)]), [xb, ey(eleAt(b))]];
+            s += `<path d="M${xa.toFixed(1)},${base} ${pts.map(q => 'L' + q[0].toFixed(1) + ',' + q[1].toFixed(1)).join(' ')} L${xb.toFixed(1)},${base} Z" fill="${COL[r.cls]}" style="opacity:var(--ele-op)" stroke="none"/>`;
+          }
+        }
+      }
+      s += `<path d="M${course.pts.map(q => xOf(q.d).toFixed(1) + ',' + ey(q.ele).toFixed(1)).join(' L')}" fill="none" stroke="var(--ink-3)" stroke-width="1"/>`;
+      s += line(L, base, L + innerW, base, 'var(--line)');
+      s += text(L + innerW - 2, lanes.ele.y + 9, `最高 ${Math.round(emax)} m`, 'tick', 'end');
+    } else s += text(L + 4, lanes.ele.y + lanes.ele.h / 2 + 4, '標高データなし', 'tick');
+    // 通過済み区間（現在地より手前）を薄く（ADD_01）
+    if (p.anchor && p.anchor.d > 0) s += rect(xOf(0), top, xOf(Math.min(p.anchor.d, course.total)) - xOf(0), bottom - top, 'var(--card)', .55);
+    // カーソルとヒット領域
+    s += `<line id="cur" x1="0" y1="${top}" x2="0" y2="${bottom}" stroke="var(--ink)" stroke-width="1" opacity="0"/>`;
+    s += `<rect id="hit" x="${L}" y="0" width="${innerW}" height="${H}" fill="transparent"/></svg>`;
+    host.innerHTML = s;
+    bindRibbon(host, S, axis, W);
+  }
+  // リボンの横軸。距離に比例させつつ、仮眠は時間に比例した幅の帯として挟む（タイムラインとして読めるように）
+  function ribbonAxis(course, p, L, innerW) {
+    const total = course.total || 1;
+    const sleeps = [...p.sleeps].sort((a, b) => a.d - b.d);
+    const rideH = Math.max(0.01, RW.plan.rideHours(total, p)), sleepH = sleeps.reduce((a, x) => a + x.m / 60, 0);
+    const pxPerH = innerW / (rideH + sleepH);
+    const gapW = sl => sl.m / 60 * pxPerH;
+    const distW = innerW - sleeps.reduce((a, x) => a + gapW(x), 0);
+    const xOf = (d, depart = false) => { let x = L + d / total * distW; for (const sl of sleeps) if (sl.d < d || (depart && sl.d === d)) x += gapW(sl); return x; };
+    const xOfSleep = tk => { const sl = sleeps.find(x => x.d === tk.d); if (!sl) return xOf(tk.d); const a = +RW.plan.timeAt(sl.d, p, true); return xOf(sl.d) + Math.min(1, Math.max(0, (tk.t - a) / (sl.m * 60e3 || 1))) * gapW(sl); };
+    const dOf = x => { let rel = x - L; for (const sl of sleeps) { const xs = sl.d / total * distW; if (rel <= xs) break; const g = gapW(sl); if (rel < xs + g) return sl.d; rel -= g; } return Math.max(0, Math.min(total, rel / distW * total)); };
+    return { xOf, xOfSleep, dOf, gapW, pxPerH, distW, L, innerW };
+  }
+  function tipHtml(pt) {
+    const head = `<b>${pt.d.toFixed(0)} km</b>　${F.fmtDT(pt.t)}${pt.night ? '　夜間' : ''}`;
+    if (pt.na) return head + '<br>予報範囲外';
+    const ele = pt.ele != null ? `　標高 ${Math.round(pt.ele)} m` : '';
+    const sun = pt.sun != null ? `　日照 ${Math.round(pt.sun / 36)}%` : '';
+    const wind = pt.cls ? `${RW.wind.dir16(pt.wd)}の風 ${n1(pt.ws)} m/s → <b>${REL[pt.cls]}風</b>（進行方向成分 ${pt.comp >= 0 ? '+' : ''}${n1(pt.comp)} m/s）` : '風：欠測';
+    return head + `<br>${esc(RW.forecast.wmoText(pt.code))}　${n1(pt.temp)}℃${pt.feel != null ? '（体感 ' + n1(pt.feel) + '℃）' : ''}　湿度 ${nv(pt.rh, 0)}%${sun}${ele}` +
+      `<br>${wind}` +
+      `<br>降水 ${nv(pt.mm)} mm/h${pt.model === 'gsm' ? '　<span class="tag" style="color:inherit;border-color:currentColor">GSM</span>' : ''}`;
+  }
+  function bindRibbon(host, S, axis, W) {
+    const svg = host.querySelector('svg'), hit = svg.querySelector('#hit'), cur = svg.querySelector('#cur'), tip = $('tip'), wrap = $('ribbonWrap');
+    const show = (clientX, clientY) => {
+      const r = svg.getBoundingClientRect(); const x = (clientX - r.left) * (W / r.width);
+      const d = axis.dOf(x);
+      let best = 0, bd = Infinity; S.forEach((pt, i) => { const dd = Math.abs(pt.d - d); if (dd < bd) { bd = dd; best = i; } });
+      const pt = S[best]; const cx = axis.xOf(pt.d);
+      cur.setAttribute('x1', cx); cur.setAttribute('x2', cx); cur.setAttribute('opacity', '1');
+      tip.innerHTML = tipHtml(pt); tip.style.display = 'block';
+      const wr = wrap.getBoundingClientRect(); const tw = tip.offsetWidth;
+      let left = clientX - wr.left + 12; if (left + tw > wr.width - 6) left = Math.max(6, clientX - wr.left - tw - 12);
+      tip.style.left = left + 'px'; tip.style.top = Math.max(4, clientY - wr.top - tip.offsetHeight - 10) + 'px';
+    };
+    const hide = () => { cur.setAttribute('opacity', '0'); tip.style.display = 'none'; tip.classList.remove('pinned'); };
+    hit.addEventListener('pointermove', e => { if (!state.pinned) show(e.clientX, e.clientY); });
+    hit.addEventListener('pointerleave', () => { if (!state.pinned) hide(); });
+    hit.addEventListener('pointerdown', e => { // iPhone：タップで固定、再タップで解除
+      e.preventDefault();
+      if (state.pinned) { state.pinned = false; hide(); } else { state.pinned = true; show(e.clientX, e.clientY); tip.classList.add('pinned'); const r = svg.getBoundingClientRect(); selectRow(rowFor(axis.dOf((e.clientX - r.left) * (W / r.width))), { keepTip: true }); }
+    });
+    state.pinned = false; hide();
+  }
   // ===== 区間表（v3）：10 km ごと（傾向モードは 50 km ごと）。注意報・仮眠・日付は行の間に入れる（標高はコース全体の帯に） =====
   const rowSize = () => state.result && state.result.trend ? 50 : 10;
   const rowOf = d => { const rows = state.rows || []; return (rows.filter(r => r.from <= d + 1e-9).pop() || rows[0] || { from: 0 }).from; };
@@ -651,8 +830,9 @@ import { RW } from './core.js?v=3.0.2'; // 版を付けて、公開直後に新�
     if (opt.toggle) { if (state.open.has(k)) state.open.delete(k); else state.open.add(k); } else if (opt.open) state.open.add(k);
     const wasPeek = state.sheet === 'peek' && !isWide();
     const st = $('sheetBody').scrollTop; renderRows(); renderStrip(); $('sheetBody').scrollTop = st;
+    if (!opt.keepTip && state.result) renderRibbon(); // 図の吹き出しは、図を押して選んだときだけ残す
     if (wasPeek) setSheet('half');
-    if (opt.scroll) requestAnimationFrame(() => scrollToRow(k));
+    if (opt.scroll && (isWide() || state.sheet === 'full')) requestAnimationFrame(() => scrollToRow(k));
     focusRow(k);
   }
   function scrollToRow(k) {
@@ -666,7 +846,7 @@ import { RW } from './core.js?v=3.0.2'; // 版を付けて、公開直後に新�
   // 表のスクロールに地図を合わせる：スクロールが止まってから 1 回だけ（OSM のタイル取得を増やさない）
   const follow = { timer: 0, lock: 0 };
   function onRowsScroll() {
-    if ((state.sheet === 'peek' && !isWide()) || !state.rows) return;
+    if (!isWide() || !state.rows) return; // スマホは全部まで上げると地図がほぼ隠れるので、見えない地図のタイルを読まない
     clearTimeout(follow.timer);
     follow.timer = setTimeout(() => {
       if (Date.now() < follow.lock) return;
@@ -798,6 +978,7 @@ import { RW } from './core.js?v=3.0.2'; // 版を付けて、公開直後に新�
   function focusRow(k) {
     drawSelection();
     if (!lmap || !state.course) return;
+    if (!isWide() && state.sheet === 'full') return; // 地図がほぼ隠れている間は動かさない（下げたときに寄せる）
     const r = (state.rows || []).find(q => q.from === k); if (!r) return;
     const m = mapInsets(), W = window.innerWidth, H = window.innerHeight;
     const vh = Math.max(120, H - m.t - m.b), vw = Math.max(120, W - m.l - m.r);
@@ -1364,17 +1545,23 @@ import { RW } from './core.js?v=3.0.2'; // 版を付けて、公開直後に新�
   function sheetH(st) {
     if (isWide()) return 0;
     const H = window.innerHeight;
-    if (st === 'half') return Math.round(H * 0.6);
+    if (st === 'half') { // タイムライン概要と「現在位置から予報を再取得」まで（地図が少しは見えるよう上限あり）
+      const body = $('sheetBody'), g = $('gpsWrap'), safe = Math.max(0, parseFloat(getComputedStyle(body).paddingBottom) - 16);
+      const strip = $('strip'), stripH = strip.offsetParent ? strip.offsetHeight : 0; // 全体の帯は半分以上では隠れるので、見えている間に測ったときはその分を引く
+      const bottom = (g.classList.contains('hidden') ? $('ribbonWrap').offsetTop + $('ribbonWrap').offsetHeight : g.offsetTop + g.offsetHeight) - stripH; // ボタン・案内文・「位置情報の扱い」まで
+      return Math.min(Math.round(H - document.querySelector('.bar').getBoundingClientRect().bottom - 96), Math.round(bottom + 14 + safe));
+    }
     if (st === 'full') { const b = document.querySelector('.bar').getBoundingClientRect(); return Math.round(H - b.bottom - 8); }
-    // 下げた状態：要点とコース全体の帯まで（下端の安全領域を足す）
+    // 下げた状態：要点とコース全体の帯まで（下端の安全領域を足す）。帯は下げた状態でだけ出すので、隠れている間は前に測った高さを使う
     const body = $('sheetBody'), strip = $('strip');
     const safe = Math.max(0, parseFloat(getComputedStyle(body).paddingBottom) - 16);
-    return Math.min(Math.round(H * 0.5), Math.round(strip.offsetTop + strip.offsetHeight + 12 + safe));
+    if (strip.offsetParent) state.peekH = Math.min(Math.round(H * 0.5), Math.round(strip.offsetTop + strip.offsetHeight + 12 + safe));
+    return state.peekH || Math.round(H * 0.3);
   }
   function setSheet(st) {
     state.sheet = st; const sh = $('sheet'); sh.dataset.state = st;
     document.documentElement.classList.toggle('sheetFull', st === 'full');
-    if (st === 'peek') $('sheetBody').scrollTop = 0;
+    if (st !== 'full') $('sheetBody').scrollTop = 0; // 下げた状態と半分は中身を先頭から見せる
     sheetLayout(); drawSelection();
     if (st === 'peek') setTimeout(fitCourse, 300); else if (state.active != null) setTimeout(() => focusRow(state.active), 300);
   }
@@ -1386,20 +1573,20 @@ import { RW } from './core.js?v=3.0.2'; // 版を付けて、公開直後に新�
     if (!on) { closePlan(); document.documentElement.classList.remove('sheetFull'); }
   }
   { // シートの上げ下げ。取っ手を押すと 下げた → 半分 → 全部 → 下げた。上下に引くと近い段階へ（v3.0.1）
-    // 下げた状態ではシートのどこを引いても動かす。半分・全部では取っ手か、中身がいちばん上までスクロールしてあるときの引き下げで動かす（それ以外は中身のスクロール）
+    // 下げた状態と半分ではシートのどこを引いても動かす。全部では取っ手か、中身がいちばん上までスクロールしてあるときの引き下げで動かす（それ以外は中身のスクロール）
     const sh = $('sheet'), grab = $('grab'), body = $('sheetBody'); const ORDER = ['peek', 'half', 'full'];
     let drag = null, quietUntil = 0;
     const start = (y, target) => {
       if (isWide() || !isMap()) return;
       const onGrab = !!target.closest('#grab');
-      if (!onGrab && state.sheet !== 'peek' && body.scrollTop > 0) return;
+      if (!onGrab && state.sheet === 'full' && body.scrollTop > 0) return;
       drag = { y0: y, h0: sh.offsetHeight, onGrab, moved: false, d: 0 };
     };
     const move = (y, ev) => {
       if (!drag) return; const d = drag.y0 - y; // 上向きが正
       if (!drag.moved) {
         if (Math.abs(d) < 8) return;
-        if (!drag.onGrab && state.sheet !== 'peek' && d > 0) { drag = null; return; } // 中身を上へスクロールする操作
+        if (!drag.onGrab && state.sheet === 'full' && d > 0) { drag = null; return; } // 中身を上へスクロールする操作
         drag.moved = true; sh.classList.add('drag');
       }
       if (ev.cancelable) ev.preventDefault();
@@ -1438,7 +1625,7 @@ import { RW } from './core.js?v=3.0.2'; // 版を付けて、公開直後に新�
   menu.querySelectorAll('[data-theme-set]').forEach(b => b.addEventListener('click', () => {
     const next = b.dataset.themeSet;
     if (next === 'auto') { delete document.documentElement.dataset.theme; store.del('rw:theme'); } else { document.documentElement.dataset.theme = next; store.set('rw:theme', next); }
-    renderTheme(); if (state.result) { renderStrip(); renderMap(); }
+    renderTheme(); if (state.result) { renderStrip(); renderRibbon(); renderMap(); }
   }));
   function renderTheme() { const cur = document.documentElement.dataset.theme || 'auto'; menu.querySelectorAll('[data-theme-set]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themeSet === cur))); }
   renderTheme();
@@ -1515,7 +1702,7 @@ import { RW } from './core.js?v=3.0.2'; // 版を付けて、公開直後に新�
   }));
   $('run').addEventListener('click', () => { state.warnings = null; state.amedas = null; run({ force: true }); });
   let rt = null;
-  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.result) { sheetLayout(); renderMap(); if (state.sheet === 'peek' || isWide()) fitCourse(); } }, 150); });
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.result) { renderRibbon(); sheetLayout(); renderMap(); if (state.sheet === 'peek' || isWide()) fitCourse(); } }, 150); });
   window.addEventListener('online', () => { if (state.course && state.offlineNote) run(); });
 
   // 前回の現在地（P-5 の欄は非表示なので）が残っていれば、解除できるようステータス行を出す

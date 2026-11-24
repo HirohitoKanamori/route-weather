@@ -170,6 +170,14 @@
   .sleeps .seg{display:grid;grid-template-columns:1fr 1fr 1fr 44px;gap:6px}
   .anchor{display:grid;grid-template-columns:1fr 1.5fr 44px 44px;gap:6px}
   .gpsWrap{margin-top:10px}
+  .gps{width:100%;display:flex;align-items:center;justify-content:center;gap:6px}
+  .ribbon svg{display:block;width:100%;height:auto;touch-action:pan-y}
+  .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--paper);font-size:13px;line-height:1.45;padding:8px 10px;border-radius:6px;
+    display:none;z-index:2;max-width:min(320px,calc(100% - 12px))}
+  .tip b{font-weight:600}
+  .tip.pinned{pointer-events:auto;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+  .legend{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:11px;color:var(--ink-2);margin:6px 6px 4px}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:4px}
   .gpsNote{margin:6px 2px 0}
   .gpsNote a{color:var(--ink-2)}
   tr.past td{opacity:.45}
@@ -331,7 +339,10 @@
   .grab i{display:block;width:40px;height:5px;border-radius:3px;background:var(--line)}
   html.mapMode .sheetBody{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
     padding:0 max(14px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(14px,env(safe-area-inset-left,0px))}
-  html.mapMode .sheet[data-state="peek"] .sheetBody{overflow:hidden;touch-action:none} /* 下げた状態はシートのどこを引いても上げ下げ */
+  html.mapMode .sheet:is([data-state="peek"],[data-state="half"]) .sheetBody{overflow:hidden;touch-action:none} /* 下げた状態と半分はシートのどこを引いても上げ下げ（中身のスクロールは全部まで上げてから） */
+  html.mapMode .sheet .ribbon{border-top:1px solid var(--line);margin-top:12px;padding-top:6px}
+  html.mapMode .sheet:not([data-state="peek"]) #strip{display:none} /* 全体の帯（標高と雨の簡易表示）は下げた状態だけ。上げるとタイムライン概要と重なるため */
+  @media (min-width:900px){ html.mapMode .sheet #strip{display:none} } /* PC は常にタイムライン概要が見えている */
   html.mapMode .sheet .summary{margin-top:0}
   html.mapMode .sheet .notice{margin:0 0 8px}
   html.mapMode .sheet .status:empty{display:none}
@@ -409,7 +420,6 @@
     <div class="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div>
   </div>
 
-  <button type="button" class="fab hidden" id="gps"><svg viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="11" cy="11" r="2.4" fill="currentColor"/><path d="M11 1.5v3.5M11 17v3.5M1.5 11H5M17 11h3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="lbl">現在位置から予報を再取得</span></button>
 
   <div class="layout" id="layout">
     <section class="courseBar hidden" id="courseBar" aria-label="コース">
@@ -498,7 +508,25 @@
         <div id="notice" class="notice hidden" role="status"></div>
         <section class="summary" id="summary" aria-label="要点"></section>
         <div class="strip" id="strip"></div>
+        <section class="panel ribbon" id="ribbonWrap">
+          <h2>タイムライン概要</h2>
+          <div id="ribbon"></div>
+          <div class="tip" id="tip"></div>
+          <div class="legend">
+            <span><i class="swatch" style="background:var(--head)"></i>向かい風</span>
+            <span><i class="swatch" style="background:var(--cross)"></i>横風</span>
+            <span><i class="swatch" style="background:var(--tail)"></i>追い風</span>
+            <span><i class="swatch" style="background:var(--rain)"></i>降水 mm/h</span>
+            <span><i class="swatch" style="background:var(--night);opacity:.25"></i>夜間</span>
+            <span><i class="swatch" style="background:var(--sleep);opacity:.45"></i>仮眠</span>
+            <span><i class="swatch" style="background:var(--na);opacity:.5"></i>範囲外</span>
+            <button type="button" class="info" aria-expanded="false" aria-controls="helpRibbon">読み方</button>
+          </div>
+          <div class="help" id="helpRibbon" hidden>矢印は進行方向が基準で、上が追い風、下が向かい風です。標高の塗りは相対風の色、淡い青の帯は降水 0.5 mm/h 以上の区間です。図をタップするとその地点の詳細が出ます。<a href="about.html#ribbon">詳しく</a></div>
+        </section>
+
         <section class="gpsWrap hidden" id="gpsWrap">
+          <button type="button" class="primary gps" id="gps"><span class="lbl">現在位置から予報を再取得</span></button>
           <div class="posMsg hidden" id="gpsMsg" aria-live="polite"></div>
           <div class="hint"><button type="button" class="info" aria-expanded="false" aria-controls="helpGps">位置情報の扱い</button></div>
           <div class="help" id="helpGps" hidden>位置は端末内でコース上の距離に変換するためだけに使い、外部に送りません。<a href="about.html#location">詳しく</a></div>
@@ -549,6 +577,6 @@
 // 表示モードを最初に適用（自動＝OS 設定に従う）
 try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式（生文字列）はそのまま */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
 </script>
-<script type="module" src="js/app.js?v=3.0.2"></script>
+<script type="module" src="js/app.js?v=3.0.2-2"></script>
 </body>
 </html>
