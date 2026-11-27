@@ -55,3 +55,13 @@ test('reverseCourse：距離が反転し、名前に（反転）が付く。二�
   assert.equal(RW.course.reverseCourse(asym).gain, 0, '反転すると下りだけ');
   assert.equal(RW.course.reverseCourse(r).name, 'テスト');
 });
+
+test('inJapan：全地点が日本の範囲（緯度 20.0〜46.5・経度 122.0〜154.5）にあるときだけ true（v3.0.5）', () => {
+  const tokyo = RW.course.fromPoints([{ lat: 35.68, lon: 139.76 }, { lat: 35.70, lon: 139.80 }, { lat: 35.65, lon: 139.90 }], '東京');
+  const london = RW.course.fromPoints([{ lat: 51.50, lon: -0.12 }, { lat: 51.52, lon: -0.10 }], 'ロンドン');
+  const part = RW.course.fromPoints([{ lat: 45.4, lon: 141.7 }, { lat: 46.9, lon: 142.0 }], '一部だけ国外（宗谷から樺太へ）');
+  assert.equal(RW.course.inJapan(tokyo), true);
+  assert.equal(RW.course.inJapan(london), false);
+  assert.equal(RW.course.inJapan(part), false);
+  assert.equal(RW.course.inJapan(RW.course.reverseCourse(tokyo)), true);
+});

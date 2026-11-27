@@ -133,6 +133,11 @@ export const RW = (function () {
     const geo = course.geo ? course.geo.slice().reverse().map(q => ({ lat: q.lat, lon: q.lon, d: Math.max(0, total - q.d) })) : undefined;
     return { name, pts, geo, total, gain: course.hasEle ? Math.round(gain) : 0, loss: course.gain, n: course.n, hasEle: course.hasEle };
   }
+  // 日本国内のコースか（予報は気象庁のモデルなので国内専用。v3.0.5）：全地点が 緯度 20.0〜46.5・経度 122.0〜154.5 の範囲にあれば true
+  function inJapan(course) {
+    const ok = q => q.lat >= 20.0 && q.lat <= 46.5 && q.lon >= 122.0 && q.lon <= 154.5;
+    return !!(course && course.pts && course.pts.length) && course.pts.every(ok) && (course.geo || []).every(ok);
+  }
   function hashCourse(course) {
     const s = course.pts.map(p => p.lat.toFixed(4) + ',' + p.lon.toFixed(4)).join(';') + '|' + course.n;
     let h = 5381; for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
@@ -485,6 +490,7 @@ export const RW = (function () {
       const cls = ['head', 'cross', 'tail'].filter(c => r.km[c] > 0).sort((x, y) => r.km[y] - r.km[x])[0] || null;
       const v = cls && r.rv[cls]; const rel = v && (v[0] || v[1]) ? Math.atan2(v[0], v[1]) / R : null; // 矢印の向き：多い分類の相対風の平均
       return { from: r.from, to: r.to, t: r.t, na: r.okLen <= 0 && r.naLen > 0, night: r.nightLen >= len / 2, cls, rel, headKm: r1(r.km.head),
+        relKm: { head: r1(r.km.head), cross: r1(r.km.cross), tail: r1(r.km.tail) }, // 分類別の距離（詳細の「風」に出す。v3.0.5）
         ws: r.ws, wd: r.nw ? (Math.atan2(r.ux, r.uy) / R + 360) % 360 : null, mm: r.mm, tmin: r.tmin, tmax: r.tmax,
         temp: r.mid ? r.mid.temp : null, mid: r.mid, models: [...r.models] };
     });
@@ -534,7 +540,7 @@ export const RW = (function () {
     const: { RAIN_MM, TAIL_DEG, HEAD_DEG, MAX_PTS, HOURLY, MODELS, START_BACK_DAYS },
     rwgps: { parseUrl: parseRwgpsUrl, toCourse: rwgpsToCourse },
     fmt: { jstParts, fmtH, fmtT, fmtDT, dateKey, ymd, nextStart, minStart },
-    course: { hav, bearing, fromPoints, elevationGain, interp, headingAt, reverseCourse, hashCourse },
+    course: { hav, bearing, fromPoints, elevationGain, interp, headingAt, reverseCourse, hashCourse, inJapan },
     plan: { normSleeps, normSegments, rideHours, sleepHours, elapsedH, timeAt, distAtTime, sampleStep, samplePoints, timeNodes, hourTicks },
     locate: { locateOnCourse, chooseCandidate },
     wind: { relative, dir16 },

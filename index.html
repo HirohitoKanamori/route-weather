@@ -68,6 +68,8 @@
     padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
   .bar{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;border-bottom:1px solid var(--line);padding:6px 0 8px}
   .bar .sub{color:var(--ink-2);font-size:13px}
+  .tagline{margin:6px 0 0;font-size:13px;color:var(--ink-2)} /* コースを読む前の縦の画面だけ（v3.0.5） */
+  html.mapMode .tagline{display:none}
   .hidden{display:none!important}
   /* v2 段階 3：ヘッダーのメニュー */
   .menuWrap{margin-left:auto;position:relative}
@@ -77,6 +79,7 @@
   .menu[hidden]{display:none}
   .mItem{border:0;background:none;color:var(--ink);text-align:left;text-decoration:none;cursor:pointer;padding:10px 12px;border-radius:8px;font-size:15px;min-height:44px;display:flex;align-items:center}
   .mItem:hover,.mItem:focus-visible{background:var(--paper)}
+  .mItem[disabled]{color:var(--ink-3);cursor:default;background:none}
   .mTheme{display:flex;align-items:center;gap:8px;padding:6px 6px 8px 12px;font-size:13px;color:var(--ink-2);border-bottom:1px solid var(--line);margin-bottom:4px}
   .mTheme .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-left:auto}
   .mTheme .seg button{border:0;background:none;color:var(--ink);padding:0 10px;font-size:13px;cursor:pointer;min-height:36px}
@@ -99,6 +102,8 @@
   @supports (max-height:88dvh){ .layout.hasCourse .loadBox.open{max-height:88dvh} }
   @media (min-width:700px){ .layout.hasCourse .loadBox.open{left:50%;right:auto;bottom:auto;top:8vh;width:520px;transform:translateX(-50%);border-radius:16px} }
   .layout.hasCourse .loadBox .sheetHead{display:flex;justify-content:space-between;align-items:center;font-size:15px}
+  /* シートの見出しと「閉じる」は中身をスクロールしても上に残す（上の余白の分だけ上に貼り付け、左右と上は余白まで地の色で覆う。v3.0.5） */
+  .layout.hasCourse .loadBox.open .sheetHead{position:sticky;top:-14px;z-index:5;background:var(--card);margin:-14px -16px 0;padding:14px 16px 8px}
   .sheetBack{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:3999}
   .sumLine{font-weight:400;color:var(--ink-2);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   /* 要点：ゴール予定と 5 指標（タップで地点・時刻） */
@@ -142,7 +147,8 @@
   .help a{color:var(--link)}
   .unit{position:relative;display:block}
   .unit::after{content:attr(data-unit);position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--ink-3);font-size:13px;pointer-events:none}
-  .unit input{padding-right:52px}
+  .unit input{padding-right:52px;-moz-appearance:textfield;appearance:textfield} /* 増減の矢印（スピナー）が単位に重なるので出さない（v3.0.5） */
+  .unit input::-webkit-inner-spin-button,.unit input::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;margin:0}
   .rwgps{display:flex;flex-direction:column;gap:6px;border-top:1px dashed var(--line);padding-top:12px}
   .rwgps .lbl{font-size:13px;font-weight:600}
   .rwgps .row{display:grid;grid-template-columns:1fr auto;gap:6px}
@@ -379,6 +385,7 @@
   @supports (max-height:88dvh){ html.mapMode .settings.open{max-height:88dvh} }
   @media (min-width:700px){ html.mapMode .settings.open{left:50%;right:auto;bottom:auto;top:8vh;width:520px;transform:translateX(-50%);border-radius:16px} }
   html.mapMode .settings .setHead{padding:0;margin-bottom:10px}
+  html.mapMode .settings.open .setHead{position:sticky;top:-14px;z-index:5;background:var(--card);margin:-14px -16px 10px;padding:14px 16px 8px} /* 見出しと「閉じる」を上に残す（v3.0.5） */
   html.mapMode .settings .setCourse{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--paper);border-radius:10px;padding:8px 10px;margin-bottom:12px}
   .setCourse .cInfo{min-width:0} .setCourse b{display:block;font-size:15px;word-break:break-all} .setCourse span{font-size:13px;color:var(--ink-2)}
   html.mapMode .settings .ctl{padding:0}
@@ -414,6 +421,7 @@
       </div>
     </div>
   </header>
+  <p class="tagline">日本国内専用・自転車向けのコース天気予報</p>
 
   <!-- 地図の凡例と出典：上の札の下に常に出す（OSM の利用ポリシー：出典を他の部品の下に隠さない） -->
   <div class="mapLegend" id="mapLegend">
@@ -481,9 +489,9 @@
           <div class="field"><label for="time">出走時刻</label><input type="time" id="time" value="06:00"></div>
         </div>
         <div class="field">
-          <label for="spd">移動速度 <button type="button" class="info icon" aria-expanded="false" aria-controls="helpSpd" aria-label="移動速度の説明"></button></label>
+          <span class="lbl"><label for="spd">移動速度</label> <button type="button" class="info icon" aria-expanded="false" aria-controls="helpSpd" aria-label="移動速度の説明"></button></span>
           <div class="help" id="helpSpd" hidden>PC や食事などの短い停止を含めた平均の速度です。長い休憩は仮眠で入れます。</div>
-          <span class="unit" data-unit="km/h"><input type="number" id="spd" value="18" step="0.5" min="5" max="45" inputmode="decimal"></span>
+          <span class="unit" data-unit="km/h"><input type="number" id="spd" value="18" step="0.5" min="5" max="60" inputmode="decimal"></span>
         </div>
         <div class="field">
           <span class="lbl">仮眠 <button type="button" class="info icon" aria-expanded="false" aria-controls="helpSleep" aria-label="仮眠の説明"></button></span>
@@ -574,7 +582,7 @@
       <footer class="src">
         <div>予報は参考情報です（<a href="about.html#disclaimer">免責事項</a>）。出典：気象庁 数値予報（<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由）、注意報・アメダス：気象庁、地図：© OpenStreetMap</div>
         <div class="model" id="modelInfo"></div>
-        <div class="links"><a href="about.html">このサイトについて</a><span class="ver">Route-Weather.jp <b id="appVersion">v3.0.4</b></span></div>
+        <div class="links"><a href="about.html">このサイトについて</a><span class="ver">Route-Weather.jp <b id="appVersion">v3.0.5</b></span></div>
       </footer>
     </div>
   </section>
@@ -584,6 +592,6 @@
 // 表示モードを最初に適用（自動＝OS 設定に従う）
 try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式（生文字列）はそのまま */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
 </script>
-<script type="module" src="js/app.js?v=3.0.4"></script>
+<script type="module" src="js/app.js?v=3.0.5"></script>
 </body>
 </html>

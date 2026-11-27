@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=3.0.5'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -126,8 +126,14 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     $('pillName').textContent = c.name;
     $('pillPlan').textContent = [`${F.fmtDT(p.start)} 出走`, `${p.spd} km/h`, p.sleeps.length ? `仮眠 ${p.sleeps.length} 回・${sleepMin} 分` : '仮眠なし', p.segments.length ? `区間速度 ${p.segments.length}` : '', p.anchor ? `現在地 ${Math.round(p.anchor.d)} km` : ''].filter(Boolean).join('　');
   }
+  // 予報の取得に関する案内（縦の画面は「予報を取得する」の下、地図の画面はシートと走行計画のシート）
   function setStatus(msg, cls) {
-    for (const id of ['status', 'loadStatus', 'sheetStatus', 'planStatus']) { const el = $(id); el.textContent = id === 'loadStatus' && !$('loadBox').classList.contains('open') ? '' : (msg || ''); el.className = 'status' + (cls ? ' ' + cls : ''); }
+    for (const id of ['status', 'sheetStatus', 'planStatus']) { const el = $(id); el.textContent = msg || ''; el.className = 'status' + (cls ? ' ' + cls : ''); }
+  }
+  // コースの読み込みに関する案内（読み込み中・失敗・対象外）は、操作したコース選択のカード／シートの中に出す（v3.0.5）
+  function loadMsg(msg, cls) {
+    const el = $('loadStatus'); el.textContent = msg || ''; el.className = 'status' + (cls ? ' ' + cls : '');
+    if (cls === 'err') try { el.scrollIntoView({ block: 'nearest' }); } catch (e) { /* noop */ }
   }
   function renderCourse() {
     const c = state.course;
@@ -149,7 +155,16 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     setStatus(state.startNote);
     return true;
   }
-  function onParamChange() { enforceStart(); saveParams(); if (state.course) run(); }
+  // 移動速度は 5〜60 km/h（出走日時と同じ流儀：範囲外は欄の値を直して知らせる。空・数でない・0 以下は 18）。v3.0.5
+  function enforceSpd() {
+    const el = $('spd'), v = +el.value;
+    const fix = !el.value || !Number.isFinite(v) || v <= 0 ? 18 : v < 5 ? 5 : v > 60 ? 60 : null;
+    if (fix == null) { if (state.spdNote) { if ($('status').textContent === state.spdNote) setStatus(''); state.spdNote = ''; } return false; }
+    el.value = fix; state.spdNote = `移動速度は 5〜60 km/h で入力してください。${fix} km/h に直しました`; // 予報取得後も残るよう帯に出す
+    setStatus(state.spdNote);
+    return true;
+  }
+  function onParamChange() { enforceStart(); enforceSpd(); saveParams(); if (state.course) run(); }
 
   // ===== コース読み込み =====
   function parseGPX(text, fallback) {
@@ -185,14 +200,14 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     return RW.course.fromPoints(raw, (cm && cm.name) || fallback);
   }
   async function loadFile(f) {
-    setStatus('コースを読み込み中…');
+    loadMsg('コースを読み込み中…');
     try {
       const head = new Uint8Array(await f.slice(0, 12).arrayBuffer());
       const isFit = head.length >= 12 && String.fromCharCode(head[8], head[9], head[10], head[11]) === '.FIT';
       const base = f.name.replace(/\.(gpx|fit)$/i, '');
       const course = isFit ? await parseFIT(await f.arrayBuffer(), base) : parseGPX(await f.text(), base);
       setCourse(course);
-    } catch (err) { setStatus('読み込みに失敗しました：' + err.message, 'err'); }
+    } catch (err) { loadMsg('読み込みに失敗しました：' + err.message, 'err'); }
   }
   // ADD_03：貼り付けられた URL からルート番号を取り、中継経由で公式 API の JSON を受け取ってコースにする
   const RWGPS_MSG = {
@@ -202,19 +217,19 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     503: '中継サーバーが未設定のため、いまは使えません',
   };
   async function loadRwgps(text) {
+    if (!String(text || '').trim()) { loadMsg('ルートの URL を入力してください', 'err'); $('rwgpsUrl').focus(); return; }
     const relay = state.relay || RWGPS_RELAY;
-    if (!relay) { setStatus('Ride with GPS 連携は準備中です（中継サーバーが未設定）。当面はファイルから読み込んでください', 'err'); return; }
+    if (!relay) { loadMsg('Ride with GPS 連携は準備中です（中継サーバーが未設定）。当面はファイルから読み込んでください', 'err'); return; }
     const ref = RW.rwgps.parseUrl(text);
-    if (!ref) { setStatus('Ride with GPS のルート URL が見つかりません（例：https://ridewithgps.com/routes/12345678）', 'err'); $('rwgpsUrl').focus(); return; }
-    const btn = $('rwgpsGo'); btn.disabled = true; setStatus('Ride with GPS からルートを取得中…');
+    if (!ref) { loadMsg('Ride with GPS のルート URL が見つかりません（例：https://ridewithgps.com/routes/12345678）', 'err'); $('rwgpsUrl').focus(); return; }
+    const btn = $('rwgpsGo'); btn.disabled = true; loadMsg('Ride with GPS からルートを取得中…');
     try {
       const u = new URL(relay.replace(/\/$/, '') + '/rwgps/routes/' + ref.id); if (ref.privacyCode) u.searchParams.set('privacy_code', ref.privacyCode);
       let r; try { r = await fetch(u.toString(), { cache: 'no-store' }); } catch (e) { throw new Error('取得できませんでした。通信状態を確認してください（圏外では使えません）'); }
       if (!r.ok) throw new Error(RWGPS_MSG[r.status] || `取得に失敗しました（HTTP ${r.status}）`);
       const course = RW.rwgps.toCourse(await r.json());
-      $('rwgpsUrl').value = '';
-      setCourse(course);
-    } catch (err) { setStatus('読み込みに失敗しました：' + err.message, 'err'); }
+      if (setCourse(course)) $('rwgpsUrl').value = ''; // 対象外（国外）で読まなかったときは URL を残す
+    } catch (err) { loadMsg('読み込みに失敗しました：' + err.message, 'err'); }
     finally { btn.disabled = false; }
   }
   // ===== ADD_03 Stage 2：OAuth で連携し、自分のルート一覧から選ぶ =====
@@ -222,7 +237,7 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
   const rwgpsAuth = () => { const a = store.get('rw:rwgps'); return a && a.token ? a : null; };
   const rwgpsMsg = (html, cls) => { const el = $('rwgpsAuthMsg'); if (!html) { el.className = 'posMsg hidden'; el.innerHTML = ''; return; } el.className = 'posMsg' + (cls ? ' ' + cls : ''); el.innerHTML = html; };
   function rwgpsAuthStart() {
-    if (!RWGPS_CLIENT_ID) { setStatus('Ride with GPS との連携は準備中です（client_id 未設定）', 'err'); return; }
+    if (!RWGPS_CLIENT_ID) { loadMsg('Ride with GPS との連携は準備中です（client_id 未設定）', 'err'); return; }
     const st = Math.random().toString(36).slice(2) + Date.now().toString(36);
     store.set('rw:oauthState', { st, at: Date.now(), standalone: isStandalone() });
     const u = new URL(RWGPS_API + '/oauth/authorize');
@@ -301,23 +316,26 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     host.querySelectorAll('button.item').forEach(b => b.addEventListener('click', () => rwgpsPick(b.dataset.id, b)));
   }
   async function rwgpsPick(id, btn) {
-    if (btn) btn.disabled = true; setStatus('Ride with GPS からルートを取得中…');
+    if (btn) btn.disabled = true; loadMsg('Ride with GPS からルートを取得中…');
     try {
       const course = RW.rwgps.toCourse(await rwgpsFetch(`/api/v1/routes/${encodeURIComponent(id)}.json`));
-      $('rwgpsList').classList.add('hidden'); rwgpsMsg('');
-      setCourse(course);
-    } catch (e) { setStatus('読み込みに失敗しました：' + e.message, 'err'); }
+      if (setCourse(course)) { $('rwgpsList').classList.add('hidden'); rwgpsMsg(''); } // 対象外（国外）のときは一覧を残して選び直せるように
+    } catch (e) { loadMsg('読み込みに失敗しました：' + e.message, 'err'); }
     finally { if (btn) btn.disabled = false; }
   }
+  // コースを受け付ける（ファイル・Ride with GPS・サンプル・最近のコース・反転のすべてがここを通る）。国外を通るコースは読まずに false
   function setCourse(course) {
+    if (!RW.course.inJapan(course)) { loadMsg('日本国外を通るコースは対象外です（予報は気象庁のモデルのため、日本国内専用です）', 'err'); return false; } // 表示中のコースと結果はそのまま。最近のコースにも保存しない
     state.course = course; state.series = null; state.result = null; state.offlineNote = '';
     store.del('rw:posHist'); state.lastPos = null; state.forecastStale = ''; state.startNote = ''; posMsg('', '', 'gpsMsg'); // 前のコースの「現在地 … km／再計算を解除」を残さない
     $('ancD').value = ''; $('ancT').value = ''; // 前のコースの現在地固定は持ち越さない
-    state.active = null; state.open.clear(); state.fromHere = undefined; state.rows = null; state.pinned = false; state.warnings = null; // 前のコースの区間の選択・開いた行・表の始まり・行の間の注意報を持ち越さない
+    state.active = null; state.open.clear(); state.fromHere = undefined; state.rows = null; state.pinned = false; // 前のコースの区間の選択・開いた行・表の始まりを持ち越さない
+    resetJmaInfo(); // 前のコースの注意報・アメダスを残さない（折りたたみは「取得中…」に描き直す）
     renderCourse(); store.set('rw:course', course); rememberCourse(course); closeLoad(); closePlan();
     // 古いコースの結果（地図・シート）を片付けて縦の画面に戻し、取得中の表示を見せる（予報範囲外・取得失敗と同じ消し方）
     $('results').classList.add('hidden'); $('notice0').className = 'notice hidden'; setMapMode(false); setStatus('');
     run();
+    return true;
   }
   // 最近のコース（C-8）：端末内に最大 5 件。同じコース（ハッシュ一致）は先頭に移す
   function rememberCourse(course) {
@@ -337,6 +355,7 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
   // ===== 予報取得 =====
   // 予報の取得（v2.0.5 と同じ）：25 秒で打ち切る。タイムアウト・通信エラー・サーバー側の失敗（5xx・429）は 1.5 秒おいて 1 回だけ取り直す
   const FETCH_TIMEOUT_MS = 25000;
+  const NODATA = 'この場所の予報データがありません（日本国外や遠い海上など）'; // Open-Meteo が 400「No data is available for this location」を返したとき
   const fetchErr = (msg, retry) => Object.assign(new Error(msg), { retry });
   async function fetchSeriesRaw(model, pts, pastDays) {
     const url = RW.forecast.buildUrl(pts, model, pastDays); let lastErr = null;
@@ -347,7 +366,7 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
         let res;
         try { res = await fetch(url, { signal: ctrl.signal }); }
         catch (e) { throw fetchErr(ctrl.signal.aborted ? 'タイムアウト：予報サーバーの応答がありません' : '予報サーバーに接続できませんでした', true); }
-        if (!res.ok) { let msg = 'HTTP ' + res.status; try { const j = await res.json(); if (j.reason) msg += ' ' + j.reason; } catch (e) { /* noop */ } throw fetchErr('予報サーバーのエラー：' + msg, res.status >= 500 || res.status === 429); }
+        if (!res.ok) { let msg = 'HTTP ' + res.status, reason = ''; try { const j = await res.json(); if (j.reason) { reason = String(j.reason); msg += ' ' + reason; } } catch (e) { /* noop */ } if (res.status === 400 && /No data is available/i.test(reason)) throw fetchErr(NODATA, false); throw fetchErr('予報サーバーのエラー：' + msg, res.status >= 500 || res.status === 429); } // 400「No data」は通信の問題ではない（v3.0.5）
         const series = RW.forecast.parseSeries(await res.json());
         if (series.length !== pts.length) throw fetchErr('地点数が一致しません（' + series.length + '/' + pts.length + '）', false);
         return series;
@@ -487,7 +506,8 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     state.result = null; state.planCloseReq = false;
     $('results').classList.add('hidden'); setMapMode(false);
     const el = $('notice0'); el.className = 'notice warn';
-    el.innerHTML = `<div>予報を取得できませんでした（${esc(msg)}）。通信状態を確認し、少し時間をおいてから「予報を取得する」で取り直してください。</div>`;
+    el.innerHTML = msg === NODATA ? `<div>予報を取得できませんでした。${esc(NODATA)}。</div>` // 通信の問題ではないので取り直しを勧めない
+      : `<div>予報を取得できませんでした（${esc(msg)}）。通信状態を確認し、少し時間をおいてから「予報を取得する」で取り直してください。</div>`;
     setStatus(''); // 案内はお知らせ帯に出す（同じ文を 2 か所に出さない）
   }
   function renderOutOfRange(daysAhead) {
@@ -522,6 +542,7 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     const { sm, p, trend, S } = state.result; const msgs = [];
     if (state.offlineNote) msgs.push(['warn', state.offlineNote]);
     if (state.startNote) msgs.push(['warn', state.startNote]);
+    if (state.spdNote) msgs.push(['warn', state.spdNote]);
     if (state.forecastStale) msgs.push(['warn', state.forecastStale]);
     const days = Math.max(0, Math.ceil((+p.start - Date.now()) / 86400e3));
     if (sm.nOk === 0) msgs.push(['warn', `出走まで ${days} 日。通過時刻が予報範囲（気象庁 GSM・11 日先まで）を超えています。出走が近づいてから再取得してください。`]);
@@ -529,7 +550,7 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     else if (sm.gsmFrom != null) msgs.push(['info', `${Math.round(sm.gsmFrom)} km 以降は MSM の予報期間を超えるため ${M.gsm.label}（${M.gsm.grid}）の値です。`]);
     if (sm.nOk > 0 && sm.naFrom != null) {
       const fail = naFailReason(); const head = `${Math.round(sm.naFrom)} km 以降（${F.fmtDT(S.find(s => s.na).t)}〜）`;
-      msgs.push(['warn', fail ? `${head}の予報を取得できませんでした（${fail}）。少し時間をおいてから「予報を取得する」で取り直してください。` : `${head}は予報範囲外です。`]);
+      msgs.push(['warn', fail ? `${head}の予報を取得できませんでした（${fail}）。${fail === NODATA ? '' : '少し時間をおいてから「予報を取得する」で取り直してください。'}` : `${head}は予報範囲外です。`]);
     }
     const st = staleNote(); if (st) msgs.push(['warn', st]);
     if (state.warnings && state.warnings.segs) {
@@ -629,6 +650,14 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     const px = axis.distW / Math.max(1, S.length - 1);
     const stride = minPx => Math.max(1, Math.ceil(minPx / px));
     const ok = S.filter(s => !s.na);
+    // 数値ラベル（v3.0.5）：左は行の見出しの右、右は図の端の内側に収め、同じレーンで既に描いたラベルと横に重なるものは描かない（10 px の文字幅の見積もり＋間 3 px）
+    const tw = str => [...String(str)].reduce((a, c) => a + (/[0-9.\-]/.test(c) ? 5.8 : c === 'm' ? 8.6 : c < '\u0100' ? 5 : 10), 0);
+    const placed = {};
+    const numLabel = (lane, x, y, str, fill) => {
+      const w = tw(str), cx = Math.max(L + 2 + w / 2, Math.min(W - 2 - w / 2, x)), a = cx - w / 2 - 1.5, b = cx + w / 2 + 1.5;
+      const arr = placed[lane] || (placed[lane] = []); if (arr.some(q => a < q[1] && b > q[0])) return '';
+      arr.push([a, b]); return text(cx, y, str, 'tick', 'middle', fill);
+    };
     let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="コース上の天候タイムライン">`;
     // 夜間帯（全レーンを貫く）
     let ns = null;
@@ -662,13 +691,14 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
       if (dk !== lastDay) { lastDay = dk; s += text(x + 2, lanes.time.y + 9, dk, 'tick day'); s += line(x, lanes.time.y, x, bottom, 'var(--ink-3)', 1); }
       if (hr % hStep !== 0 || x - lastX < 38) continue;
       lastX = x;
-      s += line(x, lanes.time.y + 12, x, lanes.dist.y, 'var(--line)'); s += text(x, lanes.time.y + 22, longLabel ? F.fmtH(tk.t) : F.fmtH(tk.t).slice(0, 2), 'tick', 'middle');
+      const lb = longLabel ? F.fmtH(tk.t) : F.fmtH(tk.t).slice(0, 2), hw = tw(lb) / 2; // 右端の時刻が図からはみ出して切れないよう、文字だけ内側へ寄せる（目盛りの線は動かさない）
+      s += line(x, lanes.time.y + 12, x, lanes.dist.y, 'var(--line)'); s += text(Math.min(x, W - 2 - hw), lanes.time.y + 22, lb, 'tick', 'middle');
     }
     // 現在地（走行中の再計算）
     if (p.anchor) { const x = xOf(p.anchor.d); s += line(x, top, x, bottom, 'var(--ink)', 1.5, '4 3'); s += text(x + 4, bottom - 4, '現在地 ' + F.fmtH(p.anchor.t), 'lane-label'); }
     // 距離目盛
     const dStep = [5, 10, 20, 25, 50, 100, 200].find(n => n / course.total * innerW >= 34) || 500;
-    for (let d = 0; d <= course.total + 1e-9; d += dStep) { const x = xOf(d); s += text(x, lanes.dist.y + 11, String(d), 'tick', 'middle'); s += line(x, lanes.dist.y + 13, x, bottom, 'var(--line)', 1, '2 4'); }
+    for (let d = 0; d <= course.total + 1e-9; d += dStep) { const x = xOf(d), w = tw(d); s += text(Math.max(L + 2 + w / 2, Math.min(W - 2 - w / 2, x)), lanes.dist.y + 11, String(d), 'tick', 'middle'); s += line(x, lanes.dist.y + 13, x, bottom, 'var(--line)', 1, '2 4'); } // 数字は「km」と図の右端に掛からないよう内側へ
     s += text(L - 4, lanes.dist.y + 11, 'km', 'tick', 'end');
     const lab = (k, t) => text(L - 4, lanes[k].y + lanes[k].h / 2 + 4, t, 'lane-label', 'end');
     s += lab('wind', '風');
@@ -680,7 +710,7 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
         if (pt.na || !pt.cls || i % st) return;
         const x = xOf(pt.d); const len = Math.min(26, 7 + pt.ws * 2.2);
         s += arrow(x, wy, -pt.rel - 90, len, COL[pt.cls]); // 上＝追い風、下＝向かい風
-        if (pt.ws >= 5) s += text(x, lanes.wind.y + lanes.wind.h - 2, pt.ws.toFixed(0) + 'm', 'tick', 'middle', COL[pt.cls]);
+        if (pt.ws >= 5) s += numLabel('wind', x, lanes.wind.y + lanes.wind.h - 2, pt.ws.toFixed(0) + 'm', COL[pt.cls]);
       });
     }
     // 雨レーン：降水量の棒（降水確率は気象庁モデルでは提供されないため非表示）
@@ -692,13 +722,13 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
         const x = axis.xOfSleep({ d: r.d, t: r.t }); const h = Math.max(1, r.mm / mmMax * (rh - 12));
         const w = bw; // 走行中の棒と同じ幅（刻みも同じ時間間隔）
         s += rect(x - w / 2, ry + rh - h, w, h, 'var(--rain)', r.mm >= RAIN_MM ? 1 : .45);
-        if (r.mm >= 1) s += text(x, ry + rh - h - 3, r.mm.toFixed(r.mm >= 10 ? 0 : 1), 'tick', 'middle', 'var(--rain)');
+        if (r.mm >= 1) s += numLabel('rain', x, ry + rh - h - 3, r.mm.toFixed(r.mm >= 10 ? 0 : 1), 'var(--rain)');
       }
       S.forEach((pt, i) => {
         if (pt.na || !(pt.mm > 0)) return;
         const x = xOf(pt.d); const h = Math.max(1, pt.mm / mmMax * (rh - 12));
         s += rect(x - bw / 2, ry + rh - h, bw, h, 'var(--rain)', pt.mm >= RAIN_MM ? 1 : .45);
-        if (pt.mm >= 1 && i % st === 0) s += text(x, ry + rh - h - 3, pt.mm.toFixed(pt.mm >= 10 ? 0 : 1), 'tick', 'middle', 'var(--rain)');
+        if (pt.mm >= 1 && i % st === 0) s += numLabel('rain', x, ry + rh - h - 3, pt.mm.toFixed(pt.mm >= 10 ? 0 : 1), 'var(--rain)');
       });
       s += line(L, ry + rh, L + innerW, ry + rh, 'var(--line)');
     }
@@ -707,7 +737,7 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
       const temps = ok.map(x => x.temp); const tmin = Math.min(...temps) - 2, tmax = Math.max(...temps) + 2;
       const ty = v => lanes.temp.y + lanes.temp.h - 4 - (v - tmin) / (tmax - tmin) * (lanes.temp.h - 12);
       s += `<polyline fill="none" stroke="var(--ink)" stroke-width="1.5" points="${ok.map(x => xOf(x.d).toFixed(1) + ',' + ty(x.temp).toFixed(1)).join(' ')}"/>`;
-      const st = stride(30); ok.forEach((pt, i) => { if (i % st === 0) s += text(xOf(pt.d), ty(pt.temp) - 4, pt.temp.toFixed(0) + '°', 'tick', 'middle'); });
+      const st = stride(30); ok.forEach((pt, i) => { if (i % st === 0) s += numLabel('temp', xOf(pt.d), ty(pt.temp) - 4, pt.temp.toFixed(0) + '°', null); });
     }
     // 標高レーン
     if (course.hasEle) {
@@ -803,14 +833,17 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
   // 地図や帯から選んだ地点が「現在地から」の表より手前なら、「スタートから」に切り替えてから行を探す
   function rowFor(d) { const a = state.result && state.result.p.anchor; if (a && state.fromHere !== false && d < a.d) { state.fromHere = false; renderRows(); } return rowOf(d); }
   const ARW = 'M0-8.5 5.6-1H1.8V8.5H-1.8V-1H-5.6Z';
-  const placeAt = d => { const w = state.warnings; const sg = w && w.segs && w.segs.find(x => d >= x.from && d < x.to); return sg && sg.status !== 'unknown' ? sg.name : null; };
+  const placeAt = d => { const w = state.warnings; const sg = w && w.segs && w.segs.find(x => d >= x.from && d < x.to); return sg ? sg.name : null; }; // 判定できない区間は注意報の表と同じ「海上・判定不能」（v3.0.5）
   function rowDetail(r) {
     const m = r.mid; if (!m || r.na) return '';
     const P = state.course.pts.filter(q => q.d >= r.from && q.d <= r.to && q.ele != null); const eles = P.map(q => q.ele);
     const items = [];
     const place = placeAt((r.from + r.to) / 2); if (place) items.push(['場所', esc(place)]);
     items.push(['天気', `${esc(RW.forecast.wmoText(m.code))}　湿度 ${nv(m.rh, 0)}%${m.sun != null ? '　日照 ' + Math.round(m.sun / 36) + '%' : ''}`]);
-    if (r.cls) items.push(['風', `${r.wd != null ? RW.wind.dir16(r.wd) + 'の風 ' : ''}最大 ${n1(r.ws)} m/s（<b style="color:${COL[r.cls]}">${REL[r.cls]}風</b> ${n1(r.headKm)} km）`]);
+    if (r.cls) { // 分類別の距離を 0 より大きいものだけ「向かい → 横 → 追い」の順に（v3.0.5。以前は語が最も長い分類で数字が向かい風の距離だった）
+      const kms = ['head', 'cross', 'tail'].filter(c => r.relKm[c] > 0).map(c => `<b style="color:${COL[c]}">${REL[c]}風</b> ${n1(r.relKm[c])} km`).join('・');
+      items.push(['風', `${r.wd != null ? RW.wind.dir16(r.wd) + 'の風 ' : ''}最大 ${n1(r.ws)} m/s${kms ? '（' + kms + '）' : ''}`]);
+    }
     items.push(['気温', `${n1(r.tmin)}〜${n1(r.tmax)}℃${m.feel != null ? '　体感 ' + n1(m.feel) + '℃' : ''}`]);
     if (eles.length) items.push(['標高', `${Math.round(Math.min(...eles))}〜${Math.round(Math.max(...eles))} m`]);
     if (r.models.includes('gsm')) items.push(['予報', `${M.gsm.label}（${M.gsm.grid}）`]);
@@ -1239,10 +1272,20 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     const city = muni.slice(0, 3) + '0000'; if (idx.c20[city]) return [city];
     return Object.keys(idx.c20).filter(k => k.startsWith(muni));
   }
+  // 取得中の表示：前のコースや前回の結果を残さず、折りたたみの中身と見出し横の要約を「取得中…」にする（v3.0.5）
+  function foldLoading(wrap, table, cols, note, sum) {
+    $(wrap).classList.remove('hidden'); $(table).querySelector('tbody').innerHTML = `<tr><td colspan="${cols}">取得中…</td></tr>`; $(note).textContent = ''; $(sum).textContent = '取得中…';
+  }
+  // コースを替えたとき・「予報を取得する」で取り直すとき：注意報・アメダスの保持分を捨て、表示を取得中に描き直す（圏外で取りに行かないときは renderAll が隠す）
+  function resetJmaInfo() {
+    state.warnings = null; state.amedas = null;
+    foldLoading('warnWrap', 'warnTable', 3, 'warnNote', 'warnSum'); foldLoading('amedasWrap', 'amedasTable', 7, 'amedasNote', 'amedasSum');
+  }
   async function loadWarnings() {
     if (!state.result || !state.course) return;
     const { S, step } = state.result; const hash = RW.course.hashCourse(state.course);
     if (state.warnings && state.warnings.hash === hash && Date.now() - state.warnings.at < 10 * 60e3) { renderWarnings(); return; }
+    if (!state.warnings || state.warnings.hash !== hash) { state.warnings = null; foldLoading('warnWrap', 'warnTable', 3, 'warnNote', 'warnSum'); } // 別のコースの結果は取得中の表示に（同じコースの更新は前回分を出したまま）
     const stride = Math.max(1, Math.ceil(15 / step));
     const pts = S.filter((x, i) => i % stride === 0 || i === S.length - 1);
     try {
@@ -1268,7 +1311,7 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
         for (const code of sg.codes) for (const w of (rep.areas[code] || [])) { if (!sg.warnings.some(x => x.code === w.code)) sg.warnings.push(w); }
       }
       state.warnings = { hash, at: Date.now(), segs, offices: offices.map(o => idx.offices[o] || o), failed: offices.filter(o => !reports[o]).length, total: offices.length };
-    } catch (e) { state.warnings = { hash, at: Date.now(), segs: [], error: e.message }; }
+    } catch (e) { if (!state.course || RW.course.hashCourse(state.course) !== hash) return; state.warnings = { hash, at: Date.now(), segs: [], error: e.message }; } // 取得中にコースが変わったら古い失敗で上書きしない
     renderWarnings();
   }
   function renderWarnings() {
@@ -1304,6 +1347,7 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     if (!state.result || !state.course) return;
     const { p } = state.result; const hash = RW.course.hashCourse(state.course) + ':' + (p.anchor ? Math.round(p.anchor.d) : 0);
     if (state.amedas && state.amedas.hash === hash && Date.now() - state.amedas.at < 10 * 60e3) { renderAmedas(); return; }
+    if (!state.amedas || state.amedas.hash !== hash) { state.amedas = null; foldLoading('amedasWrap', 'amedasTable', 7, 'amedasNote', 'amedasSum'); }
     try {
       const latest = (await (await fetch(JMA + 'amedas/data/latest_time.txt')).text()).trim();
       const x = F.jstParts(Date.parse(latest)); const bucket = `${x.y}${p2(x.mo)}${p2(x.d)}_${p2(Math.floor(x.h / 3) * 3)}`;
@@ -1322,7 +1366,7 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
       }));
       if (!state.course || RW.course.hashCourse(state.course) + ':' + (p.anchor ? Math.round(p.anchor.d) : 0) !== hash) return; // 取得中にコースが変わった
       state.amedas = { hash, at: Date.now(), latest, rows };
-    } catch (e) { state.amedas = { hash, at: Date.now(), rows: [], error: e.message }; }
+    } catch (e) { if (!state.course || RW.course.hashCourse(state.course) + ':' + (p.anchor ? Math.round(p.anchor.d) : 0) !== hash) return; state.amedas = { hash, at: Date.now(), rows: [], error: e.message }; }
     renderAmedas();
   }
   function renderAmedas() {
@@ -1493,11 +1537,12 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
   const R4 = '位置情報の利用が許可されていません。iPhone の 設定 → プライバシーとセキュリティ → 位置情報サービス → Safari で許可してください';
   const R5 = '位置を取得できませんでした。空が開けた場所で再度お試しください';
   // 位置取得に失敗したときだけ出す、現在キロ数の手入力欄（v1.1.1：設定欄の P-5 入力は非表示にした）
-  const manualForm = '<div class="manual"><span class="lbl">代わりに現在のキロ数を入力して再計算できます</span><input type="number" class="manualKm" inputmode="decimal" min="0" step="0.1" placeholder="現在 km" aria-label="現在のキロ数"><button type="button" class="btn small manualGo">再計算</button></div>';
+  const manualForm = '<div class="manual"><span class="lbl">代わりに現在のキロ数を入力して再計算できます</span><input type="number" class="manualKm" inputmode="decimal" min="0" step="0.1" placeholder="現在 km" aria-label="現在のキロ数"><button type="button" class="btn small manualGo">再計算</button><span class="lbl manualErr" role="alert" hidden></span></div>';
   function bindManual(scope) {
     scope.querySelectorAll('.clearAnchor').forEach(x => x.addEventListener('click', e => { e.preventDefault(); clearAnchor(); }));
     const btn = scope.querySelector('.manualGo'), inp = scope.querySelector('.manualKm'); if (!btn || !inp) return;
-    const go = () => { const km = +inp.value; if (!inp.value || !(km >= 0) || km > state.course.total) { inp.focus(); return; } commitManual(km); };
+    const err = scope.querySelector('.manualErr');
+    const go = () => { const km = +inp.value; if (!inp.value || !(km >= 0) || km > state.course.total) { if (err) { err.textContent = `0〜${n1(state.course.total)} km の範囲で入力してください`; err.hidden = false; } inp.focus(); return; } if (err) err.hidden = true; commitManual(km); }; // 空・負・全長超は欄のそばで知らせる（v3.0.5）
     btn.addEventListener('click', go); inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
   }
   function clearAnchor() {
@@ -1515,19 +1560,9 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     setTimeout(renderPosStatus, 3000);
   }
 
-  // R-12〜R-14：NICT の時刻。3 秒で諦めて端末時計にする（2026-09-07 時点で NICT の JSON は 404 のため実質フォールバック）
-  async function serverTime() {
-    const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 3000); const t0 = Date.now();
-    try {
-      const r = await fetch('https://ntp-a1.nict.go.jp/cgi-bin/json', { signal: ctrl.signal, cache: 'no-store' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const j = await r.json(); const t1 = Date.now();
-      if (!j || typeof j.st !== 'number') throw new Error('bad json');
-      const st = j.st * 1000 + (t1 - t0) / 2;
-      return { t: st, source: 'nict', skew: st - t1 };
-    } catch (e) { return { t: Date.now(), source: 'device', skew: 0 }; }
-    finally { clearTimeout(timer); }
-  }
+  // R-12〜R-14：時刻は端末時計。v3.0.5（2026-11-27）で NICT への問い合わせをやめた（2026-09-07 から 404 で CORS ヘッダも無く、常に失敗して端末時計に落ちていたため）。
+  // NICT が CORS 付きで再開したら、ここで fetch して { t, source: 'nict', skew } を返す形に戻せる（docs/ADD_01.md）
+  async function serverTime() { return { t: Date.now(), source: 'device', skew: 0 }; }
   // R-1〜R-2：getCurrentPosition を 1 回だけ
   function getPosition() {
     return new Promise((res, rej) => {
@@ -1590,10 +1625,8 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     const parts = [`現在地 ${Math.round(lp.d)} km`, manual ? `${F.fmtH(lp.t)} 手入力` : `${F.fmtH(lp.t)} 取得`];
     if (!manual) parts.push(`GPS 精度 ±${Math.round(lp.acc)} m`);
     const run = state.series && state.series.runs && state.series.runs.msm; if (run) parts.push(`予報 ${F.fmtH(run)} 発表`);
-    if (!lp.clock || lp.clock.source !== 'nict') parts.push('端末時計');
     let html = parts.join(' ・ '); let cls = '';
     if (!manual && lp.acc > 500) { html += `<br>GPS 精度が ±${Math.round(lp.acc)} m と低いため、位置がずれている可能性があります`; cls = 'warn'; }
-    if (lp.clock && lp.clock.source === 'nict' && Math.abs(lp.clock.skew) > 60e3) html += `<br>端末の時計が ${Math.round(Math.abs(lp.clock.skew) / 1000)} 秒ずれています`;
     if (lp.posT && Math.abs(lp.t - lp.posT) > 30e3) html += `<br>位置は ${Math.round(Math.abs(lp.t - lp.posT) / 1000)} 秒前のものです`;
     if (state.forecastStale) { html += '<br>' + esc(state.forecastStale); cls = 'warn'; }
     const near = p.sleeps.find(x => x.d >= lp.d && x.d - lp.d <= 2); // R-17：±2 km 先の仮眠は確認（既定は「する」）
@@ -1628,12 +1661,15 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
   }
   function setSheet(st) {
     state.sheet = st; const sh = $('sheet'); sh.dataset.state = st;
+    if (st !== 'peek' && !isWide()) closeHelp('helpMap'); // 凡例の「地図の読み方」は上げたシートに覆われるので閉じる（v3.0.5）
     document.documentElement.classList.toggle('sheetFull', st === 'full');
     if (st !== 'full') $('sheetBody').scrollTop = 0; // 下げた状態と半分は中身を先頭から見せる
     sheetLayout(); drawSelection();
     if (state.active != null) setTimeout(() => { if (state.active != null) focusRow(state.active); }, 300); // 選んだ区間があれば（下げた状態でも）その区間へ寄せる
     else if (st === 'peek') setTimeout(fitCourse, 300);
   }
+  // ⓘ の説明を閉じる（開閉は button.info の aria-controls と .help の hidden、aria-expanded）
+  function closeHelp(id) { const el = $(id); if (!el || el.hidden) return; el.hidden = true; document.querySelectorAll(`button.info[aria-controls="${id}"]`).forEach(b => b.setAttribute('aria-expanded', 'false')); }
   function sheetLayout() { if (!isMap()) return false; const v = sheetH(state.sheet) + 'px', rs = document.documentElement.style; if (rs.getPropertyValue('--sheet-h') === v) return false; rs.setProperty('--sheet-h', v); return true; } // 同じ値なら書き換えない（書き換えたら true）
   // シートの中身があとから増減したら（お知らせの追加・位置情報の案内・要点の詳細など）高さを測り直す。#results の高さはシートの高さに左右されないので回り続けない。指で引いている間は呼ばない
   try { if (typeof ResizeObserver === 'function') { let ft = 0; new ResizeObserver(() => { if (!isMap() || $('sheet').classList.contains('drag')) return; if (sheetLayout() && state.active != null) { clearTimeout(ft); ft = setTimeout(() => { if (state.active != null) focusRow(state.active); }, 300); } }).observe($('results')); } } catch (e) { /* 未対応の環境では何もしない */ } // 高さが変わったら、選んだ区間を見えている範囲に寄せ直す
@@ -1700,7 +1736,13 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
   // ヘッダーのメニュー（v2 段階 3）：表示モード・現在位置から再取得（走行時間帯以外）・コース削除・このサイトについて
   const menu = $('menu'), menuBtn = $('menuBtn');
   const setMenu = open => { menu.hidden = !open; menuBtn.setAttribute('aria-expanded', String(open)); };
-  menuBtn.addEventListener('click', e => { e.stopPropagation(); setMenu(menu.hidden); });
+  // 「コース削除」は消すもの（表示中のコース・最近のコース・予報の保存分・連携のトークン）が無ければ押せなくする。メニューを開くたびに合わせる（v3.0.5）
+  function syncClearData() {
+    let has = !!state.course || ['rw:course', 'rw:last', 'rw:courses', 'rw:rwgps', 'rw:oauthState'].some(k => { const v = store.get(k); return Array.isArray(v) ? v.length > 0 : v != null; });
+    if (!has) try { has = Object.keys(localStorage).some(k => k.startsWith('rw:fc')); } catch (e) { /* noop */ }
+    $('clearData').disabled = !has;
+  }
+  menuBtn.addEventListener('click', e => { e.stopPropagation(); if (menu.hidden) syncClearData(); setMenu(menu.hidden); });
   document.addEventListener('click', e => { if (!menu.hidden && !e.target.closest('#menu')) setMenu(false); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (!menu.hidden) { setMenu(false); menuBtn.focus(); } else if ($('loadBox').classList.contains('open')) closeLoad(); else if ($('settings').classList.contains('open')) closePlan(); } });
   menu.querySelectorAll('[data-theme-set]').forEach(b => b.addEventListener('click', () => {
@@ -1744,9 +1786,9 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
   const C_META_DEFAULT = $('cMeta').innerHTML; // サンプルリンク入りの初期表示（コース削除時に戻す）
   $('cMeta').addEventListener('click', async e => { // サンプルリンクは再描画されるので親で受ける
     const a = e.target.closest('#sampleLink'); if (!a) return;
-    e.preventDefault(); setStatus('サンプルを読み込み中…');
+    e.preventDefault(); loadMsg('サンプルを読み込み中…');
     try { const r = await fetch(a.getAttribute('href')); if (!r.ok) throw new Error('HTTP ' + r.status); setCourse(parseGPX(await r.text(), 'サンプルコース')); }
-    catch (err) { setStatus('サンプルを読み込めませんでした：' + err.message, 'err'); }
+    catch (err) { loadMsg('サンプルを読み込めませんでした：' + err.message, 'err'); }
   });
   // コース削除：読み込んだコース・最近のコース・予報キャッシュ・注意報／アメダスの保持分を端末から消す（設定値は残す）
   $('clearData').addEventListener('click', () => {
@@ -1781,7 +1823,7 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     if (state.startNote && state.startNote.startsWith('出走日時を変更')) state.startNote = '';
     onParamChange();
   }));
-  $('run').addEventListener('click', () => { state.warnings = null; state.amedas = null; state.planCloseReq = true; run({ force: true }); }); // 成功したら走行計画のシートを閉じる（入力欄の変更などで走る取得では閉じない）
+  $('run').addEventListener('click', () => { enforceStart(); enforceSpd(); resetJmaInfo(); state.planCloseReq = true; run({ force: true }); }); // 入力欄の change が来ていなくても、範囲外を直し古い案内を消してから取る（v3.0.5） // 成功したら走行計画のシートを閉じる（入力欄の変更などで走る取得では閉じない）
   let rt = null;
   window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.result) { renderRibbon(); sheetLayout(); renderMap(); if (isWide()) fitCourse(); else if (state.sheet === 'peek') { if (state.active != null) focusRow(state.active); else fitCourse(); } } }, 150); }); // 下げた状態で区間を選んでいるときは、その区間に寄せ直す
   window.addEventListener('online', () => { if (state.course && state.offlineNote) run(); });
@@ -1802,7 +1844,7 @@ import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新�
     const rl = q.get('relay'); if (rl && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(rl)) state.relay = rl; // 中継のローカル確認用（localhost のみ）
     const ra = q.get('rwgpsapi'); if (ra && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(ra)) state.rwgpsApi = ra; // RwGPS API のモック（localhost のみ）
   } catch (e) { /* noop */ }
-  loadParams(); renderRecent();
+  loadParams(); enforceSpd(); renderRecent(); // 以前の版で保存した範囲外の速度も欄の値ごと直す
   renderRwgpsAuth();
   const last = store.get('rw:last');
   const savedCourse = (last && last.course) || store.get('rw:course');

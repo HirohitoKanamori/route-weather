@@ -185,3 +185,19 @@ test('tableRows：fromD から始める（現在地から）。最初の行は�
   assert.deepEqual(rows.map(r => [r.from, r.to]), [[16, 20], [20, 30]]);
   assert.deepEqual(RW.forecast.tableRows(S, 30, 10, p).map(r => r.from), [0, 10, 20]);
 });
+
+test('tableRows：分類別の距離（relKm）の合計は行の予報のある長さに合う（v3.0.5：詳細の「風」）', () => {
+  const p = { start: new Date(T0), spd: 20, sleeps: [], segments: [], anchor: null };
+  const cl = ['head', 'cross', 'tail', 'cross', 'tail', 'head', 'tail', 'cross'];
+  const S = [0, 3.3, 7.1, 9.4, 12.8, 16.2, 19.9, 23.5].map((d, i) => ({ d, t: new Date(T0 + d / 20 * 3600e3), na: d >= 20, night: false, model: 'msm', cls: cl[i], rel: 0, ws: 3, wd: 0, mm: 0, temp: 15 }));
+  S.push({ d: 27, t: new Date(T0), na: true, model: 'msm' });
+  const rows = RW.forecast.tableRows(S, 27, 10, p);
+  const okLen = r => { let s = 0; for (let i = 0; i < S.length - 1; i++) if (!S[i].na) s += Math.max(0, Math.min(S[i + 1].d, r.to) - Math.max(S[i].d, r.from)); return s; };
+  for (const r of rows) {
+    const sum = r.relKm.head + r.relKm.cross + r.relKm.tail;
+    assert.ok(Math.abs(sum - okLen(r)) < 0.15 + 1e-9, `${r.from}〜${r.to} km：${sum} / ${okLen(r)}`); // 0.1 km 丸めの誤差まで
+    assert.equal(r.relKm.head, r.headKm);
+  }
+  assert.ok(Math.abs(rows[0].relKm.cross - (3.8 + 0.6)) < 0.11, '0〜10 km の横風は 3.3〜7.1 と 9.4〜10');
+  assert.equal(rows[2].relKm.tail, 3.5, '20〜27 km は 19.9 km のサンプル（追い風）が 23.5 km まで、その先は範囲外で数えない'); assert.equal(rows[2].relKm.head + rows[2].relKm.cross, 0);
+});
