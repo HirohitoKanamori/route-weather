@@ -9,8 +9,8 @@ routes = [
 ]
 
 [vars]
-# 許可する呼び出し元（カンマ区切り）。ローカル確認時は http://localhost:8766 を足す
-ALLOWED_ORIGINS = "https://route-weather.jp,https://hirohitokanamori.github.io"
+# 許可する呼び出し元（カンマ区切り）。ローカル確認時は http://localhost:8766 を足す。beta.route-weather.jp は v3 の確認用（2026-11-06）
+ALLOWED_ORIGINS = "https://route-weather.jp,https://hirohitokanamori.github.io,https://beta.route-weather.jp"
 # OAuth（Stage 2）。client_id は公開値、redirect_uri は API クライアントに登録した値と一致させる
 RWGPS_CLIENT_ID = "utYdUEU0XPHVePXnKqqhDc7Aw_yxD4AK4hoif9SQTgA"
 OAUTH_REDIRECT_URI = "https://route-weather.jp/"

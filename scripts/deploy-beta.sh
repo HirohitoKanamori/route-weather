@@ -6,7 +6,8 @@ cd "$(dirname "$0")/.."
 if [ "$(git rev-parse --abbrev-ref HEAD)" != "v3" ]; then echo "ブランチ v3 で実行してください"; exit 1; fi
 out=$(mktemp -d)
 mkdir "$out/site"
-git archive HEAD index.html about.html js vendor icons logo samples sw.js manifest.webmanifest _headers | tar -x -C "$out/site"
+git archive HEAD index.html about.html js vendor icons logo samples sw.js manifest.webmanifest | tar -x -C "$out/site"
+git show HEAD:beta/_headers > "$out/site/_headers" # 検索避け（noindex）は beta だけに付ける。サイトの直下には置かない（main に入っても正規 URL に効かせないため）
 cp beta/wrangler.jsonc "$out/"
 source ~/.nvm/nvm.sh >/dev/null 2>&1 || true
 (cd "$out" && npx wrangler deploy --message "$(git -C "$OLDPWD" log -1 --format='%h %s')")

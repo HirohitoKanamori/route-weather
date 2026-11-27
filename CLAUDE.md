@@ -7,7 +7,7 @@
 
 フェーズ1 は 2026-09-05 に完了・公開済み（https://route-weather.jp/）。v2.0.0（2026-09-27）で Beta を終了し UI を整理した（`docs/UI_V2.md`）。
 v3.0.0（2026-11-05）で、地図を画面いっぱいに敷き、下から引き出すシート（PC は左の欄）に要点と区間表を置く画面に変えた（`docs/UI_V3.md`。タイムライン概要と地図の全画面表示は外した：利用者判断）。
-2026-11-06：v3 は見やすさの点で不評のため正規 URL（`main`）は v2.0.4 に戻し、v3 はこのブランチ `v3` で煮詰める。確認用に https://beta.route-weather.jp（Cloudflare Workers の静的アセットだけの「route-weather-beta」。設定は `beta/wrangler.jsonc`、`scripts/deploy-beta.sh` で手元から配置。`_headers` で検索避け）に置く。完成したら改めて `main` に入れて正規 URL で公開する。Ride with GPS の OAuth は戻り先が正規 URL 固定のため beta では使えない（URL 貼り付けは中継の許可リストに beta を足して使える）
+2026-11-06：v3 は見やすさの点で不評のため正規 URL（`main`）は v2.0.4 に戻し、v3 はこのブランチ `v3` で煮詰める。確認用に https://beta.route-weather.jp（Cloudflare Workers の静的アセットだけの「route-weather-beta」。設定は `beta/wrangler.jsonc`、`scripts/deploy-beta.sh` で手元から配置。`beta/_headers` で検索避け（配置のときだけサイトの直下に写す。`main` に入っても正規 URL には効かせないため））に置く。完成したら改めて `main` に入れて正規 URL で公開する。Ride with GPS の OAuth は戻り先が正規 URL 固定のため beta では使えない（URL 貼り付けは中継の許可リストに beta を足して使える）
 フェーズ2（`docs/RDD_06.md` §8）を実装中。実装済み：区間別速度（P-4）、走行中の再計算（P-5）、コース反転（C-7）、最近のコース（C-8）、
 注意報・警報の区間紐付け（V-7）、体感温度・湿度・日照（V-8）、画像共有（V-9）、ダークモード（V-10）、アメダス実況、PWA、OSM タイルの静的地図。
 V-6 本地図は Leaflet で実装済み（2026-09-05 に利用者が許可）。Android 実機確認済み。キューシート変換ツール連携（C-9）はツール未作成のため対象外。
@@ -28,6 +28,18 @@ V-6 本地図は Leaflet で実装済み（2026-09-05 に利用者が許可）�
 - 出典表示（気象庁 数値予報 — Open-Meteo 経由）を常時表示する（フッターの 1 行。地図上は OSM の出典）
 - UI の文言は日本語。コード内コメントも日本語で可
 - 出走日時は 4 日前の 0:00（JST）以降のみ受け付け（`RW.const.START_BACK_DAYS`）、初期値は現在より先の最も近い 06:00（v1.1.2、`RW.fmt.minStart` / `nextStart`）。1200 km・90 時間の走行中でも実際の出走時刻を入れられるようにするため。予報の取得は過去 5 日分まで（`PAST_DAYS_MAX`）
+
+## v3 を正規 URL で公開するときの手順
+
+2026-11-27 に、`main` を v3 に「中身は v3 のまま」取り込んである（`git merge -s ours main`。`main` の「v2.0.4 に戻す」346dfae を v3 に反映させずに履歴だけつなぐため）。これで公開は `main` を v3 まで早送りするだけで済む。v3 を `main` に普通にマージしたり、取り消しの取り消し（revert の revert）をしたりしない。
+
+- 公開までに `main` を直したら（v2 系の修正など）、その都度 v3 で `git merge main` する。v2 の画面に対する修正は衝突するので、v3 の実装に手で入れ直す
+- 公開するとき（利用者の指示があってから）：
+  1. v3 で版を上げる（フッターの `#appVersion`・`index.html` の `js/app.js?v=`・`js/app.js` 先頭の `./core.js?v=`）。`sw.js` の VERSION も上げる（2026-11-05 に v3.0.0／v3.0.1 を開いた端末に、同じ `rw-v11` の古い本体が残っている場合があるため）
+  2. 本書の「今やっていること」と `README.md` の冒頭を「正規 URL は v3 系」に書き換える。テストを通し、beta で実機確認
+  3. `git checkout main && git merge --ff-only v3`。早送りできないと言われたら前提が崩れている（`main` に未取り込みのコミットがある）ので、無理に進めず v3 で `git merge main` からやり直す
+  4. `git push origin main` → Actions の完了を待つ → 正規 URL で版と動作を確認 → `git tag`
+- 公開後：beta を残すなら `scripts/deploy-beta.sh` の「ブランチ v3 で実行」の条件を見直す。やめるなら Worker「route-weather-beta」を消し、`worker/wrangler.toml` の `ALLOWED_ORIGINS` から beta を外して中継を配置し直す（どちらも利用者に確認してから）
 
 ## DNS
 
