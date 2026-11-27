@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=3.0.4'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -127,7 +127,7 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
     $('pillPlan').textContent = [`${F.fmtDT(p.start)} 出走`, `${p.spd} km/h`, p.sleeps.length ? `仮眠 ${p.sleeps.length} 回・${sleepMin} 分` : '仮眠なし', p.segments.length ? `区間速度 ${p.segments.length}` : '', p.anchor ? `現在地 ${Math.round(p.anchor.d)} km` : ''].filter(Boolean).join('　');
   }
   function setStatus(msg, cls) {
-    for (const id of ['status', 'loadStatus', 'sheetStatus']) { const el = $(id); el.textContent = id === 'loadStatus' && !$('loadBox').classList.contains('open') ? '' : (msg || ''); el.className = 'status' + (cls ? ' ' + cls : ''); }
+    for (const id of ['status', 'loadStatus', 'sheetStatus', 'planStatus']) { const el = $(id); el.textContent = id === 'loadStatus' && !$('loadBox').classList.contains('open') ? '' : (msg || ''); el.className = 'status' + (cls ? ' ' + cls : ''); }
   }
   function renderCourse() {
     const c = state.course;
@@ -311,9 +311,12 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
   }
   function setCourse(course) {
     state.course = course; state.series = null; state.result = null; state.offlineNote = '';
-    store.del('rw:posHist'); state.lastPos = null; state.forecastStale = ''; state.startNote = ''; if ($('posMsg')) { posMsg(''); posMsg('', '', 'gpsMsg'); }
+    store.del('rw:posHist'); state.lastPos = null; state.forecastStale = ''; state.startNote = ''; posMsg('', '', 'gpsMsg'); // 前のコースの「現在地 … km／再計算を解除」を残さない
     $('ancD').value = ''; $('ancT').value = ''; // 前のコースの現在地固定は持ち越さない
-    renderCourse(); store.set('rw:course', course); rememberCourse(course); closeLoad(); closePlan(); setStatus('');
+    state.active = null; state.open.clear(); state.fromHere = undefined; state.rows = null; state.pinned = false; state.warnings = null; // 前のコースの区間の選択・開いた行・表の始まり・行の間の注意報を持ち越さない
+    renderCourse(); store.set('rw:course', course); rememberCourse(course); closeLoad(); closePlan();
+    // 古いコースの結果（地図・シート）を片付けて縦の画面に戻し、取得中の表示を見せる（予報範囲外・取得失敗と同じ消し方）
+    $('results').classList.add('hidden'); $('notice0').className = 'notice hidden'; setMapMode(false); setStatus('');
     run();
   }
   // 最近のコース（C-8）：端末内に最大 5 件。同じコース（ハッシュ一致）は先頭に移す
@@ -400,10 +403,10 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
   }
   async function run(opts) {
     const force = !!(opts && opts.force);
-    if (!state.course) { setStatus('先にコースを読み込んでください', 'err'); return; }
+    if (!state.course) { state.planCloseReq = false; setStatus('先にコースを読み込んでください', 'err'); return; }
     const seq = (state.runSeq = (state.runSeq || 0) + 1); // 取得中に設定・コースが変わったら、古い応答を捨てて最後の設定で取り直す
     const p = params();
-    if (isNaN(+p.start)) { setStatus('出走日時を入力してください', 'err'); return; }
+    if (isNaN(+p.start)) { state.planCloseReq = false; setStatus('出走日時を入力してください', 'err'); return; }
     saveParams(); updateSumLine(p);
     const now = Date.now();
     const daysAhead = (+p.start - now) / 86400e3;
@@ -467,6 +470,7 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
     state.result = { S, step, sm, p, trend };
     updateSumLine(p); // 上の札に現在地の再計算を反映
     renderAll();
+    if (state.planCloseReq) { state.planCloseReq = false; closePlan(); } // 「予報を取得する」から始めた取得が結果を描いたら、走行計画のシートを閉じて結果を見せる
   }
 
   // ===== 描画 =====
@@ -480,13 +484,14 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
   const naLabel = () => naFailReason() ? '予報を取得できませんでした' : '予報範囲外';
   // 予報を取得できず、出せる予報も無いとき：地図の画面を閉じ、範囲外ではなく取得の失敗としてお知らせ帯で案内する
   function renderFetchError(msg) {
-    state.result = null;
+    state.result = null; state.planCloseReq = false;
     $('results').classList.add('hidden'); setMapMode(false);
     const el = $('notice0'); el.className = 'notice warn';
     el.innerHTML = `<div>予報を取得できませんでした（${esc(msg)}）。通信状態を確認し、少し時間をおいてから「予報を取得する」で取り直してください。</div>`;
     setStatus(''); // 案内はお知らせ帯に出す（同じ文を 2 か所に出さない）
   }
   function renderOutOfRange(daysAhead) {
+    state.planCloseReq = false;
     $('results').classList.add('hidden'); setMapMode(false);
     const el = $('notice0'); el.className = 'notice warn';
     el.innerHTML = `<div>出走まで ${Math.ceil(daysAhead)} 日。予報は 11 日前（気象庁 GSM の予報期間）から表示できます。</div>`;
@@ -581,6 +586,7 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
   // コース全体の帯（v3）：標高の断面を相対風の色で塗り（v2 のタイムライン概要と同じ）、その下に夜間の線と雨の棒。仮眠・現在地の印。押すとその区間へ
   // v3.0.1-2：区間表の左端にあった標高をやめ、ここに標高を戻した（利用者判断）
   function renderStrip() {
+    if (!state.result) return; // コースを替えた直後（結果が無い間）は描かない
     const host = $('strip'); const { S, p } = state.result; const course = state.course, total = course.total;
     const W = 360, top = 14, eleH = 30, eleB = top + eleH, nightY = eleB + 1.5, rainTop = eleB + 6, base = rainTop + 16, H = base + 14;
     const x = d => d / total * W; state.stripW = W;
@@ -811,6 +817,7 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
     return `<div class="det">${items.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('')}</div>`;
   }
   function renderRows() {
+    if (!state.result) return; // コースを替えた直後（結果が無い間）は描かない
     const { S, p, trend } = state.result; const size = rowSize();
     const here = !!p.anchor && state.fromHere !== false; // 走行中の再計算をしているときは「現在地から」を既定にする
     const rows = state.rows = RW.forecast.tableRows(S, state.course.total, size, p, here ? p.anchor.d : 0);
@@ -865,15 +872,21 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
     return out;
   }
   // 行・地図の矢印・全体の帯から区間を選ぶ。地図はその区間に寄せ、表はその行を見せる
+  // v3.0.4：スマホではシートの段階を変えない（下げた状態のまま地図に縁取りと値の札を出す）
   function selectRow(k, opt = {}) {
+    if (!state.result) return; // コースを替えた直後（結果が無い間）は何もしない
     state.active = k;
     if (opt.toggle) { if (state.open.has(k)) state.open.delete(k); else state.open.add(k); } else if (opt.open) state.open.add(k);
-    const wasPeek = state.sheet === 'peek' && !isWide();
     const st = $('sheetBody').scrollTop; renderRows(); renderStrip(); $('sheetBody').scrollTop = st;
-    if (!opt.keepTip && state.result) renderRibbon(); // 図の吹き出しは、図を押して選んだときだけ残す
-    if (wasPeek) setSheet('half');
+    if (!opt.keepTip) renderRibbon(); // 図の吹き出しは、図を押して選んだときだけ残す
     if (opt.scroll && (isWide() || state.sheet === 'full')) requestAnimationFrame(() => scrollToRow(k));
     focusRow(k);
+  }
+  // 選択を解除する（地図の札を押したとき）：縁取り・札・区間表と全体の帯の選択表示を消し、地図はコース全体に戻す
+  function clearSelection() {
+    state.active = null;
+    const st = $('sheetBody').scrollTop; renderRows(); renderStrip(); $('sheetBody').scrollTop = st;
+    fitCourse();
   }
   function scrollToRow(k) {
     const body = $('sheetBody'), r = body.querySelector(`.row[data-k="${k}"]`); if (!r) return;
@@ -886,7 +899,7 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
   // 表のスクロールに地図を合わせる：スクロールが止まってから 1 回だけ（OSM のタイル取得を増やさない）
   const follow = { timer: 0, lock: 0 };
   function onRowsScroll() {
-    if (!isWide() || !state.rows) return; // スマホは全部まで上げると地図がほぼ隠れるので、見えない地図のタイルを読まない
+    if (!isWide() || !state.rows || !state.result) return; // スマホは全部まで上げると地図がほぼ隠れるので、見えない地図のタイルを読まない
     clearTimeout(follow.timer);
     follow.timer = setTimeout(() => {
       if (Date.now() < follow.lock) return;
@@ -1002,23 +1015,37 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
     const lg = $('mapLegend').getBoundingClientRect();
     return { t: Math.round(lg.bottom) + 12, l: 20, r: 20, b: sheetH(state.sheet) + 20 };
   }
-  // 選んだ区間を地図で縁取る（下げた状態では出さない）
+  // スマホで地図の見えている高さが足りない（全部まで上げた／半分が上限まで伸びた）間は、地図を動かさず札も出さない（下げたときに寄せて出す）
+  const mapCramped = () => { if (isWide()) return false; if (state.sheet === 'full') return true; const m = mapInsets(); return window.innerHeight - m.t - m.b < 110; };
+  // 選んだ区間を地図で縁取り、区間と値の札を付ける（v3.0.4：下げた状態でも出す。札を押すと選択を解除）
+  function selLabelHtml(r) {
+    const head = `${Math.round(r.from)}〜${Math.round(r.to)} km　${F.fmtH(r.t)}`; // 区間の始まりの通過時刻（区間表の行と同じ表記）
+    let sub;
+    if (r.na) sub = '予報なし';
+    else { // 値と丸めは区間表の行（renderRows）と揃える。相対風の語は濃い地の上で読める色の組み合わせが無いので文字だけ
+      const mm = r.mm || 0;
+      sub = [r.cls ? `${REL[r.cls]}風${r.ws != null ? ' ' + Math.round(r.ws) + ' m' : ''}` : '風 欠測', mm >= 0.05 ? `雨 ${mm.toFixed(mm >= 10 ? 0 : 1)} mm` : '雨 なし', r.temp != null ? Math.round(r.temp) + '°' : '気温 —'].join('・');
+    }
+    return `<button type="button" aria-label="選択を解除"><b>${esc(head)}</b><span>${esc(sub)}</span><i aria-hidden="true">×</i></button>`;
+  }
   function drawSelection() {
     if (!lmap || !lmapLayers || !lmapLayers.sel) return;
     lmapLayers.sel.clearLayers(); lmapLayers.label.clearLayers();
     const r = (state.rows || []).find(q => q.from === state.active);
-    if (!r || (state.sheet === 'peek' && !isWide())) return;
+    if (!r) return;
     const pts = [RW.course.interp(state.course, r.from), ...state.course.pts.filter(q => q.d > r.from && q.d < r.to), RW.course.interp(state.course, r.to)];
     L.polyline(pts.map(q => [q.lat, q.lon]), { pane: 'sel', color: cssVar('--ink'), weight: 14, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(lmapLayers.sel);
+    if (mapCramped()) return; // 札が凡例とシートの間に収まらないときは縁取りだけ
     const c = RW.course.interp(state.course, (r.from + r.to) / 2);
-    const label = `${Math.round(r.from)}〜${Math.round(r.to)} km`;
-    L.marker([c.lat, c.lon], { icon: L.divIcon({ className: 'selLabel', html: `<span>${label}</span>`, iconSize: [0, 0], iconAnchor: [0, 26] }), interactive: false, keyboard: false }).addTo(lmapLayers.label);
+    // 札は区間の中ほどの上（下端を中ほどの 12 px 上に。高さは CSS の translate で引くので 2 行でも縁取りの中心に被らない）。押すと選択を解除（地図のクリックには伝えない）
+    L.marker([c.lat, c.lon], { icon: L.divIcon({ className: 'selLabel', html: selLabelHtml(r), iconSize: [0, 0], iconAnchor: [0, 12] }), keyboard: false, zIndexOffset: 1000, bubblingMouseEvents: false })
+      .on('click', e => { if (e.originalEvent) L.DomEvent.stop(e.originalEvent); clearSelection(); }).addTo(lmapLayers.label);
   }
   // 選んだ区間を地図の見えている範囲の中央に。拡大率はシートの状態ごとに 1 つに固定し、移動は横にずらすだけ（タイルを使い回す）
   function focusRow(k) {
     drawSelection();
     if (!lmap || !state.course) return;
-    if (!isWide() && state.sheet === 'full') return; // 地図がほぼ隠れている間は動かさない（下げたときに寄せる）
+    if (mapCramped()) return; // 地図がほぼ隠れている間は動かさない（下げたときに寄せる）
     const r = (state.rows || []).find(q => q.from === k); if (!r) return;
     const m = mapInsets(), W = window.innerWidth, H = window.innerHeight;
     const vh = Math.max(120, H - m.t - m.b), vw = Math.max(120, W - m.l - m.r);
@@ -1458,6 +1485,7 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
     const el = $(target || state.posTarget); if (!el) return;
     if (!html) { el.className = 'posMsg hidden'; el.innerHTML = ''; return; }
     el.className = 'posMsg' + (cls ? ' ' + cls : ''); el.innerHTML = html;
+    if (el.id === 'gpsMsg') requestAnimationFrame(revealGpsMsg);
   }
   function posStore() { const h = store.get('rw:posHist'); return (h && state.course && h.hash === RW.course.hashCourse(state.course)) ? h : { hash: state.course ? RW.course.hashCourse(state.course) : '', list: [], done: [] }; }
   function posHistory() { return posStore().list || []; }
@@ -1603,13 +1631,26 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
     document.documentElement.classList.toggle('sheetFull', st === 'full');
     if (st !== 'full') $('sheetBody').scrollTop = 0; // 下げた状態と半分は中身を先頭から見せる
     sheetLayout(); drawSelection();
-    if (st === 'peek') setTimeout(fitCourse, 300); else if (state.active != null) setTimeout(() => focusRow(state.active), 300);
+    if (state.active != null) setTimeout(() => { if (state.active != null) focusRow(state.active); }, 300); // 選んだ区間があれば（下げた状態でも）その区間へ寄せる
+    else if (st === 'peek') setTimeout(fitCourse, 300);
   }
-  function sheetLayout() { if (isMap()) document.documentElement.style.setProperty('--sheet-h', sheetH(state.sheet) + 'px'); }
+  function sheetLayout() { if (!isMap()) return false; const v = sheetH(state.sheet) + 'px', rs = document.documentElement.style; if (rs.getPropertyValue('--sheet-h') === v) return false; rs.setProperty('--sheet-h', v); return true; } // 同じ値なら書き換えない（書き換えたら true）
+  // シートの中身があとから増減したら（お知らせの追加・位置情報の案内・要点の詳細など）高さを測り直す。#results の高さはシートの高さに左右されないので回り続けない。指で引いている間は呼ばない
+  try { if (typeof ResizeObserver === 'function') { let ft = 0; new ResizeObserver(() => { if (!isMap() || $('sheet').classList.contains('drag')) return; if (sheetLayout() && state.active != null) { clearTimeout(ft); ft = setTimeout(() => { if (state.active != null) focusRow(state.active); }, 300); } }).observe($('results')); } } catch (e) { /* 未対応の環境では何もしない */ } // 高さが変わったら、選んだ区間を見えている範囲に寄せ直す
+  // 「現在位置から予報を再取得」の案内が半分の高さに収まらないときは、全部まで上げてその欄を見せる（スマホのみ）
+  function revealGpsMsg() {
+    if (!isMap() || isWide() || state.sheet !== 'half') return;
+    const el = $('gpsMsg'); if (el.classList.contains('hidden')) return;
+    const safe = Math.max(0, parseFloat(getComputedStyle($('sheetBody')).paddingBottom) - 16);
+    if (el.offsetTop + el.offsetHeight + safe <= sheetH('half')) return; // 半分のままで箱の下端まで見える
+    setSheet('full');
+    const body = $('sheetBody'), g = $('gpsWrap');
+    body.scrollTo({ top: Math.max(0, g.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - 8), behavior: 'auto' });
+  }
   function setMapMode(on) {
     const was = isMap();
     document.documentElement.classList.toggle('mapMode', on);
-    if (on && !was) { state.sheet = 'peek'; $('sheet').dataset.state = 'peek'; }
+    if (on && !was) { state.sheet = 'peek'; $('sheet').dataset.state = 'peek'; $('sheetBody').scrollTop = 0; } // 前のコースで全部まで上げてスクロールしていても、下げた状態は先頭から見せる
     if (!on) { closePlan(); document.documentElement.classList.remove('sheetFull'); }
   }
   { // シートの上げ下げ。取っ手を押すと 下げた → 半分 → 全部 → 下げた。上下に引くと近い段階へ（v3.0.1）
@@ -1651,7 +1692,7 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
     window.addEventListener('pointerup', e => { if (e.pointerType === 'mouse') end(); });
     sh.addEventListener('click', e => { if (Date.now() < quietUntil) { e.stopPropagation(); e.preventDefault(); } }, true);
     grab.addEventListener('click', () => { if (!isWide()) setSheet(ORDER[(ORDER.indexOf(state.sheet) + 1) % 3]); });
-    $('strip').addEventListener('click', e => { const svg = e.target.closest('svg'); if (!svg || !state.rows) return; const r = svg.getBoundingClientRect(); const d = Math.max(0, Math.min(state.course.total, (e.clientX - r.left) / r.width * state.course.total)); selectRow(rowFor(d), { scroll: true }); });
+    $('strip').addEventListener('click', e => { const svg = e.target.closest('svg'); if (!svg || !state.rows || !state.result) return; const r = svg.getBoundingClientRect(); const d = Math.max(0, Math.min(state.course.total, (e.clientX - r.left) / r.width * state.course.total)); selectRow(rowFor(d), { scroll: true }); });
     $('rowsTabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || !state.result) return; state.fromHere = b.dataset.here === '1'; state.active = null; state.open.clear(); renderRows(); renderStrip(); });
     $('rows').addEventListener('click', e => { const b = e.target.closest('.row'); if (b) selectRow(+b.dataset.k, { toggle: true, scroll: state.sheet === 'peek' && !isWide() }); });
     $('sheetBody').addEventListener('scroll', onRowsScroll, { passive: true });
@@ -1719,7 +1760,7 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
     $('results').classList.add('hidden'); $('notice').className = 'notice hidden'; $('notice').innerHTML = ''; $('notice0').className = 'notice hidden';
     setMapMode(false);
     $('cName').textContent = 'コース未読み込み'; $('cMeta').innerHTML = C_META_DEFAULT;
-    closeLoad(); state.gpsShown = false; renderCourse(); renderRecent(); ['gps', 'gpsWrap', 'menuGps'].forEach(id => $(id).classList.add('hidden'));
+    closeLoad(); state.gpsShown = false; renderCourse(); renderRecent(); ['gpsWrap', 'menuGps'].forEach(id => $(id).classList.add('hidden')); // #gps 自体は隠さない（外す処理が無いため。表示は #gpsWrap で切り替える）
     setStatus('コースと予報のキャッシュを削除しました');
   });
   $('recent').addEventListener('change', e => { const list = store.get('rw:courses') || []; const c = list[+e.target.value]; e.target.value = ''; if (c && c.course && c.course.pts) setCourse(c.course); });
@@ -1740,9 +1781,9 @@ import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に�
     if (state.startNote && state.startNote.startsWith('出走日時を変更')) state.startNote = '';
     onParamChange();
   }));
-  $('run').addEventListener('click', () => { state.warnings = null; state.amedas = null; run({ force: true }); });
+  $('run').addEventListener('click', () => { state.warnings = null; state.amedas = null; state.planCloseReq = true; run({ force: true }); }); // 成功したら走行計画のシートを閉じる（入力欄の変更などで走る取得では閉じない）
   let rt = null;
-  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.result) { renderRibbon(); sheetLayout(); renderMap(); if (state.sheet === 'peek' || isWide()) fitCourse(); } }, 150); });
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (state.result) { renderRibbon(); sheetLayout(); renderMap(); if (isWide()) fitCourse(); else if (state.sheet === 'peek') { if (state.active != null) focusRow(state.active); else fitCourse(); } } }, 150); }); // 下げた状態で区間を選んでいるときは、その区間に寄せ直す
   window.addEventListener('online', () => { if (state.course && state.offlineNote) run(); });
 
   // 前回の現在地（P-5 の欄は非表示なので）が残っていれば、解除できるようステータス行を出す

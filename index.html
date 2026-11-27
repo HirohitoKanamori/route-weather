@@ -244,7 +244,12 @@
   .rnote.danger{background:var(--lv4);color:#fff;font-weight:600}
   .rnote.emg{background:var(--lv5);color:#fff;font-weight:600;border:1px solid var(--lv5-edge)}
   .rnote.sleep{background:var(--sleep-row);color:var(--sleep);font-weight:600}
-  .selLabel span{display:inline-block;transform:translateX(-50%);background:var(--ink);color:var(--paper);font-size:11px;font-weight:700;line-height:1.5;padding:2px 9px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+  /* 選んだ区間の札（v3.0.4：2 行で値を出し、押すと選択を解除）。下端を区間の中ほどの少し上に置き、高さは上へ伸ばす */
+  .selLabel button{position:absolute;left:0;bottom:0;transform:translateX(-50%);display:grid;grid-template-columns:auto auto;column-gap:8px;align-items:center;text-align:left;margin:0;border:0;
+    background:var(--ink);color:var(--paper);font-family:inherit;padding:5px 8px 5px 10px;border-radius:10px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:pointer}
+  .selLabel b{grid-column:1;font-size:13px;font-weight:700;line-height:1.35}
+  .selLabel span{grid-column:1;font-size:11px;line-height:1.35}
+  .selLabel i{grid-column:2;grid-row:1 / span 2;font-style:normal;font-size:15px;line-height:1;opacity:.8}
   .rowsTabs{display:flex;gap:6px;margin-top:8px}
   .rowsTabs button{flex:1;min-height:36px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-size:13px;cursor:pointer}
   .rowsTabs button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
@@ -346,6 +351,7 @@
   html.mapMode .sheet .summary{margin-top:0}
   html.mapMode .sheet .notice{margin:0 0 8px}
   html.mapMode .sheet .status:empty{display:none}
+  #planStatus{display:none} html.mapMode #planStatus:not(:empty){display:block;margin-top:8px} /* 地図の画面で走行計画のシートを開いているときの取得中・失敗の表示（縦の画面では下の #status に出る） */
   html.mapMode .sheet .panel{background:none;border:0;border-top:1px solid var(--line);border-radius:0;padding:4px 0 0;margin-top:10px}
   html.mapMode .sheet .panel h2,html.mapMode .sheet details.fold{padding-left:0;padding-right:0}
   html.mapMode .sheet .src{margin-top:24px}
@@ -493,6 +499,7 @@
         </div>
         <div class="hidden" id="ancHidden"><input type="number" id="ancD" aria-hidden="true" tabindex="-1"><input type="datetime-local" id="ancT" aria-hidden="true" tabindex="-1"></div>
         <button type="button" class="primary" id="run">予報を取得する</button>
+        <div class="status" id="planStatus" aria-live="polite"></div>
       </div>
     </section>
     <div class="status" id="status" aria-live="polite"></div>
@@ -567,7 +574,7 @@
       <footer class="src">
         <div>予報は参考情報です（<a href="about.html#disclaimer">免責事項</a>）。出典：気象庁 数値予報（<a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> 経由）、注意報・アメダス：気象庁、地図：© OpenStreetMap</div>
         <div class="model" id="modelInfo"></div>
-        <div class="links"><a href="about.html">このサイトについて</a><span class="ver">Route-Weather.jp <b id="appVersion">v3.0.3</b></span></div>
+        <div class="links"><a href="about.html">このサイトについて</a><span class="ver">Route-Weather.jp <b id="appVersion">v3.0.4</b></span></div>
       </footer>
     </div>
   </section>
@@ -577,6 +584,6 @@
 // 表示モードを最初に適用（自動＝OS 設定に従う）
 try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式（生文字列）はそのまま */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
 </script>
-<script type="module" src="js/app.js?v=3.0.3-2"></script>
+<script type="module" src="js/app.js?v=3.0.4"></script>
 </body>
 </html>
