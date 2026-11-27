@@ -412,7 +412,7 @@
   <!-- 地図の凡例と出典：上の札の下に常に出す（OSM の利用ポリシー：出典を他の部品の下に隠さない） -->
   <div class="mapLegend" id="mapLegend">
     <div class="items">
-      <span><i class="lg" style="--c:var(--wx-sun)"></i>晴れ</span><span><i class="lg" style="--c:var(--wx-cloud)"></i>曇り</span><span><i class="lg" style="--c:var(--wx-rain)"></i>雨</span><span class="lgNa hidden"><i class="lg dash"></i>範囲外</span>
+      <span><i class="lg" style="--c:var(--wx-sun)"></i>晴れ</span><span><i class="lg" style="--c:var(--wx-cloud)"></i>曇り</span><span><i class="lg" style="--c:var(--wx-rain)"></i>雨</span><span class="lgNa hidden"><i class="lg dash"></i>予報なし</span>
       <span><svg class="la" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0-8.5 5.6-1H1.8V8.5H-1.8V-1H-5.6Z" fill="var(--head)"/></svg>向かい</span><span><svg class="la" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0-8.5 5.6-1H1.8V8.5H-1.8V-1H-5.6Z" fill="var(--cross)"/></svg>横</span><span><svg class="la" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0-8.5 5.6-1H1.8V8.5H-1.8V-1H-5.6Z" fill="var(--tail)"/></svg>追い</span>
       <button type="button" class="info icon" aria-expanded="false" aria-controls="helpMap" aria-label="地図の読み方"></button>
     </div>
@@ -519,7 +519,7 @@
             <span><i class="swatch" style="background:var(--rain)"></i>降水 mm/h</span>
             <span><i class="swatch" style="background:var(--night);opacity:.25"></i>夜間</span>
             <span><i class="swatch" style="background:var(--sleep);opacity:.45"></i>仮眠</span>
-            <span><i class="swatch" style="background:var(--na);opacity:.5"></i>範囲外</span>
+            <span><i class="swatch" style="background:var(--na);opacity:.5"></i>予報なし</span>
             <button type="button" class="info" aria-expanded="false" aria-controls="helpRibbon">読み方</button>
           </div>
           <div class="help" id="helpRibbon" hidden>矢印は進行方向が基準で、上が追い風、下が向かい風です。標高の塗りは相対風の色、淡い青の帯は降水 0.5 mm/h 以上の区間です。図をタップするとその地点の詳細が出ます。<a href="about.html#ribbon">詳しく</a></div>
@@ -577,6 +577,6 @@
 // 表示モードを最初に適用（自動＝OS 設定に従う）
 try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } catch (e) { /* 旧形式（生文字列）はそのまま */ } if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) { /* noop */ }
 </script>
-<script type="module" src="js/app.js?v=3.0.3"></script>
+<script type="module" src="js/app.js?v=3.0.3-2"></script>
 </body>
 </html>

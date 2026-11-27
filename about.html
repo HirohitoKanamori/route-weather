@@ -100,7 +100,7 @@ try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } ca
     <li><b>風の矢印</b>は進行方向が基準です（上＝追い風、下＝向かい風）。色は <span class="sw" style="background:var(--head)"></span>向かい風、<span class="sw" style="background:var(--cross)"></span>横風、<span class="sw" style="background:var(--tail)"></span>追い風。</li>
     <li><b>雨</b>は 1 時間あたりの降水量（mm）の棒です。0.5 mm/h 以上は濃く、その区間の背景を淡い青にしています。</li>
     <li><b>標高</b>の塗りは、その地点の相対風の色です。</li>
-    <li>紫の帯は仮眠、灰色の帯は夜間（日没〜日の出）と予報範囲外です。</li>
+    <li>紫の帯は仮眠、灰色の帯は夜間（日没〜日の出）と予報なし（予報範囲外、または予報を取得できなかった区間）です。</li>
     <li>図をタップするとその地点の詳細が出て、その区間が地図で縁取られます。もう一度タップで閉じます。</li>
   </ul>
   <h3 id="rows">区間表</h3>
@@ -113,7 +113,7 @@ try { let th = localStorage.getItem('rw:theme'); try { th = JSON.parse(th); } ca
   </ul>
   <h3 id="map">地図と風向</h3>
   <ul>
-    <li><b>線の色</b>は通過時刻の予報です：<span class="sw" style="background:#6E9AD6"></span>雨（降水 0.5 mm/h 以上）、<span class="sw" style="background:#A6AEB3"></span>曇り、<span class="sw" style="background:#F0B36B"></span>晴れ。点線は予報範囲外。</li>
+    <li><b>線の色</b>は通過時刻の予報です：<span class="sw" style="background:#6E9AD6"></span>雨（降水 0.5 mm/h 以上）、<span class="sw" style="background:#A6AEB3"></span>曇り、<span class="sw" style="background:#F0B36B"></span>晴れ。点線は予報なし（予報範囲外、または予報を取得できなかった区間）。</li>
     <li><b>矢印</b>は風の吹いていく向き（実際の方位）で、色は相対風です。矢印を押すと、区間表のその区間が開きます。</li>
     <li>「»」は進行方向、● はスタート、○ はゴールです。凡例と地図の出典は上の札の下に出しています。</li>
   </ul>

@@ -1,5 +1,5 @@
 // Route-Weather.jp — 画面・入力・ネットワーク（ui / view / 取得層）
-import { RW } from './core.js?v=3.0.3'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
+import { RW } from './core.js?v=3.0.3-2'; // 版を付けて、公開直後に新しい app.js と古い core.js（HTTP キャッシュ）が混ざらないようにする
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -1399,7 +1399,7 @@ import { RW } from './core.js?v=3.0.3'; // 版を付けて、公開直後に新�
     const box = (x, y, w, h) => { ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, 10); else ctx.rect(x, y, w, h); ctx.fill(); };
     ctx.font = '20px ' + FONT;
     const items = [['line', v('--wx-sun'), '晴れ'], ['line', v('--wx-cloud'), '曇り'], ['line', v('--wx-rain'), '雨'], ['arrow', v('--head'), '向かい風'], ['arrow', v('--cross'), '横風'], ['arrow', v('--tail'), '追い風']];
-    if (S.some(s => s.na)) items.splice(3, 0, ['dash', v('--na'), '範囲外']);
+    if (S.some(s => s.na)) items.splice(3, 0, ['dash', v('--na'), '予報なし']); // 範囲外と取得の失敗のどちらにも当てはまる言い方
     const lw = items.reduce((a, it) => a + 32 + ctx.measureText(it[2]).width + 16, 0) + 12, lh = 44, ly = H - 16 - lh;
     box(16, ly, lw, lh);
     let x = 28; const yy = ly + 29;
